@@ -1,0 +1,97 @@
+{
+  "name": "db-model-router",
+  "version": "1.0.0",
+  "description": "Generative API Creation using mysql2 and express libraries in node js",
+  "main": "src/index.js",
+  "bin": {
+    "generate-model": "src/cli/generate-model.js",
+    "generate-route": "src/cli/generate-route.js",
+    "generate-app": "src/cli/generate-app.js"
+  },
+  "scripts": {
+    "dev": "nodemon src/serve.js",
+    "test": "dotenv -e env/.env.default -- mocha --exit",
+    "test:sqlite3": "dotenv -e env/.env.sqlite3 -- mocha test/adapters/sqlite3.*.test.js test/properties/sqlite3.filter.property.test.js --timeout 15000 --exit",
+    "test:mysql": "dotenv -e env/.env.mysql -- mocha test/adapters/mysql.*.test.js test/properties/mysql.filter.property.test.js --timeout 15000 --exit",
+    "test:postgres": "dotenv -e env/.env.postgres -- mocha test/adapters/postgres.*.test.js test/properties/postgres.filter.property.test.js --timeout 15000 --exit",
+    "test:oracle": "dotenv -e env/.env.oracle -- mocha test/adapters/oracle.*.test.js test/properties/oracle.filter.property.test.js --timeout 30000 --exit",
+    "test:mongodb": "dotenv -e env/.env.mongodb -- mocha test/adapters/mongodb.*.test.js test/properties/mongodb.filter.property.test.js --timeout 15000 --exit",
+    "test:dynamodb": "dotenv -e env/.env.dynamodb -- mocha test/adapters/dynamodb.*.test.js test/properties/dynamodb.filter.property.test.js --timeout 15000 --exit",
+    "test:redis": "dotenv -e env/.env.redis -- mocha test/adapters/redis.*.test.js --timeout 15000 --exit",
+    "test:cockroachdb": "dotenv -e env/.env.cockroachdb -- mocha test/adapters/cockroachdb.*.test.js --timeout 15000 --exit",
+    "test:mssql": "dotenv -e env/.env.mssql -- mocha test/adapters/mssql.*.test.js --timeout 30000 --exit",
+    "test:properties": "mocha test/properties/*.property.test.js --timeout 30000 --exit",
+    "test:all": "mocha test/adapters/*.test.js test/properties/*.property.test.js test/function.test.js --timeout 30000 --exit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eforge-xyz/rest-router.git"
+  },
+  "keywords": [
+    "mysql2",
+    "express",
+    "generative",
+    "rest",
+    "api"
+  ],
+  "author": "Avinash S Karanth",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/eforge-xyz/rest-router/issues"
+  },
+  "homepage": "https://github.com/eforge-xyz/rest-router#readme",
+  "dependencies": {
+    "body-parser": "^1.20.0",
+    "dotenv": "^10.0.0",
+    "express": "^4.17.2",
+    "lodash": "^4.17.21",
+    "node-input-validator": "^4.5.0"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1029.0",
+    "@aws-sdk/lib-dynamodb": "^3.1029.0",
+    "better-sqlite3": "^12.9.0",
+    "ioredis": "^5.10.1",
+    "mongodb": "^7.1.1",
+    "mssql": "^12.2.1",
+    "mysql2": "^3.14.4",
+    "oracledb": "^6.10.0",
+    "pg": "^8.20.0"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-dynamodb": {
+      "optional": true
+    },
+    "@aws-sdk/lib-dynamodb": {
+      "optional": true
+    },
+    "better-sqlite3": {
+      "optional": true
+    },
+    "ioredis": {
+      "optional": true
+    },
+    "mongodb": {
+      "optional": true
+    },
+    "mssql": {
+      "optional": true
+    },
+    "mysql2": {
+      "optional": true
+    },
+    "oracledb": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "dotenv-cli": "^11.0.0",
+    "faker": "^5.5.3",
+    "fast-check": "^4.6.0",
+    "mocha": "^11.7.2",
+    "supertest": "^6.2.4"
+  }
+}

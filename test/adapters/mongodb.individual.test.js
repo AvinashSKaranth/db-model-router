@@ -1,0 +1,134 @@
+process.env.NODE_ENV = "TEST";
+const crypto = require("crypto");
+const assert = require("assert");
+const db = require("../../src/mongodb/db.js");
+const model = require("../../src/commons/model.js");
+
+const collectionName =
+  "test_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+const modelStructure = {
+  _id: "string",
+  name: "required|string",
+  email: "required|string",
+  age: "required|integer",
+};
+const primaryKey = "_id";
+
+let testModel;
+
+describe("MongoDB Individual Operations", function () {
+  before(async function () {
+    this.timeout(10000);
+    const host = process.env.MONGO_HOST || "localhost";
+    const port = process.env.MONGO_PORT || 27017;
+    const database = process.env.MONGO_DB || "test_db";
+    db.connect({ host, port, database });
+    testModel = model(db, collectionName, modelStructure, primaryKey, [
+      primaryKey,
+    ]);
+  });
+
+  after(async function () {
+    this.timeout(10000);
+    try {
+      await db.query(collectionName, "drop");
+    } catch (e) {
+      // collection may not exist
+    }
+    await db.disconnect();
+  });
+
+  describe("Single Entry", function () {
+    let insertedRecord;
+
+    it("should insert a single record and return it with a valid PK", async function () {
+      const result = await testModel.insert({
+        name: "Alice",
+        email: "alice@example.com",
+        age: 30,
+      });
+      assert.ok(result, "insert should return a record");
+      assert.ok(result._id, "returned record should have a valid PK");
+      assert.strictEqual(result.name, "Alice");
+      assert.strictEqual(result.email, "alice@example.com");
+      assert.strictEqual(result.age, 30);
+      insertedRecord = result;
+    });
+
+    it("should get the record by ID using find with _id", async function () {
+      const result = await testModel.find({ _id: insertedRecord._id });
+      assert.ok(result.data.length > 0, "find by _id should return a record");
+      assert.strictEqual(
+        String(result.data[0]._id),
+        String(insertedRecord._id),
+      );
+      assert.strictEqual(result.data[0].name, "Alice");
+      assert.strictEqual(result.data[0].email, "alice@example.com");
+    });
+
+    it("should get the record by conditions using find", async function () {
+      const result = await testModel.find({ name: "Alice" });
+      assert.ok(Array.isArray(result.data), "find should return data array");
+      assert.ok(result.count >= 1, "count should be at least 1");
+      assert.strictEqual(result.data[0].name, "Alice");
+    });
+
+    it("should return the record using findOne with valid filter", async function () {
+      const record = await testModel.findOne({ email: "alice@example.com" });
+      assert.ok(record, "findOne should return a record");
+      assert.strictEqual(record.email, "alice@example.com");
+    });
+
+    it("should return false from findOne when no record matches", async function () {
+      const record = await testModel.findOne({
+        email: "nonexistent@example.com",
+      });
+      assert.strictEqual(
+        record,
+        false,
+        "findOne should return false for no match",
+      );
+    });
+
+    it("should update a record and return updated fields", async function () {
+      const updated = await testModel.update({
+        _id: insertedRecord._id.toString(),
+        name: "Alice Updated",
+        email: "alice_updated@example.com",
+        age: 31,
+      });
+      assert.ok(updated, "update should return the updated record");
+      assert.strictEqual(updated.name, "Alice Updated");
+      assert.strictEqual(updated.email, "alice_updated@example.com");
+      assert.strictEqual(updated.age, 31);
+    });
+
+    it("should remove a record by filter and find returns empty", async function () {
+      await testModel.remove({ _id: insertedRecord._id });
+      const result = await testModel.find({ _id: insertedRecord._id });
+      assert.strictEqual(
+        result.count,
+        0,
+        "find should return count 0 after removal",
+      );
+    });
+
+    it("should remove a record by name filter", async function () {
+      const rec = await testModel.insert({
+        name: "Bob",
+        email: "bob@example.com",
+        age: 25,
+      });
+      assert.ok(rec._id);
+
+      await testModel.remove({ name: "Bob" });
+      const result = await testModel.find({ name: "Bob" });
+      assert.strictEqual(
+        result.count,
+        0,
+        "find should return count 0 after filter removal",
+      );
+      assert.strictEqual(result.data.length, 0);
+    });
+  });
+});
