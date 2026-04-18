@@ -56,7 +56,7 @@ function getPayloadValidator(type, structure, pk, bulk = false) {
         break;
       case "DELETE":
       case "GET":
-        validator.body[i] = structure[pk];
+        validator.body[pk] = structure[pk];
         break;
       default:
         break;
@@ -65,13 +65,25 @@ function getPayloadValidator(type, structure, pk, bulk = false) {
   }
 }
 function errorResponse(res, err) {
-  let message = "";
-  if (err.hasOwnProperty("sqlMessage")) message = err.sqlMessage;
-  else if (err.hasOwnProperty("message")) message = err.message;
-  else message = "unknown error: " + err.toString();
   let status = 500;
   if (err.hasOwnProperty("cause") && err.cause.hasOwnProperty("status")) {
     status = err.cause.status;
+  }
+  // For client errors (4xx), return the validation message.
+  // For server/database errors (5xx), return a generic message to avoid leaking internals.
+  let message;
+  if (status >= 400 && status < 500) {
+    message = err.message || "Bad request";
+  } else {
+    if (
+      process.env.NODE_ENV === "development" ||
+      process.env.NODE_ENV === "test" ||
+      process.env.NODE_ENV === "TEST"
+    ) {
+      message = err.sqlMessage || err.message || "Internal server error";
+    } else {
+      message = "Internal server error";
+    }
   }
   res.status(status).send({ type: "danger", message });
 }

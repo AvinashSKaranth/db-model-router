@@ -362,11 +362,14 @@ module.exports = function model(
       let size = 30;
       let sort = [];
       if (data.hasOwnProperty("page")) {
-        page = data.page;
+        page = parseInt(data.page, 10);
+        if (isNaN(page) || page < 0) page = 0;
         delete data.page;
       }
       if (data.hasOwnProperty("size")) {
-        size = data.size;
+        size = parseInt(data.size, 10);
+        if (isNaN(size) || size < 1) size = 30;
+        if (size > 200) size = 200;
         delete data.size;
       }
       if (data.hasOwnProperty("sort")) {

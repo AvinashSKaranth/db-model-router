@@ -43,13 +43,18 @@ function sort_builder(sort) {
   };
 }
 function where(filter, safeDelete = null) {
+  if (filter !== null && filter !== "" && !Array.isArray(filter)) {
+    return null;
+  }
   try {
     if (
       filter === null ||
       filter === "" ||
       filter.length === 0 ||
-      filter[0].length == [[]] ||
-      filter[0][0].length == [[[]]]
+      (Array.isArray(filter[0]) && filter[0].length === 0) ||
+      (Array.isArray(filter[0]) &&
+        Array.isArray(filter[0][0]) &&
+        filter[0][0].length === 0)
     ) {
       if (safeDelete === null) {
         return {
@@ -258,16 +263,12 @@ function upsert(table, data, uniqueKeys = []) {
           promise.push(
             pool
               .promise()
-              .query(
-                statement,
-                [table, ...insertColumn, value, ...updateColumn],
-                function (_error, results) {
-                  if (error) {
-                    reject(error);
-                  }
-                  resolve(results);
-                },
-              ),
+              .query(statement, [
+                table,
+                ...insertColumn,
+                value,
+                ...updateColumn,
+              ]),
           );
           value = [];
           count = 0;
@@ -278,16 +279,7 @@ function upsert(table, data, uniqueKeys = []) {
       promise.push(
         pool
           .promise()
-          .query(
-            statement,
-            [table, ...insertColumn, value, ...updateColumn],
-            function (error, results) {
-              if (error) {
-                reject(error);
-              }
-              resolve(results);
-            },
-          ),
+          .query(statement, [table, ...insertColumn, value, ...updateColumn]),
       );
     }
 
@@ -417,18 +409,7 @@ function insert(table, data, uniqueKeys = []) {
         total++;
         if (count > 999) {
           promise.push(
-            pool
-              .promise()
-              .query(
-                statement,
-                [table, ...insertColumn, value],
-                function (_error, results) {
-                  if (error) {
-                    reject(error);
-                  }
-                  resolve(results);
-                },
-              ),
+            pool.promise().query(statement, [table, ...insertColumn, value]),
           );
           value = [];
           count = 0;
@@ -437,18 +418,7 @@ function insert(table, data, uniqueKeys = []) {
     }
     if (count > 0) {
       promise.push(
-        pool
-          .promise()
-          .query(
-            statement,
-            [table, ...insertColumn, value],
-            function (error, results) {
-              if (error) {
-                reject(error);
-              }
-              resolve(results);
-            },
-          ),
+        pool.promise().query(statement, [table, ...insertColumn, value]),
       );
     }
 

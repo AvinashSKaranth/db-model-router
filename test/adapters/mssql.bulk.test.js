@@ -161,6 +161,60 @@ describe("MSSQL Bulk Operations", function () {
     });
   });
 
+  describe("100k Bulk Insert & Delete Benchmark", function () {
+    this.timeout(120000);
+    const TOTAL = 100_000;
+
+    function generateRecords(count) {
+      const records = [];
+      for (let i = 0; i < count; i++) {
+        records.push({
+          name: "Bench_" + i,
+          email: "bench_" + i + "@load.test",
+          age: 18 + (i % 60),
+        });
+      }
+      return records;
+    }
+
+    it("should bulk insert 100,000 records", async function () {
+      const records = generateRecords(TOTAL);
+      const start = process.hrtime.bigint();
+      const result = await testModel.insert({ data: records });
+      const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
+
+      console.log(
+        `        → Inserted ${result.rows.toLocaleString()} rows in ${elapsed.toFixed(0)} ms ` +
+          `(${Math.round(result.rows / (elapsed / 1000)).toLocaleString()} rows/s)`,
+      );
+
+      assert.strictEqual(result.rows, TOTAL, "rows count must match input");
+      assert.strictEqual(result.type, "success");
+    });
+
+    it("should count all 100,000 persisted rows", async function () {
+      const count = await db.qcount(tableName, [], null);
+      assert.ok(count >= TOTAL, "table must contain at least 100k rows");
+    });
+
+    it("should bulk delete all 100,000 records by filter", async function () {
+      const start = process.hrtime.bigint();
+      const result = await testModel.remove({
+        filter: [[["age", ">=", 0]]],
+      });
+      const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
+
+      console.log(`        → Deleted rows in ${elapsed.toFixed(0)} ms`);
+
+      assert.ok(result.message, "remove should return a message");
+    });
+
+    it("should have 0 rows after bulk delete", async function () {
+      const count = await db.qcount(tableName, [], null);
+      assert.strictEqual(count, 0, "table should be empty after bulk delete");
+    });
+  });
+
   describe("Invalid Data Handling", function () {
     it("should throw on bulk insert with missing required fields", async function () {
       await assert.rejects(

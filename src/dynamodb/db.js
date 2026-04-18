@@ -42,13 +42,18 @@ function tableName(table) {
 }
 
 function where(filter, safeDelete = null) {
+  if (filter !== null && filter !== "" && !Array.isArray(filter)) {
+    return null;
+  }
   try {
     if (
       filter === null ||
       filter === "" ||
       filter.length === 0 ||
-      filter[0].length == [[]] ||
-      filter[0][0].length == [[[]]]
+      (Array.isArray(filter[0]) && filter[0].length === 0) ||
+      (Array.isArray(filter[0]) &&
+        Array.isArray(filter[0][0]) &&
+        filter[0][0].length === 0)
     ) {
       if (safeDelete === null) {
         return { query: "", value: {}, names: {} };

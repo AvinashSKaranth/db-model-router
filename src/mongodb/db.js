@@ -32,13 +32,18 @@ async function query(collection, operation, ...args) {
 }
 
 function where(filter, safeDelete = null) {
+  if (filter !== null && filter !== "" && !Array.isArray(filter)) {
+    return null;
+  }
   try {
     if (
       filter === null ||
       filter === "" ||
       filter.length === 0 ||
-      filter[0].length == [[]] ||
-      filter[0][0].length == [[[]]]
+      (Array.isArray(filter[0]) && filter[0].length === 0) ||
+      (Array.isArray(filter[0]) &&
+        Array.isArray(filter[0][0]) &&
+        filter[0][0].length === 0)
     ) {
       if (safeDelete === null) {
         return { query: {}, value: [] };
@@ -122,12 +127,12 @@ function where(filter, safeDelete = null) {
           break;
         case "like":
           andConditions.push({
-            [field]: { $regex: val, $options: "i" },
+            [field]: { $regex: escapeRegex(val), $options: "i" },
           });
           break;
         case "not like":
           andConditions.push({
-            [field]: { $not: { $regex: val, $options: "i" } },
+            [field]: { $not: { $regex: escapeRegex(val), $options: "i" } },
           });
           break;
         case "in":
@@ -331,6 +336,13 @@ async function disconnect() {
 }
 
 // --- Utility helpers ---
+
+/**
+ * Escape special regex characters in a string so it can be safely used in $regex.
+ */
+function escapeRegex(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 function buildSort(sort) {
   if (!sort || sort.length < 1) {

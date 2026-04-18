@@ -1,4 +1,4 @@
-const { Pool } = require("pg");
+﻿const { Pool } = require("pg");
 const { jsonSafeParse } = require("../commons/function");
 const sqlTranslator = require("./sql_translator");
 
@@ -45,6 +45,14 @@ function mapPgError(err) {
 function isRetryable(err) {
   const code = err.code || "";
   return RETRYABLE_ERRORS.includes(code);
+}
+
+/**
+ * Quote a PostgreSQL identifier to prevent SQL injection.
+ * Doubles any embedded double-quotes, then wraps in double-quotes.
+ */
+function escapeId(name) {
+  return '"' + String(name).replace(/"/g, '""') + '"';
 }
 
 function connect(config) {
@@ -224,13 +232,18 @@ async function query(sql, parameter = []) {
 
 // WHERE builder
 function where(filter, safeDelete = null) {
+  if (filter !== null && filter !== "" && !Array.isArray(filter)) {
+    return null;
+  }
   try {
     if (
       filter === null ||
       filter === "" ||
       filter.length === 0 ||
-      filter[0].length == [[]] ||
-      filter[0][0].length == [[[]]]
+      (Array.isArray(filter[0]) && filter[0].length === 0) ||
+      (Array.isArray(filter[0]) &&
+        Array.isArray(filter[0][0]) &&
+        filter[0][0].length === 0)
     ) {
       if (safeDelete === null) {
         return { query: "", value: [] };
@@ -278,7 +291,7 @@ function where(filter, safeDelete = null) {
             return "$" + bindIdx;
           })
           .join(",");
-        conditionAnd.push(`${j[0]} ${j[1]} (${placeholders})`);
+        conditionAnd.push(`${escapeId(j[0])} ${j[1]} (${placeholders})`);
         value.push(
           ...j[2].map((v) =>
             typeof v === "boolean" ? (v ? 1 : 0) : v === "" ? null : v,
@@ -286,11 +299,11 @@ function where(filter, safeDelete = null) {
         );
       } else if (j[1] === "like" || j[1] === "not like") {
         bindIdx++;
-        conditionAnd.push(`${j[0]} ${j[1]} $${bindIdx}`);
+        conditionAnd.push(`${escapeId(j[0])} ${j[1]} $${bindIdx}`);
         value.push("%" + j[2] + "%");
       } else {
         bindIdx++;
-        conditionAnd.push(`${j[0]} ${j[1]} $${bindIdx}`);
+        conditionAnd.push(`${escapeId(j[0])} ${j[1]} $${bindIdx}`);
         // Coerce empty string to null (PG won't cast '' to bigint/int)
         // Coerce booleans to 0/1 (PG smallint columns store true/false as 1/0)
         let val = j[2];
@@ -313,9 +326,9 @@ function sort_builder(sort) {
   let items = [];
   for (const item of sort) {
     if (item[0] === "-") {
-      items.push(item.replace("-", "") + " DESC");
+      items.push(escapeId(item.replace("-", "")) + " DESC");
     } else {
-      items.push(item + " ASC");
+      items.push(escapeId(item) + " ASC");
     }
   }
   return { query: "ORDER BY " + items.join(","), value: [] };
@@ -326,7 +339,7 @@ async function get(table, filter = [], sort = [], safeDelete = null) {
   const sortData = sort_builder(sort);
   if (whereData == null) throw new Error(WHERE_INVALID);
 
-  const sql = `SELECT * FROM ${table} ${whereData.query} ${sortData.query}`;
+  const sql = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query}`;
   const rows = await query(`/* PG_NATIVE */ ${sql}`, whereData.value);
   const count = await qcount(table, filter, safeDelete);
   return { data: jsonSafeParse(rows), count };
@@ -345,7 +358,7 @@ async function list(
   if (whereData == null) throw new Error(WHERE_INVALID);
 
   const offset = page * limit;
-  const sql = `SELECT * FROM ${table} ${whereData.query} ${sortData.query} LIMIT ${limit} OFFSET ${offset}`;
+  const sql = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query} LIMIT ${limit} OFFSET ${offset}`;
   const rows = await query(`/* PG_NATIVE */ ${sql}`, whereData.value);
   const count = await qcount(table, filter, safeDelete);
   return { data: jsonSafeParse(rows), count };
@@ -354,7 +367,7 @@ async function list(
 async function qcount(table, filter, safeDelete = null) {
   const whereData = where(filter, safeDelete);
   if (whereData == null) return 0;
-  const sql = `SELECT count(*) AS number FROM ${table} ${whereData.query}`;
+  const sql = `SELECT count(*) AS number FROM ${escapeId(table)} ${whereData.query}`;
   try {
     const rows = await query(`/* PG_NATIVE */ ${sql}`, whereData.value);
     return parseInt(rows[0]?.number) || 0;
@@ -373,10 +386,10 @@ async function remove(table, filter, safeDelete = null) {
   let sql;
   let params;
   if (safeDelete != null) {
-    sql = `UPDATE ${table} SET ${safeDelete} = 1 ${whereData.query}`;
+    sql = `UPDATE ${escapeId(table)} SET ${escapeId(safeDelete)} = 1 ${whereData.query}`;
     params = whereData.value;
   } else {
-    sql = `DELETE FROM ${table} ${whereData.query}`;
+    sql = `DELETE FROM ${escapeId(table)} ${whereData.query}`;
     params = whereData.value;
   }
 
@@ -428,8 +441,8 @@ async function insert(table, data, uniqueKeys = []) {
     const row = array[0];
     const vals = columns.map((c) => sanitizeValue(row[c]));
     const placeholders = columns.map((_, i) => "$" + (i + 1)).join(",");
-    let sql = `INSERT INTO ${table} (${columns.join(",")}) VALUES (${placeholders})`;
-    if (pk) sql += ` RETURNING ${pk}`;
+    let sql = `INSERT INTO ${escapeId(table)} (${columns.map(escapeId).join(",")}) VALUES (${placeholders})`;
+    if (pk) sql += ` RETURNING ${escapeId(pk)}`;
 
     const client = await pool.connect();
     try {
@@ -462,7 +475,7 @@ async function insert(table, data, uniqueKeys = []) {
       });
       return "(" + placeholders.join(",") + ")";
     });
-    const sql = `INSERT INTO ${table} (${columns.join(",")}) VALUES ${valuesClauses.join(",")}`;
+    const sql = `INSERT INTO ${escapeId(table)} (${columns.map(escapeId).join(",")}) VALUES ${valuesClauses.join(",")}`;
     await client.query(sql, allParams);
   } catch (e) {
     throw mapPgError(e);
@@ -484,36 +497,42 @@ async function insert(table, data, uniqueKeys = []) {
 async function _insertOnConflict(table, array, columns, uniqueKeys, total) {
   let lastId = 0;
   const pk = await getPkColumn(table);
-  const conflictCols = uniqueKeys.join(",");
+  const conflictCols = uniqueKeys.map(escapeId).join(",");
+  const colList = columns.map(escapeId).join(",");
 
-  for (const row of array) {
-    const vals = columns.map((c) => sanitizeValue(row[c]));
-    const placeholders = columns.map((_, i) => "$" + (i + 1)).join(",");
-    let sql = `INSERT INTO ${table} (${columns.join(",")}) VALUES (${placeholders}) ON CONFLICT (${conflictCols}) DO NOTHING`;
-    if (pk) sql += ` RETURNING ${pk}`;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
 
-    const client = await pool.connect();
-    try {
+    for (const row of array) {
+      const vals = columns.map((c) => sanitizeValue(row[c]));
+      const placeholders = columns.map((_, i) => "$" + (i + 1)).join(",");
+      let sql = `INSERT INTO ${escapeId(table)} (${colList}) VALUES (${placeholders}) ON CONFLICT (${conflictCols}) DO NOTHING`;
+      if (pk) sql += ` RETURNING ${escapeId(pk)}`;
+
       const result = await client.query(sql, vals);
       if (result.rows && result.rows.length > 0 && pk) {
         lastId = result.rows[0][pk] || 0;
       } else if (total === 1 && pk) {
         // Row already existed, fetch its PK
         const whereClauses = uniqueKeys
-          .map((k, i) => `${k} = $${i + 1}`)
+          .map((k, i) => `${escapeId(k)} = ${i + 1}`)
           .join(" AND ");
         const whereVals = uniqueKeys.map((k) => row[k]);
         const fetched = await client.query(
-          `SELECT ${pk} FROM ${table} WHERE ${whereClauses}`,
+          `SELECT ${escapeId(pk)} FROM ${escapeId(table)} WHERE ${whereClauses}`,
           whereVals,
         );
         if (fetched.rows.length > 0) lastId = fetched.rows[0][pk] || 0;
       }
-    } catch (e) {
-      throw mapPgError(e);
-    } finally {
-      client.release();
     }
+
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw mapPgError(e);
+  } finally {
+    client.release();
   }
 
   return {
@@ -549,13 +568,13 @@ async function upsert(table, data, uniqueKeys = []) {
         const updateCols = columns.filter((c) => c !== keyCol);
         if (updateCols.length === 0) continue;
         const setClause = updateCols
-          .map((c, i) => `${c} = $${i + 1}`)
+          .map((c, i) => `${escapeId(c)} = $${i + 1}`)
           .join(", ");
         const vals = [
           ...updateCols.map((c) => sanitizeValue(row[c])),
           row[keyCol],
         ];
-        const sql = `UPDATE ${table} SET ${setClause} WHERE ${keyCol} = $${updateCols.length + 1}`;
+        const sql = `UPDATE ${escapeId(table)} SET ${setClause} WHERE ${escapeId(keyCol)} = $${updateCols.length + 1}`;
         await query(`/* PG_NATIVE */ ${sql}`, vals);
         if (row[keyCol]) lastId = row[keyCol];
       }
@@ -576,33 +595,38 @@ async function upsert(table, data, uniqueKeys = []) {
   const pk = await getPkColumn(table);
   let lastId = 0;
 
-  for (const row of array) {
-    const vals = columns.map((c) => sanitizeValue(row[c]));
-    const placeholders = columns.map((_, i) => "$" + (i + 1)).join(",");
-    const conflictCols = uniqueKeys.join(",");
-    const updateSetSql = nonUniqueColumns
-      .map((c) => `${c} = EXCLUDED.${c}`)
-      .join(", ");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
 
-    let sql = `INSERT INTO ${table} (${columns.join(",")}) VALUES (${placeholders}) ON CONFLICT (${conflictCols})`;
-    if (updateSetSql) {
-      sql += ` DO UPDATE SET ${updateSetSql}`;
-    } else {
-      sql += ` DO NOTHING`;
-    }
-    if (pk) sql += ` RETURNING ${pk}`;
+    for (const row of array) {
+      const vals = columns.map((c) => sanitizeValue(row[c]));
+      const placeholders = columns.map((_, i) => "$" + (i + 1)).join(",");
+      const conflictCols = uniqueKeys.map(escapeId).join(",");
+      const updateSetSql = nonUniqueColumns
+        .map((c) => `${escapeId(c)} = EXCLUDED.${escapeId(c)}`)
+        .join(", ");
 
-    const client = await pool.connect();
-    try {
+      let sql = `INSERT INTO ${escapeId(table)} (${columns.map(escapeId).join(",")}) VALUES (${placeholders}) ON CONFLICT (${conflictCols})`;
+      if (updateSetSql) {
+        sql += ` DO UPDATE SET ${updateSetSql}`;
+      } else {
+        sql += ` DO NOTHING`;
+      }
+      if (pk) sql += ` RETURNING ${escapeId(pk)}`;
+
       const result = await client.query(sql, vals);
       if (result.rows && result.rows.length > 0 && pk) {
         lastId = result.rows[0][pk] || 0;
       }
-    } catch (e) {
-      throw mapPgError(e);
-    } finally {
-      client.release();
     }
+
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw mapPgError(e);
+  } finally {
+    client.release();
   }
 
   const response = {
