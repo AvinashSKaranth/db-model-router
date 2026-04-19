@@ -1,6 +1,6 @@
 {
   "name": "db-model-router",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Generative API Creation using mysql2 and express libraries in node js",
   "main": "src/index.js",
   "bin": {
@@ -25,11 +25,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/eforge-xyz/rest-router.git"
+    "url": "git+https://github.com/AvinashSKaranth/db-model-router"
   },
   "keywords": [
     "mysql2",
     "express",
+    "ultimate-express",
     "generative",
     "rest",
     "api"
@@ -37,13 +38,11 @@
   "author": "Avinash S Karanth",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/eforge-xyz/rest-router/issues"
+    "url": "https://github.com/AvinashSKaranth/db-model-router/issues"
   },
-  "homepage": "https://github.com/eforge-xyz/rest-router#readme",
+  "homepage": "https://github.com/AvinashSKaranth/db-model-router#readme",
   "dependencies": {
-    "body-parser": "^1.20.0",
     "dotenv": "^10.0.0",
-    "express": "^4.17.2",
     "lodash": "^4.17.21",
     "node-input-validator": "^4.5.0"
   },
@@ -51,14 +50,26 @@
     "@aws-sdk/client-dynamodb": "^3.1029.0",
     "@aws-sdk/lib-dynamodb": "^3.1029.0",
     "better-sqlite3": "^12.9.0",
+    "body-parser": "^1.20.0",
+    "express": "^4.17.2 || ^5.0.0",
     "ioredis": "^5.10.1",
     "mongodb": "^7.1.1",
     "mssql": "^12.2.1",
     "mysql2": "^3.14.4",
     "oracledb": "^6.10.0",
-    "pg": "^8.20.0"
+    "pg": "^8.20.0",
+    "ultimate-express": "^2.0.0"
   },
   "peerDependenciesMeta": {
+    "express": {
+      "optional": true
+    },
+    "ultimate-express": {
+      "optional": true
+    },
+    "body-parser": {
+      "optional": true
+    },
     "@aws-sdk/client-dynamodb": {
       "optional": true
     },
@@ -88,7 +99,10 @@
     }
   },
   "devDependencies": {
+    "better-sqlite3": "^12.9.0",
+    "body-parser": "^1.20.0",
     "dotenv-cli": "^11.0.0",
+    "express": "^4.21.0",
     "faker": "^5.5.3",
     "fast-check": "^4.6.0",
     "mocha": "^11.7.2",

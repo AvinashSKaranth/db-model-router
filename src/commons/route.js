@@ -1,4 +1,10 @@
-const express = require("express");
+const express = (() => {
+  try {
+    return require("ultimate-express");
+  } catch (_) {
+    return require("express");
+  }
+})();
 const { errorResponse } = require("./validator");
 const { toCSV, toXML, extractReservedParams, applySelect } = require("./model");
 const _ = require("lodash");

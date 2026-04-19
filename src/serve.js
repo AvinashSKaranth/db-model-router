@@ -1,12 +1,17 @@
 require("dotenv").config();
-const express = require("express");
+let express;
+try {
+  express = require("ultimate-express");
+} catch (_) {
+  express = require("express");
+}
 const app = express();
 const bodyParser = require("body-parser");
 app.use(bodyParser.json({ limit: "128mb" }));
 app.use(
   bodyParser.urlencoded({
     extended: true,
-  })
+  }),
 );
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
@@ -45,7 +50,7 @@ const test = model(
   },
   "test_id",
   [],
-  { safeDelete: "is_deleted" }
+  { safeDelete: "is_deleted" },
 );
 app.use((req, res, next) => {
   req.user = { user_id: "2" };

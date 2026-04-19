@@ -21,7 +21,8 @@ function ensureDir(dir) {
 }
 
 function generateAppJs(dbType) {
-  return `const express = require("express");
+  return `let express;
+try { express = require("ultimate-express"); } catch (_) { express = require("express"); }
 const { init, db } = require("db-model-router");
 const logger = require("./middleware/logger");
 const routes = require("./routes");

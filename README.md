@@ -1,6 +1,6 @@
 # rest-router
 
-A database-agnostic REST API generator for Node.js and Express. Define a model, get a full CRUD API with filtering, pagination, and bulk operations — backed by any of 9 supported databases.
+A database-agnostic REST API generator for Node.js. Works with Express or ultimate-express (a high-performance drop-in replacement). Define a model, get a full CRUD API with filtering, pagination, and bulk operations — backed by any of 9 supported databases.
 
 ## Supported Adapters
 
@@ -18,9 +18,16 @@ A database-agnostic REST API generator for Node.js and Express. Define a model, 
 
 ## Installation
 
-Install the core package along with the driver for your database:
+Install the core package, your preferred Express framework, and the driver for your database:
 
 ```bash
+# Pick your Express framework (one of the two)
+npm install express
+# OR for ~6x faster performance:
+npm install ultimate-express
+
+# Then install db-model-router + your database driver:
+
 # MySQL (default)
 npm install db-model-router mysql2
 
@@ -46,7 +53,7 @@ npm install db-model-router ioredis
 npm install db-model-router @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 ```
 
-Only the driver you need gets installed — all database drivers are optional peer dependencies, so your `node_modules` stays lean.
+Both `express` and `ultimate-express` are optional peer dependencies. The library auto-detects which one is installed (preferring `ultimate-express` when both are present). All database drivers are also optional peer dependencies, so your `node_modules` stays lean.
 
 ## MySQL Example
 
@@ -93,7 +100,8 @@ Schema types: `string`, `integer`, `boolean`, `object`. Prefix with `required|` 
 ### 3. Mount REST Routes
 
 ```js
-const express = require("express");
+// Works with either express or ultimate-express
+const express = require("express"); // or require("ultimate-express")
 const app = express();
 app.use(express.json());
 

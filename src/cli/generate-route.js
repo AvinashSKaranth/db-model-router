@@ -56,7 +56,7 @@ module.exports = route(${varName}, { ${fkColumn}: "params.${fkColumn}" });
  * Supports parent-child nesting: parent/:pk/child
  */
 function generateRoutesIndexFile(tableNames, relationships = []) {
-  let imports = `const express = require("express");\nconst router = express.Router();\n\n`;
+  let imports = `let express;\ntry { express = require("ultimate-express"); } catch (_) { express = require("express"); }\nconst router = express.Router();\n\n`;
 
   // Collect child tables that are nested under parents
   const nestedChildren = new Set();

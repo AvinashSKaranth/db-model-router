@@ -1,6 +1,6 @@
 # rest-router
 
-A database-agnostic REST API generator for Node.js and Express. Define a model, get a full CRUD API with filtering, pagination, and bulk operations — backed by any of 9 supported databases.
+A database-agnostic REST API generator for Node.js. Works with Express or ultimate-express (a high-performance drop-in replacement). Define a model, get a full CRUD API with filtering, pagination, and bulk operations — backed by any of 9 supported databases.
 
 ## Supported Adapters
 
@@ -18,13 +18,19 @@ A database-agnostic REST API generator for Node.js and Express. Define a model, 
 
 ## Installation
 
-Install the core package along with the driver for your database:
+Install the core package, your preferred Express framework, and the driver for your database:
 
 ```bash
+# Pick your Express framework (one of the two)
+npm install express
+# OR for ~6x faster performance:
+npm install ultimate-express
+
+# Then install db-model-router + your database driver
 npm install db-model-router <driver>
 ```
 
-Only the driver you need gets installed — all database drivers are optional peer dependencies.
+Both `express` and `ultimate-express` are optional peer dependencies — the library auto-detects which one is installed (preferring `ultimate-express` when both are present). All database drivers are also optional peer dependencies.
 
 ## MySQL Example
 
@@ -67,7 +73,8 @@ Schema types: `string`, `integer`, `numeric`, `object`. Prefix with `required|` 
 ### 3. Mount REST Routes
 
 ```js
-const express = require("express");
+// Works with either express or ultimate-express
+const express = require("express"); // or require("ultimate-express")
 const app = express();
 app.use(express.json());
 app.use("/users", route(users));
