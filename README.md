@@ -1,4 +1,4 @@
-# rest-router
+# db-model-router
 
 A database-agnostic REST API generator for Node.js. Works with Express or ultimate-express (a high-performance drop-in replacement). Define a model, get a full CRUD API with filtering, pagination, and bulk operations — backed by any of 9 supported databases.
 
@@ -284,13 +284,13 @@ The fastest way to go from database to running API. Scaffolds a complete Express
 
 ```bash
 # Full app from MySQL
-rest-router-generate-app --type mysql --env .env
+db-model-router-generate-app --type mysql --env .env
 
 # SQLite3 into a specific directory
-rest-router-generate-app --type sqlite3 --database ./myapp.db --output ./my-api
+db-model-router-generate-app --type sqlite3 --database ./myapp.db --output ./my-api
 
 # Postgres with specific tables and relationships
-rest-router-generate-app --type postgres --env .env --tables users,posts,posts.comments
+db-model-router-generate-app --type postgres --env .env --tables users,posts,posts.comments
 ```
 
 Options:
@@ -348,16 +348,16 @@ Connects to your database, introspects all tables, and generates model files wit
 
 ```bash
 # Basic usage
-rest-router-generate-model --type mysql --host localhost --database mydb --user root --password secret
+db-model-router-generate-model --type mysql --host localhost --database mydb --user root --password secret
 
 # Using an .env file
-rest-router-generate-model --type postgres --env .env --output ./src/models
+db-model-router-generate-model --type postgres --env .env --output ./src/models
 
 # SQLite3
-rest-router-generate-model --type sqlite3 --database ./myapp.db --output ./models
+db-model-router-generate-model --type sqlite3 --database ./myapp.db --output ./models
 
 # Only specific tables
-rest-router-generate-model --type mysql --env .env --tables users,posts,comments
+db-model-router-generate-model --type mysql --env .env --tables users,posts,comments
 ```
 
 Options:
@@ -397,13 +397,13 @@ Generates Express route files for each model. If models don't exist yet, it auto
 
 ```bash
 # From existing models
-rest-router-generate-route --models ./models --output ./routes
+db-model-router-generate-route --models ./models --output ./routes
 
 # Auto-generate models + routes in one step
-rest-router-generate-route --type mysql --env .env --models ./models --output ./routes
+db-model-router-generate-route --type mysql --env .env --models ./models --output ./routes
 
 # SQLite3 one-liner
-rest-router-generate-route --type sqlite3 --database ./myapp.db
+db-model-router-generate-route --type sqlite3 --database ./myapp.db
 ```
 
 Options:
@@ -428,10 +428,10 @@ Use dot notation in `--tables` to declare parent-child relationships. This works
 
 ```bash
 # Declare that comments belong to posts
-rest-router-generate-route --type mysql --env .env --tables users,posts,posts.comments
+db-model-router-generate-route --type mysql --env .env --tables users,posts,posts.comments
 
 # Same via generate-app
-rest-router-generate-app --type mysql --env .env --tables users,posts,posts.comments
+db-model-router-generate-app --type mysql --env .env --tables users,posts,posts.comments
 ```
 
 The FK column is derived by convention: `<parent_singular>_id` (e.g., `posts.comments` → `post_id`).

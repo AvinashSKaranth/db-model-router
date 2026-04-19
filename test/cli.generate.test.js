@@ -158,7 +158,7 @@ const TABLE_DEFS = [
   },
 ];
 
-describe("CLI Generate - rest-router-generate", function () {
+describe("CLI Generate - db-model-router-generate", function () {
   let rawDb;
 
   before(function () {

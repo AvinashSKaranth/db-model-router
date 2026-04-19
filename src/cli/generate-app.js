@@ -320,7 +320,7 @@ function parseArgs(argv) {
 
 function printUsage() {
   console.log(`
-Usage: rest-router-generate-app --type <db_type> [options]
+Usage: db-model-router-generate-app --type <db_type> [options]
 
 Scaffolds a complete Express REST API app from an existing database.
 Creates: app.js, models/, routes/, middleware/logger.js, migrations/, sessions/, .env.example
@@ -339,9 +339,9 @@ Options:
   --help        Show this help message
 
 Examples:
-  rest-router-generate-app --type mysql --env .env
-  rest-router-generate-app --type sqlite3 --database ./myapp.db --output ./my-api
-  rest-router-generate-app --type postgres --env .env --tables users,posts,posts.comments
+  db-model-router-generate-app --type mysql --env .env
+  db-model-router-generate-app --type sqlite3 --database ./myapp.db --output ./my-api
+  db-model-router-generate-app --type postgres --env .env --tables users,posts,posts.comments
 `);
 }
 

@@ -143,7 +143,7 @@ async function main() {
     if (!dbType) {
       console.error(
         `Error: No models found in "${modelsDir}" and no --type provided to generate them.\n` +
-          `Either generate models first with rest-router-generate-model, or provide --type to auto-generate.`,
+          `Either generate models first with db-model-router-generate-model, or provide --type to auto-generate.`,
       );
       process.exit(1);
     }
@@ -302,7 +302,7 @@ function parseArgs(argv) {
 
 function printUsage() {
   console.log(`
-Usage: rest-router-generate-route [options]
+Usage: db-model-router-generate-route [options]
 
 Options:
   --models      Path to models directory (default: ./models)
@@ -320,13 +320,13 @@ Options:
 
 Examples:
   # Generate routes from existing models
-  rest-router-generate-route --models ./models --output ./routes
+  db-model-router-generate-route --models ./models --output ./routes
 
   # Auto-generate models + routes in one step
-  rest-router-generate-route --type mysql --env .env --models ./models --output ./routes
+  db-model-router-generate-route --type mysql --env .env --models ./models --output ./routes
 
   # SQLite3 example
-  rest-router-generate-route --type sqlite3 --database ./myapp.db
+  db-model-router-generate-route --type sqlite3 --database ./myapp.db
 `);
 }
 

@@ -1,12 +1,12 @@
 {
   "name": "db-model-router",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Generative API Creation using mysql2 and express libraries in node js",
   "main": "src/index.js",
   "bin": {
-    "generate-model": "src/cli/generate-model.js",
-    "generate-route": "src/cli/generate-route.js",
-    "generate-app": "src/cli/generate-app.js"
+    "db-model-router-generate-model": "src/cli/generate-model.js",
+    "db-model-router-generate-route": "src/cli/generate-route.js",
+    "db-model-router-generate-app": "src/cli/generate-app.js"
   },
   "scripts": {
     "dev": "nodemon src/serve.js",

@@ -118,7 +118,7 @@ Generates Express Router with 9 endpoints:
 ### generate-app (full scaffold)
 
 ```bash
-rest-router-generate-app --type mysql --env .env [--output ./dir] [--tables users,posts,posts.comments]
+db-model-router-generate-app --type mysql --env .env [--output ./dir] [--tables users,posts,posts.comments]
 ```
 
 Creates: `app.js`, `models/`, `routes/`, `middleware/logger.js`, `.env.example`, `.gitignore`, `migrations/`, `sessions/`, `openapi.json`
@@ -126,7 +126,7 @@ Creates: `app.js`, `models/`, `routes/`, `middleware/logger.js`, `.env.example`,
 ### generate-model (DB introspection → model files)
 
 ```bash
-rest-router-generate-model --type <db> --env .env [--output ./models] [--tables t1,t2] [--schema public]
+db-model-router-generate-model --type <db> --env .env [--output ./models] [--tables t1,t2] [--schema public]
 ```
 
 Auto-detects: PK, unique indexes, DEFAULT→optional, timestamp cols, soft-delete cols.
@@ -134,7 +134,7 @@ Auto-detects: PK, unique indexes, DEFAULT→optional, timestamp cols, soft-delet
 ### generate-route (model files → route files + OpenAPI)
 
 ```bash
-rest-router-generate-route --models ./models --output ./routes [--tables posts,posts.comments]
+db-model-router-generate-route --models ./models --output ./routes [--tables posts,posts.comments]
 ```
 
 Dot notation `parent.child` creates nested routes: `parent/:parent_id/child` with FK scoping via `<parent_singular>_id`.

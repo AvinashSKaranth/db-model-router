@@ -5,7 +5,7 @@ networks:
 services:
   mysql:
     image: mysql:8.0
-    container_name: rest-router-mysql
+    container_name: db-model-router-mysql
     restart: unless-stopped
     ports:
       - "3306:3306"
@@ -25,7 +25,7 @@ services:
 
   postgres:
     image: postgres:16
-    container_name: rest-router-postgres
+    container_name: db-model-router-postgres
     restart: unless-stopped
     ports:
       - "5432:5432"
@@ -44,7 +44,7 @@ services:
 
   mongodb:
     image: mongo:7
-    container_name: rest-router-mongodb
+    container_name: db-model-router-mongodb
     restart: unless-stopped
     ports:
       - "27017:27017"
@@ -59,7 +59,7 @@ services:
 
   redis:
     image: redis:7
-    container_name: rest-router-redis
+    container_name: db-model-router-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -74,7 +74,7 @@ services:
 
   cockroachdb:
     image: cockroachdb/cockroach:latest
-    container_name: rest-router-cockroachdb
+    container_name: db-model-router-cockroachdb
     restart: unless-stopped
     ports:
       - "26257:26257"
@@ -91,7 +91,7 @@ services:
 
   mssql:
     image: mcr.microsoft.com/mssql/server
-    container_name: rest-router-mssql
+    container_name: db-model-router-mssql
     restart: unless-stopped
     ports:
       - "1433:1433"
@@ -99,7 +99,11 @@ services:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "Password123!"
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools*/bin/sqlcmd -S localhost -U sa -P 'Password123!' -Q 'SELECT 1' || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools*/bin/sqlcmd -S localhost -U sa -P 'Password123!' -Q 'SELECT 1' || exit 1",
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -109,7 +113,7 @@ services:
 
   dynamodb:
     image: amazon/dynamodb-local
-    container_name: rest-router-dynamodb
+    container_name: db-model-router-dynamodb
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -125,7 +129,7 @@ services:
 
   oracle:
     image: gvenzl/oracle-xe:21-slim
-    container_name: rest-router-oracle
+    container_name: db-model-router-oracle
     restart: unless-stopped
     ports:
       - "1521:1521"

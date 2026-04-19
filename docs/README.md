@@ -1,4 +1,4 @@
-# rest-router
+# db-model-router
 
 A database-agnostic REST API generator for Node.js. Works with Express or ultimate-express (a high-performance drop-in replacement). Define a model, get a full CRUD API with filtering, pagination, and bulk operations — backed by any of 9 supported databases.
 
@@ -174,9 +174,9 @@ The model and route APIs remain identical across all adapters.
 Scaffolds a complete Express REST API from an existing database.
 
 ```bash
-rest-router-generate-app --type mysql --env .env
-rest-router-generate-app --type sqlite3 --database ./myapp.db --output ./my-api
-rest-router-generate-app --type postgres --env .env --tables users,posts,posts.comments
+db-model-router-generate-app --type mysql --env .env
+db-model-router-generate-app --type sqlite3 --database ./myapp.db --output ./my-api
+db-model-router-generate-app --type postgres --env .env --tables users,posts,posts.comments
 ```
 
 Creates: `app.js`, `models/`, `routes/`, `middleware/logger.js`, `.env.example`, `openapi.json`
@@ -186,7 +186,7 @@ Creates: `app.js`, `models/`, `routes/`, `middleware/logger.js`, `.env.example`,
 Introspects DB → generates model files with auto-detected PK, unique indexes, timestamps, soft-delete.
 
 ```bash
-rest-router-generate-model --type mysql --env .env --output ./models [--tables users,posts]
+db-model-router-generate-model --type mysql --env .env --output ./models [--tables users,posts]
 ```
 
 ### generate-route
@@ -194,7 +194,7 @@ rest-router-generate-model --type mysql --env .env --output ./models [--tables u
 Generates route files + OpenAPI spec from models. Supports parent-child via dot notation.
 
 ```bash
-rest-router-generate-route --models ./models --output ./routes [--tables posts,posts.comments]
+db-model-router-generate-route --models ./models --output ./routes [--tables posts,posts.comments]
 ```
 
 `posts.comments` → nested route `posts/:post_id/comments` with FK scoping.

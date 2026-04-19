@@ -711,7 +711,7 @@ function parseArgs(argv) {
 
 function printUsage() {
   console.log(`
-Usage: rest-router-generate-model --type <db_type> [options]
+Usage: db-model-router-generate-model --type <db_type> [options]
 
 Options:
   --type        Database type (${SUPPORTED_TYPES.join(", ")})
@@ -728,9 +728,9 @@ Options:
   --help        Show this help message
 
 Examples:
-  rest-router-generate-model --type mysql --host localhost --database mydb --user root --password secret
-  rest-router-generate-model --type sqlite3 --database ./myapp.db --output ./src/models
-  rest-router-generate-model --type postgres --env .env --output ./models
+  db-model-router-generate-model --type mysql --host localhost --database mydb --user root --password secret
+  db-model-router-generate-model --type sqlite3 --database ./myapp.db --output ./src/models
+  db-model-router-generate-model --type postgres --env .env --output ./models
 `);
 }
 
