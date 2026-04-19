@@ -6,13 +6,8 @@ try {
   express = require("express");
 }
 const app = express();
-const bodyParser = require("body-parser");
-app.use(bodyParser.json({ limit: "128mb" }));
-app.use(
-  bodyParser.urlencoded({
-    extended: true,
-  }),
-);
+app.use(express.json({ limit: "128mb" }));
+app.use(express.urlencoded({ extended: true }));
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
     return res.status(400).send(err); // Bad request
