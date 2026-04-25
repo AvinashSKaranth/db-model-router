@@ -50,4 +50,4 @@ aws dynamodb create-table \
   --endpoint-url http://localhost:8000
 ```
 
-[← Back to main docs](../README.md)
+[← Back to main docs](../../README.md)

@@ -21,8 +21,10 @@ if (process.env.NODE_ENV === "TEST") {
   port = process.env.port;
 }
 
-const { db, model, route } = require("./index");
-db.connect({
+const { init, model, route } = require("./index");
+const dbModule = require("./index");
+init("mysql");
+dbModule.db.connect({
   connectionLimit: 100,
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -32,7 +34,7 @@ db.connect({
   charset: "utf8mb4",
 });
 const test = model(
-  db,
+  dbModule.db,
   "test",
   {
     test_id: "required|integer",

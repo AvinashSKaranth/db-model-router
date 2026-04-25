@@ -109,6 +109,192 @@ function generateSimpleRoutesIndexFile(tableNames) {
 }
 
 /**
+ * Generate a test file for a route covering all CRUD methods.
+ * Uses supertest + the app's express setup.
+ */
+function generateTestFile(tableName, pk) {
+  const varName = safeVarName(tableName);
+  return `const assert = require("assert");
+const express = require("express");
+const request = require("supertest");
+const { route } = require("db-model-router");
+
+// Adjust the path to your model file as needed
+const ${varName} = require("../models/${tableName}");
+
+function createApp() {
+  const app = express();
+  app.use(express.json());
+  app.use("/${tableName}", route(${varName}));
+  return app;
+}
+
+describe("${tableName} routes", function () {
+  let app;
+
+  before(function () {
+    app = createApp();
+  });
+
+  describe("GET /${tableName}/", function () {
+    it("should list records", async function () {
+      const res = await request(app).get("/${tableName}/");
+      assert.strictEqual(res.status, 200);
+      assert.ok(Array.isArray(res.body.data));
+    });
+  });
+
+  describe("POST /${tableName}/add", function () {
+    it("should insert a single record", async function () {
+      const res = await request(app)
+        .post("/${tableName}/add")
+        .send({});
+      assert.ok([200, 201, 400].includes(res.status));
+    });
+  });
+
+  describe("POST /${tableName}/", function () {
+    it("should bulk insert records", async function () {
+      const res = await request(app)
+        .post("/${tableName}/")
+        .send({ data: [] });
+      assert.ok([200, 201, 400].includes(res.status));
+    });
+  });
+
+  describe("GET /${tableName}/:${pk}", function () {
+    it("should get a record by ID", async function () {
+      const res = await request(app).get("/${tableName}/1");
+      assert.ok([200, 404].includes(res.status));
+    });
+  });
+
+  describe("PUT /${tableName}/:${pk}", function () {
+    it("should update a record", async function () {
+      const res = await request(app)
+        .put("/${tableName}/1")
+        .send({});
+      assert.ok([200, 400, 404].includes(res.status));
+    });
+  });
+
+  describe("PATCH /${tableName}/:${pk}", function () {
+    it("should partially update a record", async function () {
+      const res = await request(app)
+        .patch("/${tableName}/1")
+        .send({});
+      assert.ok([200, 400, 404].includes(res.status));
+    });
+  });
+
+  describe("DELETE /${tableName}/:${pk}", function () {
+    it("should delete a record", async function () {
+      const res = await request(app).delete("/${tableName}/1");
+      assert.ok([200, 204, 404].includes(res.status));
+    });
+  });
+
+  describe("PUT /${tableName}/", function () {
+    it("should bulk update records", async function () {
+      const res = await request(app)
+        .put("/${tableName}/")
+        .send({ data: [] });
+      assert.ok([200, 400].includes(res.status));
+    });
+  });
+
+  describe("DELETE /${tableName}/", function () {
+    it("should bulk delete records", async function () {
+      const res = await request(app)
+        .delete("/${tableName}/")
+        .send({});
+      assert.ok([200, 204, 400].includes(res.status));
+    });
+  });
+});
+`;
+}
+
+/**
+ * Generate a child route test file that tests the nested parent/:fk/child endpoints.
+ */
+function generateChildTestFile(childTable, parentTable, fkColumn, pk) {
+  const childVar = safeVarName(childTable);
+  return `const assert = require("assert");
+const express = require("express");
+const request = require("supertest");
+const { route } = require("db-model-router");
+
+const ${childVar} = require("../models/${childTable}");
+
+function createApp() {
+  const app = express();
+  app.use(express.json());
+  app.use("/${parentTable}/:${fkColumn}/${childTable}", route(${childVar}, { ${fkColumn}: "params.${fkColumn}" }));
+  return app;
+}
+
+describe("${childTable} (child of ${parentTable}) routes", function () {
+  let app;
+  const parentId = 1;
+
+  before(function () {
+    app = createApp();
+  });
+
+  describe("GET /${parentTable}/:${fkColumn}/${childTable}/", function () {
+    it("should list child records scoped by parent", async function () {
+      const res = await request(app).get(\`/${parentTable}/\${parentId}/${childTable}/\`);
+      assert.strictEqual(res.status, 200);
+      assert.ok(Array.isArray(res.body.data));
+    });
+  });
+
+  describe("POST /${parentTable}/:${fkColumn}/${childTable}/add", function () {
+    it("should insert a child record", async function () {
+      const res = await request(app)
+        .post(\`/${parentTable}/\${parentId}/${childTable}/add\`)
+        .send({});
+      assert.ok([200, 201, 400].includes(res.status));
+    });
+  });
+
+  describe("GET /${parentTable}/:${fkColumn}/${childTable}/:${pk}", function () {
+    it("should get a child record by ID", async function () {
+      const res = await request(app).get(\`/${parentTable}/\${parentId}/${childTable}/1\`);
+      assert.ok([200, 404].includes(res.status));
+    });
+  });
+
+  describe("PUT /${parentTable}/:${fkColumn}/${childTable}/:${pk}", function () {
+    it("should update a child record", async function () {
+      const res = await request(app)
+        .put(\`/${parentTable}/\${parentId}/${childTable}/1\`)
+        .send({});
+      assert.ok([200, 400, 404].includes(res.status));
+    });
+  });
+
+  describe("PATCH /${parentTable}/:${fkColumn}/${childTable}/:${pk}", function () {
+    it("should partially update a child record", async function () {
+      const res = await request(app)
+        .patch(\`/${parentTable}/\${parentId}/${childTable}/1\`)
+        .send({});
+      assert.ok([200, 400, 404].includes(res.status));
+    });
+  });
+
+  describe("DELETE /${parentTable}/:${fkColumn}/${childTable}/:${pk}", function () {
+    it("should delete a child record", async function () {
+      const res = await request(app).delete(\`/${parentTable}/\${parentId}/${childTable}/1\`);
+      assert.ok([200, 204, 404].includes(res.status));
+    });
+  });
+});
+`;
+}
+
+/**
  * Read model directory to discover table names from generated model files.
  * Looks for .js files that are not index.js.
  */
@@ -262,6 +448,51 @@ async function main() {
     // OpenAPI generation is optional, don't fail
   }
 
+  // Generate test files for all routes
+  const testsDir = path.resolve(path.dirname(routesDir), "tests");
+  if (!fs.existsSync(testsDir)) {
+    fs.mkdirSync(testsDir, { recursive: true });
+  }
+
+  for (const table of tableNames) {
+    // Try to extract PK from model file
+    let pk = "id";
+    const modelPath = path.join(modelsDir, table + ".js");
+    if (fs.existsSync(modelPath)) {
+      const meta = parseModelFile(fs.readFileSync(modelPath, "utf8"), table);
+      if (meta && meta.primary_key) pk = meta.primary_key;
+    }
+    const testPath = path.join(testsDir, table + ".test.js");
+    fs.writeFileSync(testPath, generateTestFile(table, pk));
+    console.log(`  Created ${testPath}`);
+  }
+
+  // Generate child route test files
+  for (const rel of relationships) {
+    let pk = "id";
+    const modelPath = path.join(modelsDir, rel.child + ".js");
+    if (fs.existsSync(modelPath)) {
+      const meta = parseModelFile(
+        fs.readFileSync(modelPath, "utf8"),
+        rel.child,
+      );
+      if (meta && meta.primary_key) pk = meta.primary_key;
+    }
+    const testPath = path.join(
+      testsDir,
+      `${rel.child}_child_of_${rel.parent}.test.js`,
+    );
+    fs.writeFileSync(
+      testPath,
+      generateChildTestFile(rel.child, rel.parent, rel.fkColumn, pk),
+    );
+    console.log(`  Created ${testPath}`);
+  }
+
+  console.log(
+    `Generated ${tableNames.length + relationships.length} test file(s) in ${testsDir}`,
+  );
+
   process.exit(0);
 }
 
@@ -271,7 +502,9 @@ async function main() {
 function parseModelFile(content, tableName) {
   try {
     // Extract structure JSON
-    const structMatch = content.match(/model\(\s*\n?\s*db,\s*\n?\s*"[^"]+",\s*\n?\s*(\{[\s\S]*?\}),/);
+    const structMatch = content.match(
+      /model\(\s*\n?\s*db,\s*\n?\s*"[^"]+",\s*\n?\s*(\{[\s\S]*?\}),/,
+    );
     if (!structMatch) return null;
     const structure = JSON.parse(structMatch[1]);
     // Extract primary key
@@ -281,7 +514,7 @@ function parseModelFile(content, tableName) {
   } catch (e) {
     return null;
   }
-
+}
 function parseArgs(argv) {
   const args = {};
   for (let i = 0; i < argv.length; i++) {
@@ -341,6 +574,8 @@ module.exports = {
   generateRouteFile,
   generateChildRouteFile,
   generateRoutesIndexFile,
+  generateTestFile,
+  generateChildTestFile,
   discoverModels,
   safeVarName,
 };

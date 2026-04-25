@@ -17,7 +17,7 @@ let test = model(
     info: "required|object",
   },
   "test_id",
-  ["test_id"]
+  ["test_id"],
 );
 describe("Model Function", function () {
   before(function (done) {
@@ -33,7 +33,7 @@ describe("Model Function", function () {
         "`created_at` datetime NOT NULL DEFAULT current_timestamp()," +
         "`modified_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()," +
         "PRIMARY KEY (`test_id`)" +
-        ") ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8mb4"
+        ") ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8mb4",
     ).then((data) => {
       done();
     });
@@ -42,7 +42,6 @@ describe("Model Function", function () {
     db.query("DROP TABLE `" + table + "`;").then(() => {
       done();
     });
-    done();
   });
   let test_id = 0;
   let payload = {
@@ -173,7 +172,7 @@ describe("Model Function", function () {
           assert.equal(payloadUpd.type, data.type);
           assert.equal(
             JSON.stringify(payloadUpd.info),
-            JSON.stringify(data.info)
+            JSON.stringify(data.info),
           );
           done();
         })

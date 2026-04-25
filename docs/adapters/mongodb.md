@@ -53,4 +53,4 @@ const users = model(
 );
 ```
 
-[← Back to main docs](../README.md)
+[← Back to main docs](../../README.md)

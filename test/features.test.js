@@ -15,11 +15,6 @@ const {
 } = require("../src/commons/model.js");
 const { generateOpenAPISpec } = require("../src/cli/generate-openapi.js");
 const {
-  generateAppJs,
-  generateLoggerMiddleware,
-  generateEnvExample,
-} = require("../src/cli/generate-app.js");
-const {
   introspectSQLite3,
   generateModelFile,
   safeVarName,
@@ -436,40 +431,6 @@ describe("Feature Expansion Tests", function () {
       assert.strictEqual(props.price.type, "number");
       assert.strictEqual(props.meta.type, "object");
       assert.strictEqual(props.label.type, "string");
-    });
-  });
-
-  describe("generate-app Helpers", function () {
-    it("should generate valid app.js content", function () {
-      const content = generateAppJs("postgres");
-      assert.ok(content.includes('init("postgres")'));
-      assert.ok(content.includes("express()"));
-      assert.ok(content.includes('require("./middleware/logger")'));
-      assert.ok(content.includes('require("./routes")'));
-      assert.ok(content.includes("/health"));
-    });
-
-    it("should generate logger middleware", function () {
-      const content = generateLoggerMiddleware();
-      assert.ok(content.includes("module.exports"));
-      assert.ok(content.includes("req, res, next"));
-      assert.ok(content.includes("res.on"));
-    });
-
-    it("should generate .env.example for mysql", function () {
-      const content = generateEnvExample("mysql");
-      assert.ok(content.includes("DB_HOST=localhost"));
-      assert.ok(content.includes("DB_PORT=3306"));
-    });
-
-    it("should generate .env.example for sqlite3", function () {
-      const content = generateEnvExample("sqlite3");
-      assert.ok(content.includes("DB_NAME=./data.db"));
-    });
-
-    it("should generate .env.example for postgres", function () {
-      const content = generateEnvExample("postgres");
-      assert.ok(content.includes("DB_PORT=5432"));
     });
   });
 

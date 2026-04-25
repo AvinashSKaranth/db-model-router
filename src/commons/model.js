@@ -280,6 +280,7 @@ module.exports = function model(
           data,
           getPayloadValidator("CREATE", modelStructure, primary_key, false),
         );
+        const originalData = { ...data };
         data = RemoveUnknownData(modelStructure, [data]);
         data = jsonStringify(data);
         updateResult = await db.upsert(table, data, unique);
@@ -288,12 +289,10 @@ module.exports = function model(
             [[primary_key, "=", updateResult.id]],
           ]);
           return getResult.count > 0 ? getResult["data"][0] : null;
-        } else if (data.hasOwnProperty(primary_key)) {
-          const result = await db.get(
-            table,
-            [[[primary_key, "=", data[primary_key]]]],
-            option.safeDelete,
-          );
+        } else if (originalData.hasOwnProperty(primary_key)) {
+          const result = await db.get(table, [
+            [[primary_key, "=", originalData[primary_key]]],
+          ]);
           if (result.count > 0) return result["data"][0];
           else return null;
         }

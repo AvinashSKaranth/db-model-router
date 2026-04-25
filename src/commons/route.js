@@ -156,6 +156,14 @@ module.exports = function route(model, override = {}) {
         });
     })
     .post("/", (req, res) => {
+      if (!req.body || !Array.isArray(req.body.data)) {
+        return res
+          .status(400)
+          .send({
+            type: "danger",
+            message: "Request body must contain a 'data' array",
+          });
+      }
       let payload = payloadOverride(req.body.data, req, override);
       model
         .insert({ data: payload })
@@ -167,6 +175,14 @@ module.exports = function route(model, override = {}) {
         });
     })
     .put("/", (req, res) => {
+      if (!req.body || !Array.isArray(req.body.data)) {
+        return res
+          .status(400)
+          .send({
+            type: "danger",
+            message: "Request body must contain a 'data' array",
+          });
+      }
       let payload = payloadOverride(req.body.data, req, override);
       model
         .update({ data: payload })
@@ -178,6 +194,14 @@ module.exports = function route(model, override = {}) {
         });
     })
     .delete("/", (req, res) => {
+      if (!req.body || !Array.isArray(req.body.data)) {
+        return res
+          .status(400)
+          .send({
+            type: "danger",
+            message: "Request body must contain a 'data' array",
+          });
+      }
       let payload = payloadOverride(req.body.data, req, override);
       model
         .remove(payload)

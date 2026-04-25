@@ -49,4 +49,4 @@ CREATE TABLE users (
 );
 ```
 
-[← Back to main docs](../README.md)
+[← Back to main docs](../../README.md)

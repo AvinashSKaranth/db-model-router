@@ -2,6 +2,20 @@
 
 A database-agnostic REST API generator for Node.js. Works with Express or ultimate-express (a high-performance drop-in replacement). Define a model, get a full CRUD API with filtering, pagination, and bulk operations — backed by any of 9 supported databases.
 
+## Build a REST API with AI
+
+This library is designed to be driven by an AI assistant. Give it a prompt like this:
+
+```
+Use db-model-router to build a REST API for a task management app with postgres.
+I need: users (name, email, password_hash), projects (name, description, owner_id → users),
+and tasks (title, status, priority, project_id → projects, assignee_id → users).
+Scaffold the project, write the migrations, generate models and routes with parent-child
+relationships for projects.tasks, and make sure everything runs.
+```
+
+For the LLM skill reference, see [SKILL.md](./docs/SKILL.md).
+
 ## Supported Adapters
 
 | Adapter                                       | Module Key    | Driver                   | Install                                                                |
@@ -54,6 +68,143 @@ npm install db-model-router @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 ```
 
 Both `express` and `ultimate-express` are optional peer dependencies. The library auto-detects which one is installed (preferring `ultimate-express` when both are present). All database drivers are also optional peer dependencies, so your `node_modules` stays lean.
+
+## Quick Start
+
+The fastest way to start a new project:
+
+```bash
+# Scaffold a project interactively
+npx db-model-router init
+
+# Or fully non-interactive from a schema file
+db-model-router init --from dbmr.schema.json --yes --no-install
+db-model-router generate --from dbmr.schema.json
+```
+
+After scaffolding:
+
+```bash
+# 1. Edit .env with your database credentials
+# 2. Start developing
+npm run dev
+```
+
+## Schema-Driven Workflow
+
+Instead of running multiple CLI commands manually, you can define your entire project in a single `dbmr.schema.json` file and let the CLI generate everything from it.
+
+### The Schema File
+
+`dbmr.schema.json` is a declarative JSON file that describes your adapter, framework, tables, columns, relationships, and options — all in one place:
+
+```json
+{
+  "adapter": "postgres",
+  "framework": "express",
+  "options": {
+    "session": "redis",
+    "rateLimiting": true,
+    "helmet": true,
+    "logger": true
+  },
+  "tables": {
+    "users": {
+      "columns": {
+        "name": "required|string",
+        "email": "required|string",
+        "age": "integer",
+        "is_deleted": "boolean"
+      },
+      "pk": "id",
+      "unique": ["email"],
+      "softDelete": "is_deleted",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "updated_at"
+      }
+    },
+    "posts": {
+      "columns": {
+        "title": "required|string",
+        "body": "string",
+        "user_id": "required|integer"
+      },
+      "pk": "id",
+      "unique": ["id"]
+    }
+  },
+  "relationships": [
+    { "parent": "users", "child": "posts", "foreignKey": "user_id" }
+  ]
+}
+```
+
+Table entries support these fields:
+
+| Field        | Required | Description                                                    |
+| ------------ | -------- | -------------------------------------------------------------- |
+| `columns`    | Yes      | Object mapping column names to Column_Rule strings             |
+| `pk`         | No       | Primary key column name (defaults to `"id"`)                   |
+| `unique`     | No       | Array of unique constraint columns (defaults to `[pk]`)        |
+| `softDelete` | No       | Column name used for soft-delete                               |
+| `timestamps` | No       | Object with `created_at` and `modified_at` column name mapping |
+
+Column rules use the format `(required|)?(string|integer|numeric|boolean|object)` — e.g. `"required|string"`, `"integer"`, `"object"`.
+
+### Unified CLI: `db-model-router`
+
+The `db-model-router` command is the unified entry point with five subcommands:
+
+```bash
+db-model-router <subcommand> [flags]
+```
+
+| Subcommand | Description                                                         |
+| ---------- | ------------------------------------------------------------------- |
+| `init`     | Scaffold a new project (optionally from a schema file)              |
+| `inspect`  | Introspect a live database and produce a `dbmr.schema.json`         |
+| `generate` | Generate models, routes, tests, and OpenAPI spec from the schema    |
+| `doctor`   | Validate schema, check dependencies, verify generated files in sync |
+| `diff`     | Preview what changes regeneration would make (read-only)            |
+
+#### Universal Flags
+
+All subcommands accept these flags:
+
+| Flag           | Description                                                 |
+| -------------- | ----------------------------------------------------------- |
+| `--yes`        | Accept all defaults, suppress interactive prompts           |
+| `--json`       | Output machine-readable JSON instead of human-readable text |
+| `--dry-run`    | Preview actions without writing files or running commands   |
+| `--no-install` | Skip `npm install` (applies to commands that would run it)  |
+| `--help`       | Show usage information for the subcommand                   |
+
+#### Quick Workflow Example
+
+```bash
+# 1. Introspect an existing database into a schema file
+db-model-router inspect --type postgres --env .env
+
+# 2. (Optional) Edit dbmr.schema.json to add relationships, tweak columns, etc.
+
+# 3. Generate all artifacts from the schema
+db-model-router generate --from dbmr.schema.json
+
+# 4. Check everything is in sync
+db-model-router doctor --from dbmr.schema.json
+
+# 5. Preview what a regeneration would change
+db-model-router diff --from dbmr.schema.json
+```
+
+Or start a brand-new project from a schema file:
+
+```bash
+# Scaffold project + generate everything in one go
+db-model-router init --from dbmr.schema.json --yes --no-install
+db-model-router generate --from dbmr.schema.json
+```
 
 ## MySQL Example
 
@@ -109,13 +260,14 @@ app.use("/users", route(users));
 app.listen(3000);
 ```
 
-This creates 8 endpoints:
+This creates 9 endpoints:
 
 | Method | Path         | Description                     |
 | ------ | ------------ | ------------------------------- |
 | GET    | `/users/:id` | Get one record by PK            |
 | POST   | `/users/add` | Insert a single record          |
 | PUT    | `/users/:id` | Update a single record          |
+| PATCH  | `/users/:id` | Partial update a single record  |
 | DELETE | `/users/:id` | Delete a single record          |
 | GET    | `/users/`    | List with pagination            |
 | POST   | `/users/`    | Bulk insert (`{ data: [...] }`) |
@@ -273,207 +425,6 @@ The model and route APIs remain identical across all adapters. See the individua
 - [Oracle](./docs/adapters/oracle.md)
 - [Redis](./docs/adapters/redis.md)
 - [DynamoDB](./docs/adapters/dynamodb.md)
-
-## CLI Tools
-
-Three CLI commands are included to scaffold models, routes, and full apps from an existing database.
-
-### generate-app
-
-The fastest way to go from database to running API. Scaffolds a complete Express REST API project in a single command — introspects your database, generates models and routes (including parent-child relationships), and creates the app entry point, middleware, environment config, and project structure.
-
-```bash
-# Full app from MySQL
-db-model-router-generate-app --type mysql --env .env
-
-# SQLite3 into a specific directory
-db-model-router-generate-app --type sqlite3 --database ./myapp.db --output ./my-api
-
-# Postgres with specific tables and relationships
-db-model-router-generate-app --type postgres --env .env --tables users,posts,posts.comments
-```
-
-Options:
-
-| Option       | Description                                                                     |
-| ------------ | ------------------------------------------------------------------------------- |
-| `--type`     | Database type (mysql, postgres, sqlite3, mssql, oracle, cockroachdb) [required] |
-| `--output`   | Output directory (default: current directory)                                   |
-| `--host`     | Database host                                                                   |
-| `--port`     | Database port                                                                   |
-| `--database` | Database name or file path                                                      |
-| `--user`     | Database user                                                                   |
-| `--password` | Database password                                                               |
-| `--schema`   | Schema name (postgres only)                                                     |
-| `--tables`   | Comma-separated tables, supports `parent.child` notation for relationships      |
-| `--env`      | Path to .env file for DB connection                                             |
-
-Generated project structure:
-
-```
-my-api/
-  app.js              # Express app with init(), db.connect(), middleware, error handler, health check
-  .env.example         # Pre-filled environment template for your DB type
-  .gitignore           # node_modules, .env, *.db
-  middleware/
-    logger.js          # Request logger (method, URL, status, response time)
-  models/
-    users.js           # Auto-generated from DB introspection
-    posts.js
-    index.js
-  routes/
-    users.js           # Auto-generated route files
-    posts.js
-    index.js
-    openapi.json       # OpenAPI 3.0 spec
-  migrations/
-    README.md          # Placeholder for migration scripts
-  sessions/
-    README.md          # Placeholder for session config
-```
-
-When `--tables` includes parent-child notation (e.g., `posts.comments`), the routes directory also includes scoped child route files and nested route mounting — see [Parent-Child Relationships](#parent-child-relationships-foreign-keys) below.
-
-To start the generated app:
-
-```bash
-cp .env.example .env   # edit with your DB credentials
-npm install
-node app.js
-```
-
-### generate-model
-
-Connects to your database, introspects all tables, and generates model files with validation rules, primary keys, unique constraints, and auto-detected options (safeDelete, timestamps). This is called automatically by `generate-app`, but can be used standalone.
-
-```bash
-# Basic usage
-db-model-router-generate-model --type mysql --host localhost --database mydb --user root --password secret
-
-# Using an .env file
-db-model-router-generate-model --type postgres --env .env --output ./src/models
-
-# SQLite3
-db-model-router-generate-model --type sqlite3 --database ./myapp.db --output ./models
-
-# Only specific tables
-db-model-router-generate-model --type mysql --env .env --tables users,posts,comments
-```
-
-Options:
-
-| Option       | Description                                                                   |
-| ------------ | ----------------------------------------------------------------------------- |
-| `--type`     | Database type (mysql, postgres, sqlite3, mssql, oracle, cockroachdb)          |
-| `--host`     | Database host (default: localhost)                                            |
-| `--port`     | Database port                                                                 |
-| `--database` | Database name (or file path for sqlite3)                                      |
-| `--user`     | Database user                                                                 |
-| `--password` | Database password                                                             |
-| `--schema`   | Schema name (postgres only, default: public)                                  |
-| `--output`   | Output directory (default: ./models)                                          |
-| `--tables`   | Comma-separated list of tables to generate (supports `parent.child` notation) |
-| `--env`      | Path to .env file to load                                                     |
-
-Auto-detection:
-
-- Columns with `DEFAULT` values are marked as optional (not `required`)
-- Timestamp columns (`created_at`, `updated_at`, `modified_at`, `createdAt`, etc.) are excluded from the model structure and added to the option object
-- Soft-delete columns (`is_deleted`, `deleted`, `is_active`, `archived`, etc.) are excluded from the structure and set as `safeDelete` in the option
-- Multi-column unique indexes are correctly grouped for the unique constraint parameter
-
-Generated output:
-
-```
-models/
-  users.js          # model(db, "users", {...}, "user_id", ["email"], { safeDelete: "is_deleted", ... })
-  posts.js          # model(db, "posts", {...}, "post_id", ["post_id"])
-  index.js          # exports { users, posts }
-```
-
-### generate-route
-
-Generates Express route files for each model. If models don't exist yet, it auto-generates them first. Also generates an OpenAPI 3.0 spec (`openapi.json`) from the model metadata. This is called automatically by `generate-app`, but can be used standalone.
-
-```bash
-# From existing models
-db-model-router-generate-route --models ./models --output ./routes
-
-# Auto-generate models + routes in one step
-db-model-router-generate-route --type mysql --env .env --models ./models --output ./routes
-
-# SQLite3 one-liner
-db-model-router-generate-route --type sqlite3 --database ./myapp.db
-```
-
-Options:
-
-| Option       | Description                                                                |
-| ------------ | -------------------------------------------------------------------------- |
-| `--models`   | Path to models directory (default: ./models)                               |
-| `--output`   | Output directory for routes (default: ./routes)                            |
-| `--type`     | Database type — triggers model generation if models are missing            |
-| `--host`     | Database host (passed to model generation)                                 |
-| `--port`     | Database port (passed to model generation)                                 |
-| `--database` | Database name or file path (passed to model generation)                    |
-| `--user`     | Database user (passed to model generation)                                 |
-| `--password` | Database password (passed to model generation)                             |
-| `--schema`   | Schema name (passed to model generation)                                   |
-| `--tables`   | Comma-separated tables, supports `parent.child` notation for relationships |
-| `--env`      | Path to .env file (passed to model generation)                             |
-
-#### Parent-Child Relationships (Foreign Keys)
-
-Use dot notation in `--tables` to declare parent-child relationships. This works in `generate-route`, `generate-app`, and `generate-model`. The generator creates nested routes that automatically scope child queries by the parent's foreign key.
-
-```bash
-# Declare that comments belong to posts
-db-model-router-generate-route --type mysql --env .env --tables users,posts,posts.comments
-
-# Same via generate-app
-db-model-router-generate-app --type mysql --env .env --tables users,posts,posts.comments
-```
-
-The FK column is derived by convention: `<parent_singular>_id` (e.g., `posts.comments` → `post_id`).
-
-This generates:
-
-```
-routes/
-  users.js                        # route(users)
-  posts.js                        # route(posts)
-  comments.js                     # route(comments)  — direct access
-  comments_child_of_posts.js      # route(comments, { post_id: "params.post_id" })  — scoped
-  index.js                        # mounts all routes
-  openapi.json                    # OpenAPI 3.0 spec
-```
-
-The generated `index.js` mounts both nested and top-level routes:
-
-```js
-// Nested: GET /api/posts/:post_id/comments — returns only comments for that post
-router.use("/posts/:post_id/comments", commentsChildRoute);
-
-// Direct: GET /api/comments — returns all comments
-router.use("/comments", commentsRoute);
-```
-
-The child route file uses payload override to scope every query:
-
-```js
-// comments_child_of_posts.js
-module.exports = route(comments, { post_id: "params.post_id" });
-```
-
-#### Generated output (without relationships)
-
-```
-routes/
-  users.js          # route(users)
-  posts.js          # route(posts)
-  index.js          # express.Router() mounting all routes at /users, /posts, etc.
-  openapi.json      # OpenAPI 3.0 spec
-```
 
 ## Environment Setup (Docker)
 
