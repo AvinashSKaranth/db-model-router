@@ -2,6 +2,7 @@
 
 const SQL_DATABASES = [
   "mysql",
+  "mariadb",
   "postgres",
   "sqlite3",
   "mssql",
@@ -54,6 +55,13 @@ const DB_ENV_MAP = {
     { key: "DB_USER", defaultValue: "root", placeholder: "your_user" },
     { key: "DB_PASS", defaultValue: "password", placeholder: "your_password" },
   ],
+  mariadb: [
+    { key: "DB_HOST", defaultValue: "localhost", placeholder: "localhost" },
+    { key: "DB_PORT", defaultValue: "3306", placeholder: "3306" },
+    { key: "DB_NAME", defaultValue: "my_app", placeholder: "your_database" },
+    { key: "DB_USER", defaultValue: "root", placeholder: "your_user" },
+    { key: "DB_PASS", defaultValue: "password", placeholder: "your_password" },
+  ],
   postgres: [
     { key: "DB_HOST", defaultValue: "localhost", placeholder: "localhost" },
     { key: "DB_PORT", defaultValue: "5432", placeholder: "5432" },
@@ -69,7 +77,11 @@ const DB_ENV_MAP = {
     { key: "DB_PASS", defaultValue: "password", placeholder: "your_password" },
   ],
   sqlite3: [
-    { key: "DB_NAME", defaultValue: "./data.db", placeholder: "./data.db" },
+    {
+      key: "DB_NAME",
+      defaultValue: "./data/data.db",
+      placeholder: "./data/data.db",
+    },
   ],
   mongodb: [
     { key: "DB_HOST", defaultValue: "localhost", placeholder: "localhost" },
@@ -124,12 +136,35 @@ const REDIS_SESSION_VARS = [
 ];
 
 /**
+ * Generate a random alphanumeric password.
+ * @param {number} [length=24]
+ * @returns {string}
+ */
+function randomPassword(length) {
+  const chars =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const len = length || 24;
+  let result = "";
+  const crypto = require("crypto");
+  const bytes = crypto.randomBytes(len);
+  for (let i = 0; i < len; i++) {
+    result += chars[bytes[i] % chars.length];
+  }
+  return result;
+}
+
+/**
  * Build env file content from the config map.
  * @param {import('./types').InitAnswers} answers
  * @param {'default'|'placeholder'} mode
+ * @param {object} [secrets] - generated secrets to keep in sync with docker-compose
+ * @param {string} [secrets.dbPass] - database password
+ * @param {string} [secrets.redisPass] - redis session password
+ * @param {string} [secrets.sessionSecret] - session secret
  * @returns {string}
  */
-function buildEnvContent(answers, mode) {
+function buildEnvContent(answers, mode, secrets) {
+  const s = secrets || {};
   const pick = mode === "placeholder" ? "placeholder" : "defaultValue";
   const lines = [];
   lines.push("# Server");
@@ -139,14 +174,19 @@ function buildEnvContent(answers, mode) {
 
   const vars = DB_ENV_MAP[answers.database] || [];
   for (const v of vars) {
-    lines.push(`${v.key}=${v[pick]}`);
+    // Override password with generated secret in default mode
+    if (mode === "default" && v.key === "DB_PASS" && s.dbPass) {
+      lines.push(`${v.key}=${s.dbPass}`);
+    } else {
+      lines.push(`${v.key}=${v[pick]}`);
+    }
   }
 
   // Session secret
   lines.push("");
   lines.push("# Session");
   lines.push(
-    `SESSION_SECRET=${mode === "placeholder" ? "your_session_secret" : "change-me"}`,
+    `SESSION_SECRET=${mode === "placeholder" ? "your_session_secret" : s.sessionSecret || "change-me"}`,
   );
 
   // Redis session env vars when session is redis and database is not redis
@@ -154,21 +194,30 @@ function buildEnvContent(answers, mode) {
     lines.push("");
     lines.push("# Redis Session");
     for (const v of REDIS_SESSION_VARS) {
-      lines.push(`${v.key}=${v[pick]}`);
+      if (mode === "default" && v.key === "REDIS_PASS" && s.redisPass) {
+        lines.push(`${v.key}=${s.redisPass}`);
+      } else {
+        lines.push(`${v.key}=${v[pick]}`);
+      }
     }
   }
 
-  // Loki logging
+  // Logging
   if (answers.logger) {
     lines.push("");
-    lines.push("# Logging (Grafana Loki)");
-    lines.push(
-      `LOKI_HOST=${mode === "placeholder" ? "http://your-loki-host:3100" : "http://localhost:3100"}`,
-    );
+    lines.push("# Logging");
     lines.push(
       `APP_NAME=${mode === "placeholder" ? "your_app_name" : "my-app"}`,
     );
     lines.push(`LOG_LEVEL=${mode === "placeholder" ? "info" : "info"}`);
+    // LOKI_HOST: empty by default, set a URL to enable Loki transport
+    if (answers.loki && mode === "default") {
+      lines.push("LOKI_HOST=http://localhost:3100");
+    } else {
+      lines.push(
+        `LOKI_HOST=${mode === "placeholder" ? "http://your-loki-host:3100" : ""}`,
+      );
+    }
   }
 
   lines.push("");
@@ -178,10 +227,11 @@ function buildEnvContent(answers, mode) {
 /**
  * Generate .env file content.
  * @param {import('./types').InitAnswers} answers
+ * @param {object} [secrets] - generated secrets
  * @returns {string}
  */
-function generateEnvFile(answers) {
-  return buildEnvContent(answers, "default");
+function generateEnvFile(answers, secrets) {
+  return buildEnvContent(answers, "default", secrets);
 }
 
 /**
@@ -222,7 +272,7 @@ function dbConnectBlock(database) {
   }
   if (database === "sqlite3") {
     return `db.connect({
-  database: process.env.DB_NAME || "./data.db",
+  database: process.env.DB_NAME || "./data/data.db",
 });`;
   }
   return `db.connect({
@@ -232,6 +282,40 @@ function dbConnectBlock(database) {
   user: process.env.DB_USER,
   password: process.env.DB_PASS,
 });`;
+}
+
+/**
+ * Return just the connect config properties (indented, no wrapper).
+ * Used by generateDbModule where the caller controls the object name.
+ * @param {string} database
+ * @returns {string}
+ */
+function dbConnectArgs(database) {
+  if (database === "dynamodb") {
+    return `  region: process.env.AWS_REGION,
+  endpoint: process.env.AWS_ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+`;
+  }
+  if (database === "redis") {
+    return `  host: process.env.DB_HOST || "localhost",
+  port: process.env.DB_PORT || 6379,
+  password: process.env.DB_PASS,
+`;
+  }
+  if (database === "sqlite3") {
+    return `  database: process.env.DB_NAME || "./data/data.db",
+`;
+  }
+  return `  host: process.env.DB_HOST || "localhost",
+  port: process.env.DB_PORT,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+`;
 }
 
 /**
@@ -361,14 +445,38 @@ module.exports = app;
 function generateLoggerMiddleware(answers) {
   if (answers.logger) {
     return `import winston from "winston";
-import LokiTransport from "winston-loki";
 
 /**
- * Winston logger with Console + Loki transports.
- * Sends structured logs to Grafana Loki for visualization.
- *
- * Configure LOKI_HOST in .env (default: http://localhost:3100).
+ * Winston logger with Console transport.
+ * If LOKI_HOST is set in .env, adds a Loki transport for Grafana visualization.
  */
+const transports = [
+  new winston.transports.Console({
+    format: winston.format.combine(
+      winston.format.colorize(),
+      winston.format.printf(({ timestamp, level, message, ...meta }) => {
+        const metaStr = Object.keys(meta).length > 1
+          ? " " + JSON.stringify(meta)
+          : "";
+        return \`[\${timestamp}] [\${level}] \${message}\${metaStr}\`;
+      }),
+    ),
+  }),
+];
+
+// Add Loki transport only when LOKI_HOST is configured
+if (process.env.LOKI_HOST) {
+  const { default: LokiTransport } = await import("winston-loki");
+  transports.push(
+    new LokiTransport({
+      host: process.env.LOKI_HOST,
+      labels: { app: process.env.APP_NAME || "app" },
+      json: true,
+      onConnectionError: (err) => console.error("Loki connection error:", err),
+    }),
+  );
+}
+
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || "info",
   format: winston.format.combine(
@@ -376,25 +484,7 @@ const logger = winston.createLogger({
     winston.format.json(),
   ),
   defaultMeta: { service: process.env.APP_NAME || "app" },
-  transports: [
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.printf(({ timestamp, level, message, ...meta }) => {
-          const metaStr = Object.keys(meta).length > 1
-            ? " " + JSON.stringify(meta)
-            : "";
-          return \`[\${timestamp}] [\${level}] \${message}\${metaStr}\`;
-        }),
-      ),
-    }),
-    new LokiTransport({
-      host: process.env.LOKI_HOST || "http://localhost:3100",
-      labels: { app: process.env.APP_NAME || "app" },
-      json: true,
-      onConnectionError: (err) => console.error("Loki connection error:", err),
-    }),
-  ],
+  transports,
 });
 
 /**
@@ -793,6 +883,409 @@ CREATE INDEX idx_sessions_expired ON sessions(expired_at);
   return { filename: `${ts}_create_sessions_table.sql`, content };
 }
 
+// ---------------------------------------------------------------------------
+// Docker Compose generator
+// ---------------------------------------------------------------------------
+
+/**
+ * Docker image and config for each supported database.
+ */
+const DOCKER_DB_MAP = {
+  mysql: {
+    image: "mysql:latest",
+    port: "3306:3306",
+    env: (secrets) => ({
+      MYSQL_ROOT_PASSWORD: secrets.dbPass,
+      MYSQL_DATABASE: "my_app",
+    }),
+    volumes: ["./data/mysql:/var/lib/mysql"],
+  },
+  mariadb: {
+    image: "mariadb:latest",
+    port: "3306:3306",
+    env: (secrets) => ({
+      MARIADB_ROOT_PASSWORD: secrets.dbPass,
+      MARIADB_DATABASE: "my_app",
+    }),
+    volumes: ["./data/mariadb:/var/lib/mysql"],
+  },
+  postgres: {
+    image: "postgres:alpine",
+    port: "5432:5432",
+    env: (secrets) => ({
+      POSTGRES_USER: "postgres",
+      POSTGRES_PASSWORD: secrets.dbPass,
+      POSTGRES_DB: "my_app",
+    }),
+    volumes: ["./data/postgres:/var/lib/postgresql/data"],
+  },
+  cockroachdb: {
+    image: "cockroachdb/cockroach:latest",
+    port: "26257:26257",
+    command: "start-single-node --insecure",
+    env: () => ({}),
+    volumes: ["./data/cockroachdb:/cockroach/cockroach-data"],
+  },
+  mongodb: {
+    image: "mongo:latest",
+    port: "27017:27017",
+    env: (secrets) => ({
+      MONGO_INITDB_ROOT_USERNAME: "root",
+      MONGO_INITDB_ROOT_PASSWORD: secrets.dbPass,
+      MONGO_INITDB_DATABASE: "my_app",
+    }),
+    volumes: ["./data/mongodb:/data/db"],
+  },
+  mssql: {
+    image: "mcr.microsoft.com/mssql/server:latest",
+    port: "1433:1433",
+    env: (secrets) => ({
+      ACCEPT_EULA: "Y",
+      MSSQL_SA_PASSWORD: secrets.dbPass,
+    }),
+    volumes: ["./data/mssql:/var/opt/mssql"],
+  },
+  oracle: {
+    image: "gvenzl/oracle-xe:latest",
+    port: "1521:1521",
+    env: (secrets) => ({
+      ORACLE_PASSWORD: secrets.dbPass,
+      APP_USER: "system",
+      APP_USER_PASSWORD: secrets.dbPass,
+    }),
+    volumes: ["./data/oracle:/opt/oracle/oradata"],
+  },
+  redis: {
+    image: "redis:alpine",
+    port: "6379:6379",
+    command: null, // set dynamically if password
+    env: () => ({}),
+    volumes: ["./data/redis:/data"],
+  },
+  dynamodb: {
+    image: "amazon/dynamodb-local:latest",
+    port: "8000:8000",
+    env: () => ({}),
+    volumes: [],
+  },
+};
+
+/**
+ * CloudBeaver JDBC driver IDs and URL templates per database.
+ */
+const CLOUDBEAVER_DB_MAP = {
+  mysql: {
+    provider: "mysql",
+    driver: "mysql8",
+    urlTemplate: (host, port, dbName) =>
+      `jdbc:mysql://${host}:${port}/${dbName}`,
+  },
+  mariadb: {
+    provider: "mysql",
+    driver: "mariaDB",
+    urlTemplate: (host, port, dbName) =>
+      `jdbc:mariadb://${host}:${port}/${dbName}`,
+  },
+  postgres: {
+    provider: "postgresql",
+    driver: "postgres-jdbc",
+    urlTemplate: (host, port, dbName) =>
+      `jdbc:postgresql://${host}:${port}/${dbName}`,
+  },
+  cockroachdb: {
+    provider: "postgresql",
+    driver: "postgres-jdbc",
+    urlTemplate: (host, port, dbName) =>
+      `jdbc:postgresql://${host}:${port}/${dbName}`,
+  },
+  mssql: {
+    provider: "sqlserver",
+    driver: "mssql_jdbc_ms_new",
+    urlTemplate: (host, port, dbName) =>
+      `jdbc:sqlserver://${host}:${port};databaseName=${dbName};trustServerCertificate=true`,
+  },
+  oracle: {
+    provider: "oracle",
+    driver: "oracle_thin",
+    urlTemplate: (host, port, dbName) =>
+      `jdbc:oracle:thin:@${host}:${port}/${dbName}`,
+  },
+  mongodb: {
+    provider: "mongodb",
+    driver: "mongodb",
+    urlTemplate: (host, port, dbName) => `mongodb://${host}:${port}/${dbName}`,
+  },
+};
+
+/**
+ * Generate CloudBeaver data-sources.json for auto-connecting to the project database.
+ * @param {import('./types').InitAnswers} answers
+ * @param {object} secrets
+ * @returns {string|null}
+ */
+function generateCloudBeaverDataSources(answers, secrets) {
+  const cbDb = CLOUDBEAVER_DB_MAP[answers.database];
+  if (!cbDb) return null;
+
+  const dbConfig = DOCKER_DB_MAP[answers.database];
+  if (!dbConfig) return null;
+
+  const host = answers.database; // service name in docker-compose
+  const port = dbConfig.port.split(":")[1];
+  const dbName = "my_app";
+
+  // Determine user/pass based on adapter
+  let user = "root";
+  let pass = secrets.dbPass;
+  if (answers.database === "postgres" || answers.database === "cockroachdb")
+    user = "postgres";
+  if (answers.database === "mssql") user = "sa";
+  if (answers.database === "oracle") user = "system";
+  if (answers.database === "mongodb") user = "root";
+
+  const connId = `${answers.database}-project-db`;
+  const url = cbDb.urlTemplate(host, port, dbName);
+
+  const config = {
+    folders: {},
+    connections: {
+      [connId]: {
+        provider: cbDb.provider,
+        driver: cbDb.driver,
+        name: `${answers.database} - my_app`,
+        "save-password": true,
+        configuration: {
+          host: host,
+          port: port,
+          database: dbName,
+          url: url,
+          configurationType: "MANUAL",
+          type: "dev",
+          auth: "native",
+          userName: user,
+          userPassword: pass,
+        },
+      },
+    },
+  };
+
+  return JSON.stringify(config, null, 2) + "\n";
+}
+
+/**
+ * Generate docker-compose.yml content.
+ * @param {import('./types').InitAnswers} answers
+ * @param {object} secrets - { dbPass, redisPass }
+ * @returns {string|null} null if no Docker service needed (e.g. sqlite3)
+ */
+function generateDockerCompose(answers, secrets) {
+  // sqlite3 runs in-process, no Docker needed
+  if (answers.database === "sqlite3") return null;
+
+  const dbConfig = DOCKER_DB_MAP[answers.database];
+  if (!dbConfig) return null;
+
+  const services = {};
+
+  // --- Primary database service ---
+  const dbService = {
+    container_name: `${answers.database}_db`,
+    image: dbConfig.image,
+    ports: [dbConfig.port],
+    restart: "unless-stopped",
+  };
+
+  const envVars = dbConfig.env(secrets);
+  if (Object.keys(envVars).length > 0) {
+    dbService.environment = envVars;
+  }
+  if (dbConfig.command) {
+    dbService.command = dbConfig.command;
+  }
+  // Redis with password
+  if (answers.database === "redis" && secrets.dbPass) {
+    dbService.command = `redis-server --requirepass ${secrets.dbPass}`;
+  }
+  if (dbConfig.volumes && dbConfig.volumes.length > 0) {
+    dbService.volumes = dbConfig.volumes;
+  }
+
+  services[answers.database] = dbService;
+
+  // --- Redis session service (if session=redis and db is not already redis) ---
+  if (answers.session === "redis" && answers.database !== "redis") {
+    const redisService = {
+      container_name: "redis_session",
+      image: "redis:alpine",
+      ports: ["6379:6379"],
+      restart: "unless-stopped",
+    };
+    if (secrets.redisPass) {
+      redisService.command = `redis-server --requirepass ${secrets.redisPass}`;
+    }
+    redisService.volumes = ["./data/redis:/data"];
+    services["redis"] = redisService;
+  }
+
+  // --- CloudBeaver service (for SQL/MongoDB databases) ---
+  const hasCbSupport = !!CLOUDBEAVER_DB_MAP[answers.database];
+  if (hasCbSupport) {
+    services["cloudbeaver"] = {
+      container_name: "cloudbeaver",
+      image: "dbeaver/cloudbeaver:latest",
+      ports: ["8978:8978"],
+      restart: "unless-stopped",
+      environment: {
+        CB_SERVER_NAME: "CloudBeaver",
+        CB_ADMIN_NAME: "cbadmin",
+        CB_ADMIN_PASSWORD: secrets.dbPass,
+      },
+      volumes: [
+        "./data/cloudbeaver:/opt/cloudbeaver/workspace",
+        "./.cloudbeaver/data-sources.json:/opt/cloudbeaver/workspace/GlobalConfiguration/.dbeaver/data-sources.json:ro",
+      ],
+      depends_on: [answers.database],
+    };
+  }
+
+  // --- Loki + Grafana (when logger + loki are enabled) ---
+  if (answers.loki) {
+    services["loki"] = {
+      container_name: "loki",
+      image: "grafana/loki:latest",
+      ports: ["3100:3100"],
+      restart: "unless-stopped",
+      command: "-config.file=/etc/loki/local-config.yaml",
+      volumes: ["./data/loki:/loki"],
+    };
+
+    services["grafana"] = {
+      container_name: "grafana",
+      image: "grafana/grafana:latest",
+      ports: ["3001:3000"],
+      restart: "unless-stopped",
+      environment: {
+        GF_SECURITY_ADMIN_USER: "admin",
+        GF_SECURITY_ADMIN_PASSWORD: secrets.dbPass,
+        GF_AUTH_ANONYMOUS_ENABLED: "true",
+      },
+      volumes: [
+        "./data/grafana:/var/lib/grafana",
+        "./.grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro",
+      ],
+      depends_on: ["loki"],
+    };
+  }
+
+  // --- Build YAML manually (no dependency needed) ---
+  const lines = [];
+  lines.push("services:");
+
+  for (const [name, svc] of Object.entries(services)) {
+    lines.push(`  ${name}:`);
+    lines.push(`    container_name: ${svc.container_name}`);
+    lines.push(`    image: ${svc.image}`);
+    if (svc.command) {
+      lines.push(`    command: ${svc.command}`);
+    }
+    if (svc.ports && svc.ports.length > 0) {
+      lines.push("    ports:");
+      for (const p of svc.ports) {
+        lines.push(`      - "${p}"`);
+      }
+    }
+    if (svc.environment && Object.keys(svc.environment).length > 0) {
+      lines.push("    environment:");
+      for (const [k, v] of Object.entries(svc.environment)) {
+        lines.push(`      ${k}: "${v}"`);
+      }
+    }
+    if (svc.volumes && svc.volumes.length > 0) {
+      lines.push("    volumes:");
+      for (const v of svc.volumes) {
+        lines.push(`      - ${v}`);
+      }
+    }
+    if (svc.depends_on && svc.depends_on.length > 0) {
+      lines.push("    depends_on:");
+      for (const d of svc.depends_on) {
+        lines.push(`      - ${d}`);
+      }
+    }
+    lines.push(`    restart: unless-stopped`);
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Generate Dockerfile for the project.
+ * Uses multi-stage build with node:alpine for a lean production image.
+ * @param {import('./types').InitAnswers} answers
+ * @param {string} [outputDir] - relative output directory for source files
+ * @returns {string}
+ */
+function generateDockerfile(answers, outputDir) {
+  const copyDirs = ["commons", "middleware", "route", "migrations"]
+    .map((d) => {
+      const src = outputDir ? `${outputDir}/${d}` : d;
+      return `COPY ${src}/ ./${src}/`;
+    })
+    .join("\n");
+
+  return `FROM node:alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Copy application files
+COPY app.js ./
+${copyDirs}
+
+# Expose port
+EXPOSE 3000
+
+# Start the application
+CMD ["node", "app.js"]
+`;
+}
+
+/**
+ * Generate Grafana datasource provisioning file for auto-connecting Loki.
+ * @returns {string}
+ */
+function generateGrafanaDatasources() {
+  return `apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: true
+    editable: false
+`;
+}
+
+/**
+ * Generate .dockerignore content.
+ * @returns {string}
+ */
+function generateDockerignore() {
+  return `node_modules
+npm-debug.log
+.env
+.env.example
+.git
+.gitignore
+data
+`;
+}
+
 /**
  * Generate .gitignore content.
  * @returns {string}
@@ -801,6 +1294,8 @@ function generateGitignore() {
   return `node_modules/
 .env
 *.db
+data/
+.cloudbeaver/
 `;
 }
 
@@ -817,7 +1312,7 @@ function generateSessionJs(answers) {
   let imports = `import session from "express-session";\n`;
 
   if (answers.session === "redis") {
-    imports += `import RedisStore from "connect-redis";\nimport { Redis } from "ioredis";\n`;
+    imports += `import { RedisStore } from "connect-redis";\nimport ioredis from "ioredis";\n\nconst { Redis } = ioredis;\n`;
   }
 
   let storeSetup = "";
@@ -924,10 +1419,11 @@ export default async function runMigrations(db, migrationsDir) {
 const isMain = process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
 if (isMain) {
   await import("dotenv/config");
-  const { init, db } = await import("db-model-router");
-  init("${answers.database}");
+  const pkg = await import("db-model-router");
+  const mod = pkg.default || pkg;
+  mod.init("${answers.database}");
   const migrationsDir = path.join(__dirname, "${migrationsRel}");
-  runMigrations(db, migrationsDir)
+  runMigrations(mod.db, migrationsDir)
     .then(() => process.exit(0))
     .catch(err => { console.error("Migration failed:", err); process.exit(1); });
 }
@@ -991,10 +1487,11 @@ export default async function runMigrations(db, migrationsDir) {
 const isMain = process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
 if (isMain) {
   await import("dotenv/config");
-  const { init, db } = await import("db-model-router");
-  init("${answers.database}");
+  const pkg = await import("db-model-router");
+  const mod = pkg.default || pkg;
+  mod.init("${answers.database}");
   const migrationsDir = path.join(__dirname, "${migrationsRel}");
-  runMigrations(db, migrationsDir)
+  runMigrations(mod.db, migrationsDir)
     .then(() => process.exit(0))
     .catch(err => { console.error("Migration failed:", err); process.exit(1); });
 }
@@ -1121,15 +1618,32 @@ const router = express.Router();
 
 /**
  * GET /health
- * Returns server health status with uptime and memory usage.
+ * Returns server health status, uptime, memory, and database connectivity.
  */
-router.get("/", (req, res) => {
-  res.json({
+router.get("/", async (req, res) => {
+  const health = {
     status: "ok",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     memory: process.memoryUsage(),
-  });
+    db: { connected: false },
+  };
+
+  try {
+    if (global.db && typeof global.db.query === "function") {
+      await global.db.query("SELECT NOW()");
+      health.db.connected = true;
+    } else if (global.db && typeof global.db.get === "function") {
+      // NoSQL adapters (mongodb, redis, dynamodb)
+      health.db.connected = true;
+    }
+  } catch (err) {
+    health.status = "degraded";
+    health.db.error = err.message;
+  }
+
+  const statusCode = health.status === "ok" ? 200 : 503;
+  res.status(statusCode).json(health);
 });
 
 export default router;
@@ -1137,11 +1651,61 @@ export default router;
 }
 
 // ---------------------------------------------------------------------------
-// Updated app.js generator — links commons and route/health
+// Route: index.js generator — mounts all route modules
 // ---------------------------------------------------------------------------
 
 /**
- * Generate the app.js file content (v2 — uses commons modules and route/health).
+ * Generate route/index.js — central route mounting file.
+ * @returns {string}
+ */
+function generateRouteIndexFile() {
+  return `import express from "express";
+import healthRoute from "./health.js";
+
+const router = express.Router();
+
+router.use("/health", healthRoute);
+
+export default router;
+`;
+}
+
+// ---------------------------------------------------------------------------
+// Commons: db.js generator — database init, connect, and global.db
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate commons/db.js — database initialization and connection module.
+ * Sets global.db so the db instance is accessible across the application.
+ * @param {import('./types').InitAnswers} answers
+ * @returns {string}
+ */
+function generateDbModule(answers) {
+  return `import "dotenv/config";
+import dbModelRouter from "db-model-router";
+
+// Initialize database adapter
+dbModelRouter.init("${answers.database}");
+
+// Connect to database
+dbModelRouter.db.connect({
+${dbConnectArgs(answers.database)}});
+
+// Make db available globally across the application
+const db = dbModelRouter.db;
+global.db = db;
+
+export { db };
+export default db;
+`;
+}
+
+// ---------------------------------------------------------------------------
+// Updated app.js generator — links commons and route/index
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate the app.js file content (v2 — uses commons modules and route/index).
  * @param {import('./types').InitAnswers} answers
  * @param {string} [outputDir] - relative output directory for source files (e.g. "backend")
  * @returns {string}
@@ -1156,19 +1720,12 @@ function generateAppJsV2(answers, outputDir) {
     ? `./${outputDir}/middleware`
     : "./middleware";
 
-  let imports = `import "dotenv/config";
-import express from "${frameworkPkg}";
-import { init, db } from "db-model-router";
+  return `import express from "${frameworkPkg}";
+import "${commonsPrefix}/db.js";
 import configureSession from "${commonsPrefix}/session.js";
 import applySecurity from "${commonsPrefix}/security.js";
 import logger from "${middlewarePrefix}/logger.js";
-import healthRoute from "${routePrefix}/health.js";`;
-
-  return `${imports}
-
-// Initialize database adapter
-init("${answers.database}");
-${dbConnectBlock(answers.database)}
+import route from "${routePrefix}/index.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -1187,7 +1744,7 @@ app.use(configureSession());
 app.use(logger);
 
 // Routes
-app.use("/health", healthRoute);
+app.use(route);
 
 // Error handler
 app.use((err, req, res, next) => {
@@ -1206,6 +1763,7 @@ export default app;
 module.exports = {
   migrationTimestamp,
   isSql,
+  randomPassword,
   generateAppJs,
   generateAppJsV2,
   generateEnvFile,
@@ -1216,11 +1774,18 @@ module.exports = {
   generateInitialMigration,
   generateSessionMigration,
   generateGitignore,
+  generateDockerfile,
+  generateDockerignore,
+  generateGrafanaDatasources,
+  generateDockerCompose,
+  generateCloudBeaverDataSources,
   generateSessionJs,
   generateMigrateModule,
   generateAddMigrationModule,
   generateSecurityJs,
   generateHealthRoute,
+  generateRouteIndexFile,
+  generateDbModule,
   SQL_DATABASES,
   NOSQL_DATABASES,
 };

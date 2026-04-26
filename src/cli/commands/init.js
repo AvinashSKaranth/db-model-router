@@ -22,6 +22,7 @@ const DEFAULT_ANSWERS = {
   rateLimiting: true,
   helmet: true,
   logger: true,
+  loki: false,
 };
 
 /**
@@ -52,6 +53,7 @@ async function init(args, flags, ctx) {
       rateLimiting: !!(schema.options && schema.options.rateLimiting),
       helmet: !!(schema.options && schema.options.helmet),
       logger: !!(schema.options && schema.options.logger),
+      loki: !!(schema.options && schema.options.loki),
     };
   } else if (flags.yes) {
     // --yes with no schema: use defaults, but allow CLI overrides
@@ -147,15 +149,27 @@ function planFiles(answers, outputDir) {
     ".env",
     ".env.example",
     ".gitignore",
+    "Dockerfile",
+    ".dockerignore",
+  ];
+
+  // docker-compose.yml for databases that need Docker
+  if (answers.database !== "sqlite3") {
+    files.push("docker-compose.yml");
+  }
+
+  files.push(
     `${prefix}middleware/logger.js`,
     `${prefix}commons/session.js`,
     `${prefix}commons/migrate.js`,
     `${prefix}commons/add_migration.js`,
     `${prefix}commons/security.js`,
+    `${prefix}commons/db.js`,
     `${prefix}route/health.js`,
+    `${prefix}route/index.js`,
     `${prefix}migrations/<timestamp>_create_migrations_table` +
       (isSql(answers.database) ? ".sql" : ".js"),
-  ];
+  );
 
   if (answers.session === "database" && isSql(answers.database)) {
     files.push(`${prefix}migrations/<timestamp>_create_sessions_table.sql`);

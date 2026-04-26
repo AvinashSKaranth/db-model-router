@@ -5,6 +5,7 @@
  */
 const DRIVER_MAP = {
   mysql: ["mysql2"],
+  mariadb: ["mysql2"],
   postgres: ["pg"],
   sqlite3: ["better-sqlite3"],
   mongodb: ["mongodb"],
@@ -54,7 +55,9 @@ function collectDependencies(answers) {
   }
   if (answers.logger) {
     dependencies["winston"] = "latest";
-    dependencies["winston-loki"] = "latest";
+    if (answers.loki) {
+      dependencies["winston-loki"] = "latest";
+    }
   }
 
   // Dev dependencies
@@ -76,6 +79,9 @@ function getScripts(outputDir) {
     test: 'echo "Error: no test specified" && exit 1',
     migrate: `node ${prefix}commons/migrate.js`,
     add_migration: `node ${prefix}commons/add_migration.js`,
+    "docker:build": "docker build -t app .",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
   };
 }
 

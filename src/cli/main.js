@@ -43,7 +43,7 @@ const COMMAND_FLAGS = {
     ["--framework <name>", "express, ultimate-express"],
     [
       "--database <name>",
-      "mysql, postgres, sqlite3, mongodb, mssql, cockroachdb, oracle, redis, dynamodb",
+      "mysql, mariadb, postgres, sqlite3, mongodb, mssql, cockroachdb, oracle, redis, dynamodb",
     ],
     ["--db <name>", "Alias for --database"],
     ["--session <type>", "memory, redis, database"],

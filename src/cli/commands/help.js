@@ -13,7 +13,7 @@ Creates app.js, .env, commons/, route/, middleware/, and migrations/.
 Options:
   --from <path>          Read adapter, framework, and options from a schema file
   --framework <name>     Express framework: express, ultimate-express
-  --database <name>      Database adapter: mysql, postgres, sqlite3, mongodb,
+  --database <name>      Database adapter: mysql, mariadb, postgres, sqlite3, mongodb,
                          mssql, cockroachdb, oracle, redis, dynamodb
   --db <name>            Alias for --database
   --session <type>       Session store: memory, redis, database
@@ -33,11 +33,13 @@ Generated files:
   app.js                              Express app entry point
   .env / .env.example                 Environment configuration
   .gitignore                          Git ignore rules
+  <output>/commons/db.js              Database init, connect, and global.db
   <output>/commons/session.js         Session configuration
   <output>/commons/migrate.js         Migration runner (also runs as script)
   <output>/commons/add_migration.js   Migration creation helper (also runs as script)
   <output>/commons/security.js        Helmet, rate limiting, custom headers
   <output>/middleware/logger.js        Winston + Loki request logger
+  <output>/route/index.js             Central route mounting
   <output>/route/health.js            GET /health endpoint
   <output>/migrations/                Initial migration files
 

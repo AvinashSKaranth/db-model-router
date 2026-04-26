@@ -2,6 +2,7 @@ const model = require("./commons/model.js");
 const route = require("./commons/route.js");
 const routers = {
   mysql: "./mysql/db.js",
+  mariadb: "./mysql/db.js",
   postgresql: "./postgres/db.js",
   postgres: "./postgres/db.js",
   oracle: "./oracle/db.js",
@@ -29,6 +30,7 @@ function init(DB_TYPE) {
     if (err.code === "MODULE_NOT_FOUND") {
       const driverMap = {
         mysql: "mysql2",
+        mariadb: "mysql2",
         postgresql: "pg",
         postgres: "pg",
         oracle: "oracledb",

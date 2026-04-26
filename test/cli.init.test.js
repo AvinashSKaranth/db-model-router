@@ -184,11 +184,12 @@ describe("CLI Init - src/cli/init.js orchestration", function () {
       assert.ok(promptSrc.includes('"logger"'), "Should have logger prompt");
 
       // All confirm prompts should be type: "confirm"
+      // 3 in main questions (rateLimiting, helmet, logger) + 1 follow-up (loki)
       const confirmCount = (promptSrc.match(/type:\s*"confirm"/g) || []).length;
       assert.strictEqual(
         confirmCount,
-        3,
-        "Should have exactly 3 confirm prompts",
+        4,
+        "Should have exactly 4 confirm prompts",
       );
 
       // List prompts count

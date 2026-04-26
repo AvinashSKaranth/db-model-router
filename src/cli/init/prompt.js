@@ -5,6 +5,7 @@ const inquirer = require("inquirer");
 const VALID_FRAMEWORKS = ["ultimate-express", "express"];
 const VALID_DATABASES = [
   "mysql",
+  "mariadb",
   "postgres",
   "sqlite3",
   "mongodb",
@@ -56,7 +57,7 @@ function parseInitArgs(argv) {
   }
 
   // Boolean flags
-  for (const flag of ["rateLimiting", "helmet", "logger"]) {
+  for (const flag of ["rateLimiting", "helmet", "logger", "loki"]) {
     if (args[flag] !== undefined) {
       partial[flag] = parseBool(args[flag]);
     }
@@ -151,7 +152,7 @@ async function promptUser(prefilledAnswers) {
     questions.push({
       type: "confirm",
       name: "logger",
-      message: "Enable request/response logger (Winston + Loki)?",
+      message: "Enable request/response logger (Winston)?",
       default: true,
     });
   }
@@ -162,6 +163,22 @@ async function promptUser(prefilledAnswers) {
   }
 
   const prompted = await inquirer.prompt(questions);
+
+  // Follow-up: if logger is enabled, ask about Loki
+  if (prompted.logger && prefilled.loki === undefined) {
+    const lokiAnswer = await inquirer.prompt([
+      {
+        type: "confirm",
+        name: "loki",
+        message: "Send logs to Grafana Loki?",
+        default: false,
+      },
+    ]);
+    prompted.loki = lokiAnswer.loki;
+  } else if (!prompted.logger && prefilled.logger === undefined) {
+    prompted.loki = false;
+  }
+
   return Object.assign({}, prefilled, prompted);
 }
 

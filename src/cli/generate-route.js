@@ -25,8 +25,10 @@ function safeVarName(name) {
  */
 function generateRouteFile(tableName, modelsRelPath) {
   const varName = safeVarName(tableName);
-  return `import { route } from "db-model-router";
+  return `import dbModelRouter from "db-model-router";
 import ${varName} from "${modelsRelPath}/${tableName}.js";
+
+const { route } = dbModelRouter;
 
 export default route(${varName});
 `;
@@ -43,8 +45,10 @@ function generateChildRouteFile(
   modelsRelPath,
 ) {
   const varName = safeVarName(childTable);
-  return `import { route } from "db-model-router";
+  return `import dbModelRouter from "db-model-router";
 import ${varName} from "${modelsRelPath}/${childTable}.js";
+
+const { route } = dbModelRouter;
 
 // Child route: scoped by parent ${parentTable} via ${fkColumn}
 export default route(${varName}, { ${fkColumn}: "params.${fkColumn}" });
@@ -115,7 +119,9 @@ function generateTestFile(tableName, pk) {
   return `import assert from "assert";
 import express from "express";
 import request from "supertest";
-import { route } from "db-model-router";
+import dbModelRouter from "db-model-router";
+
+const { route } = dbModelRouter;
 
 // Adjust the path to your model file as needed
 import ${varName} from "../models/${tableName}.js";
@@ -221,7 +227,9 @@ function generateChildTestFile(childTable, parentTable, fkColumn, pk) {
   return `import assert from "assert";
 import express from "express";
 import request from "supertest";
-import { route } from "db-model-router";
+import dbModelRouter from "db-model-router";
+
+const { route } = dbModelRouter;
 
 import ${childVar} from "../models/${childTable}.js";
 

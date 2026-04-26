@@ -14,11 +14,19 @@ const {
   generateInitialMigration,
   generateSessionMigration,
   generateGitignore,
+  generateDockerfile,
+  generateDockerignore,
+  generateGrafanaDatasources,
+  generateDockerCompose,
+  generateCloudBeaverDataSources,
   generateSessionJs,
   generateMigrateModule,
   generateAddMigrationModule,
   generateSecurityJs,
   generateHealthRoute,
+  generateRouteIndexFile,
+  generateDbModule,
+  randomPassword,
 } = require("./init/generators");
 
 const { collectDependencies, getScripts } = require("./init/dependencies");
@@ -75,6 +83,13 @@ function generateFiles(answers, outputDir) {
   // Resolve source directory (outputDir-relative or cwd)
   const srcBase = outputDir || ".";
 
+  // Generate random secrets (shared between .env and docker-compose)
+  const secrets = {
+    dbPass: randomPassword(),
+    redisPass: answers.session === "redis" ? randomPassword() : "",
+    sessionSecret: randomPassword(32),
+  };
+
   // Create directories
   const dirs = [
     path.join(srcBase, "middleware"),
@@ -82,6 +97,10 @@ function generateFiles(answers, outputDir) {
     path.join(srcBase, "commons"),
     path.join(srcBase, "route"),
   ];
+  // SQLite3 needs a data/ folder for the database file
+  if (answers.database === "sqlite3") {
+    dirs.push("data");
+  }
   for (const dir of dirs) {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -92,11 +111,48 @@ function generateFiles(answers, outputDir) {
   // app.js uses the v2 generator that links commons/route modules
   if (safeWriteFile("app.js", generateAppJsV2(answers, outputDir || "")))
     files.push("app.js");
-  if (safeWriteFile(".env", generateEnvFile(answers))) files.push(".env");
+  if (safeWriteFile(".env", generateEnvFile(answers, secrets)))
+    files.push(".env");
   if (safeWriteFile(".env.example", generateEnvExample(answers)))
     files.push(".env.example");
   if (safeWriteFile(".gitignore", generateGitignore()))
     files.push(".gitignore");
+
+  // docker-compose.yml (if the database needs Docker)
+  const dockerCompose = generateDockerCompose(answers, secrets);
+  if (dockerCompose !== null) {
+    if (safeWriteFile("docker-compose.yml", dockerCompose))
+      files.push("docker-compose.yml");
+  }
+
+  // CloudBeaver data-sources.json (auto-connect config)
+  const cbDataSources = generateCloudBeaverDataSources(answers, secrets);
+  if (cbDataSources !== null) {
+    const cbDir = ".cloudbeaver";
+    if (!fs.existsSync(cbDir)) {
+      fs.mkdirSync(cbDir, { recursive: true });
+    }
+    const cbPath = path.join(cbDir, "data-sources.json");
+    if (safeWriteFile(cbPath, cbDataSources))
+      files.push(".cloudbeaver/data-sources.json");
+  }
+
+  // Grafana datasource provisioning (when loki is enabled)
+  if (answers.loki) {
+    const grafanaDir = ".grafana";
+    if (!fs.existsSync(grafanaDir)) {
+      fs.mkdirSync(grafanaDir, { recursive: true });
+    }
+    const grafanaPath = path.join(grafanaDir, "datasources.yml");
+    if (safeWriteFile(grafanaPath, generateGrafanaDatasources()))
+      files.push(".grafana/datasources.yml");
+  }
+
+  // Dockerfile and .dockerignore
+  if (safeWriteFile("Dockerfile", generateDockerfile(answers, outputDir)))
+    files.push("Dockerfile");
+  if (safeWriteFile(".dockerignore", generateDockerignore()))
+    files.push(".dockerignore");
 
   // Source files inside outputDir (or cwd if no outputDir)
   const loggerPath = path.join(srcBase, "middleware", "logger.js");
@@ -128,10 +184,20 @@ function generateFiles(answers, outputDir) {
   if (safeWriteFile(securityPath, generateSecurityJs(answers)))
     files.push(path.join(srcBase, "commons/security.js"));
 
+  // commons/db.js
+  const dbPath = path.join(srcBase, "commons", "db.js");
+  if (safeWriteFile(dbPath, generateDbModule(answers)))
+    files.push(path.join(srcBase, "commons/db.js"));
+
   // route/health.js
   const healthPath = path.join(srcBase, "route", "health.js");
   if (safeWriteFile(healthPath, generateHealthRoute()))
     files.push(path.join(srcBase, "route/health.js"));
+
+  // route/index.js
+  const routeIndexPath = path.join(srcBase, "route", "index.js");
+  if (safeWriteFile(routeIndexPath, generateRouteIndexFile()))
+    files.push(path.join(srcBase, "route/index.js"));
 
   // Initial migration (inside outputDir/migrations)
   const initialMigration = generateInitialMigration(answers);
