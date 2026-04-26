@@ -206,6 +206,139 @@ db-model-router init --from dbmr.schema.json --yes --no-install
 db-model-router generate --from dbmr.schema.json
 ```
 
+### Command Reference
+
+#### `init`
+
+Scaffold a new project from a schema file or interactively.
+
+| Flag / Arg           | Description                                                                                                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--from <path>`      | Read adapter, framework, and options from a `dbmr.schema.json` file                                                                                                           |
+| `--framework <name>` | Express framework to use: `express` or `ultimate-express`                                                                                                                     |
+| `--database <name>`  | Database adapter: `mysql`, `postgres`, `sqlite3`, `mongodb`, `mssql`, `cockroachdb`, `oracle`, `redis`, `dynamodb`                                                            |
+| `--db <name>`        | Alias for `--database`                                                                                                                                                        |
+| `--session <type>`   | Session store type: `memory`, `redis`, `database`                                                                                                                             |
+| `--output <dir>`     | Directory for backend source files (relative to cwd). `package.json` and `app.js` stay in root; `commons/`, `route/`, `middleware/`, and `migrations/` go inside this folder. |
+| `--rateLimiting`     | Enable rate limiting middleware (`express-rate-limit`)                                                                                                                        |
+| `--helmet`           | Enable Helmet security headers                                                                                                                                                |
+| `--logger`           | Enable request/response logger (`express-mung`)                                                                                                                               |
+
+```bash
+# Non-interactive with output directory
+db-model-router init --framework express --database postgres --output backend --yes
+
+# From schema, skip install
+db-model-router init --from dbmr.schema.json --yes --no-install
+
+# Dry run to preview files
+db-model-router init --from dbmr.schema.json --dry-run
+```
+
+Generated project structure (with `--output backend`):
+
+```
+├── package.json          # root
+├── app.js                # root — links to backend/commons, backend/route
+├── .env
+├── .env.example
+├── .gitignore
+├── migrate.js            # root entry point for migrations
+├── add_migration.js      # root entry point for creating migrations
+└── backend/
+    ├── commons/
+    │   ├── session.js        # session configuration
+    │   ├── migrate.js        # migration runner module
+    │   ├── add_migration.js  # migration creation helper
+    │   └── security.js       # helmet, rate limiting, custom headers
+    ├── middleware/
+    │   └── logger.js         # request/response logger
+    ├── route/
+    │   └── health.js         # GET /health endpoint
+    └── migrations/
+        └── <timestamp>_create_migrations_table.sql
+```
+
+#### `inspect`
+
+Introspect a live database and produce a `dbmr.schema.json` file.
+
+| Flag / Arg         | Description                                                                                                 |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `--type <adapter>` | Database adapter to introspect (required): `mysql`, `postgres`, `sqlite3`, `mssql`, `oracle`, `cockroachdb` |
+| `--env <path>`     | Path to `.env` file for database connection parameters                                                      |
+| `--out <path>`     | Output file path (default: `dbmr.schema.json`)                                                              |
+| `--tables <list>`  | Comma-separated list of tables to include (omit for all)                                                    |
+
+```bash
+db-model-router inspect --type postgres --env .env
+db-model-router inspect --type sqlite3 --out schema.json --tables users,posts
+db-model-router inspect --type mysql --json
+```
+
+#### `generate`
+
+Generate models, routes, tests, OpenAPI spec, and LLM docs from a schema file.
+
+| Flag / Arg      | Description                                                  |
+| --------------- | ------------------------------------------------------------ |
+| `--from <path>` | Path to schema file (default: `dbmr.schema.json`)            |
+| `--models`      | Generate only model files                                    |
+| `--routes`      | Generate only route files (including child routes and index) |
+| `--openapi`     | Generate only OpenAPI spec                                   |
+| `--tests`       | Generate only test files                                     |
+| `--llm-docs`    | Generate only LLM documentation (`llms.txt` + `docs/llm.md`) |
+
+When no artifact flags are provided, all artifact types are generated.
+
+```bash
+# Generate everything
+db-model-router generate --from dbmr.schema.json
+
+# Generate only models (dry run)
+db-model-router generate --models --dry-run
+
+# Generate routes and tests
+db-model-router generate --routes --tests
+
+# Machine-readable output
+db-model-router generate --from dbmr.schema.json --json
+```
+
+#### `doctor`
+
+Validate schema, check adapter driver dependencies, and verify generated files are in sync.
+
+| Flag / Arg      | Description                                       |
+| --------------- | ------------------------------------------------- |
+| `--from <path>` | Path to schema file (default: `dbmr.schema.json`) |
+
+```bash
+db-model-router doctor --from dbmr.schema.json
+db-model-router doctor --json
+```
+
+Reports three checks:
+
+1. Schema validation (syntax and structure)
+2. Dependency check (adapter driver present in `package.json`)
+3. Sync check (generated files match what the schema would produce)
+
+#### `diff`
+
+Preview changes between the current generated files and what the schema would produce. Read-only — does not modify any files.
+
+| Flag / Arg      | Description                                       |
+| --------------- | ------------------------------------------------- |
+| `--from <path>` | Path to schema file (default: `dbmr.schema.json`) |
+
+```bash
+db-model-router diff --from dbmr.schema.json
+db-model-router diff --json
+```
+
+Output shows added, modified (with line diffs), and deleted files.
+
 ## MySQL Example
 
 ### 1. Connect

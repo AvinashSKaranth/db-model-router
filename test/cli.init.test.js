@@ -641,12 +641,24 @@ describe("CLI Init - src/cli/init.js orchestration", function () {
         ".gitignore should exist",
       );
       assert.ok(
-        fs.existsSync(path.join(tmpDir, "migrate.js")),
-        "migrate.js should exist",
+        fs.existsSync(path.join(tmpDir, "commons", "migrate.js")),
+        "commons/migrate.js should exist",
       );
       assert.ok(
-        fs.existsSync(path.join(tmpDir, "add_migration.js")),
-        "add_migration.js should exist",
+        fs.existsSync(path.join(tmpDir, "commons", "add_migration.js")),
+        "commons/add_migration.js should exist",
+      );
+      assert.ok(
+        fs.existsSync(path.join(tmpDir, "commons", "session.js")),
+        "commons/session.js should exist",
+      );
+      assert.ok(
+        fs.existsSync(path.join(tmpDir, "commons", "security.js")),
+        "commons/security.js should exist",
+      );
+      assert.ok(
+        fs.existsSync(path.join(tmpDir, "route", "health.js")),
+        "route/health.js should exist",
       );
       assert.ok(
         fs.existsSync(path.join(tmpDir, "middleware", "logger.js")),

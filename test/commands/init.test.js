@@ -269,7 +269,11 @@ describe("CLI Commands - init (src/cli/commands/init.js)", function () {
       );
       assert.ok(
         !fs.existsSync(path.join(tmpDir, "migrate.js")),
-        "migrate.js should NOT exist in dry-run mode",
+        "root migrate.js should NOT exist in dry-run mode",
+      );
+      assert.ok(
+        !fs.existsSync(path.join(tmpDir, "commons", "migrate.js")),
+        "commons/migrate.js should NOT exist in dry-run mode",
       );
     });
 

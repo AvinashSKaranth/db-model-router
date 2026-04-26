@@ -1,6 +1,6 @@
 {
   "name": "db-model-router",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Generative API Creation using mysql2 and express libraries in node js",
   "main": "src/index.js",
   "bin": {
@@ -19,7 +19,8 @@
     "test:cockroachdb": "dotenv -e env/.env.cockroachdb -- mocha test/adapters/cockroachdb.*.test.js --timeout 15000 --exit",
     "test:mssql": "dotenv -e env/.env.mssql -- mocha test/adapters/mssql.*.test.js --timeout 30000 --exit",
     "test:properties": "mocha test/properties/*.property.test.js --timeout 30000 --exit",
-    "test:all": "mocha test/adapters/*.test.js test/properties/*.property.test.js test/function.test.js --timeout 30000 --exit"
+    "test:all": "mocha test/adapters/*.test.js test/properties/*.property.test.js test/function.test.js --timeout 30000 --exit",
+    "clean:demo": "rm -rf demo/* demo/.*"
   },
   "repository": {
     "type": "git",
@@ -27,6 +28,13 @@
   },
   "keywords": [
     "mysql2",
+    "sqlite3",
+    "oracledb",
+    "postgres",
+    "pg",
+    "dynamodb",
+    "mongodb",
+    "mssql",
     "express",
     "ultimate-express",
     "generative",

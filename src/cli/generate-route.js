@@ -25,10 +25,10 @@ function safeVarName(name) {
  */
 function generateRouteFile(tableName, modelsRelPath) {
   const varName = safeVarName(tableName);
-  return `const { route } = require("db-model-router");
-const ${varName} = require("${modelsRelPath}/${tableName}");
+  return `import { route } from "db-model-router";
+import ${varName} from "${modelsRelPath}/${tableName}.js";
 
-module.exports = route(${varName});
+export default route(${varName});
 `;
 }
 
@@ -43,11 +43,11 @@ function generateChildRouteFile(
   modelsRelPath,
 ) {
   const varName = safeVarName(childTable);
-  return `const { route } = require("db-model-router");
-const ${varName} = require("${modelsRelPath}/${childTable}");
+  return `import { route } from "db-model-router";
+import ${varName} from "${modelsRelPath}/${childTable}.js";
 
 // Child route: scoped by parent ${parentTable} via ${fkColumn}
-module.exports = route(${varName}, { ${fkColumn}: "params.${fkColumn}" });
+export default route(${varName}, { ${fkColumn}: "params.${fkColumn}" });
 `;
 }
 
@@ -56,7 +56,7 @@ module.exports = route(${varName}, { ${fkColumn}: "params.${fkColumn}" });
  * Supports parent-child nesting: parent/:pk/child
  */
 function generateRoutesIndexFile(tableNames, relationships = []) {
-  let imports = `let express;\ntry { express = require("ultimate-express"); } catch (_) { express = require("express"); }\nconst router = express.Router();\n\n`;
+  let imports = `import express from "express";\n\nconst router = express.Router();\n\n`;
 
   // Collect child tables that are nested under parents
   const nestedChildren = new Set();
@@ -66,12 +66,12 @@ function generateRoutesIndexFile(tableNames, relationships = []) {
 
   for (const table of tableNames) {
     const varName = safeVarName(table);
-    imports += `const ${varName}Route = require("./${table}");\n`;
+    imports += `import ${varName}Route from "./${table}.js";\n`;
   }
   // Import child routes with _child suffix for nested ones
   for (const rel of relationships) {
     const varName = safeVarName(rel.child);
-    imports += `const ${varName}ChildRoute = require("./${rel.child}_child_of_${rel.parent}");\n`;
+    imports += `import ${varName}ChildRoute from "./${rel.child}_child_of_${rel.parent}.js";\n`;
   }
 
   imports += "\n";
@@ -85,9 +85,7 @@ function generateRoutesIndexFile(tableNames, relationships = []) {
 
   // Mount nested child routes under parent
   for (const rel of relationships) {
-    const parentVar = safeVarName(rel.parent);
     const childVar = safeVarName(rel.child);
-    // Find parent PK from model file name convention — use fkColumn without _id suffix as parent pk param
     imports += `router.use("/${rel.parent}/:${rel.fkColumn}/${rel.child}", ${childVar}ChildRoute);\n`;
   }
 
@@ -97,7 +95,7 @@ function generateRoutesIndexFile(tableNames, relationships = []) {
     imports += `router.use("/${rel.child}", ${varName}Route);\n`;
   }
 
-  imports += "\nmodule.exports = router;\n";
+  imports += "\nexport default router;\n";
   return imports;
 }
 
@@ -114,13 +112,13 @@ function generateSimpleRoutesIndexFile(tableNames) {
  */
 function generateTestFile(tableName, pk) {
   const varName = safeVarName(tableName);
-  return `const assert = require("assert");
-const express = require("express");
-const request = require("supertest");
-const { route } = require("db-model-router");
+  return `import assert from "assert";
+import express from "express";
+import request from "supertest";
+import { route } from "db-model-router";
 
 // Adjust the path to your model file as needed
-const ${varName} = require("../models/${tableName}");
+import ${varName} from "../models/${tableName}.js";
 
 function createApp() {
   const app = express();
@@ -220,12 +218,12 @@ describe("${tableName} routes", function () {
  */
 function generateChildTestFile(childTable, parentTable, fkColumn, pk) {
   const childVar = safeVarName(childTable);
-  return `const assert = require("assert");
-const express = require("express");
-const request = require("supertest");
-const { route } = require("db-model-router");
+  return `import assert from "assert";
+import express from "express";
+import request from "supertest";
+import { route } from "db-model-router";
 
-const ${childVar} = require("../models/${childTable}");
+import ${childVar} from "../models/${childTable}.js";
 
 function createApp() {
   const app = express();

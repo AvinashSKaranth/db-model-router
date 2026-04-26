@@ -158,6 +158,19 @@ function buildEnvContent(answers, mode) {
     }
   }
 
+  // Loki logging
+  if (answers.logger) {
+    lines.push("");
+    lines.push("# Logging (Grafana Loki)");
+    lines.push(
+      `LOKI_HOST=${mode === "placeholder" ? "http://your-loki-host:3100" : "http://localhost:3100"}`,
+    );
+    lines.push(
+      `APP_NAME=${mode === "placeholder" ? "your_app_name" : "my-app"}`,
+    );
+    lines.push(`LOG_LEVEL=${mode === "placeholder" ? "info" : "info"}`);
+  }
+
   lines.push("");
   return lines.join("\n");
 }
@@ -341,35 +354,73 @@ module.exports = app;
 
 /**
  * Generate middleware/logger.js content.
+ * When logger is enabled, uses Winston with winston-loki transport for Grafana.
  * @param {import('./types').InitAnswers} answers
  * @returns {string}
  */
 function generateLoggerMiddleware(answers) {
   if (answers.logger) {
-    return `const mung = require("express-mung");
+    return `import winston from "winston";
+import LokiTransport from "winston-loki";
 
 /**
- * Request/response logger middleware using express-mung.
- * Logs request details, response body, and response time.
+ * Winston logger with Console + Loki transports.
+ * Sends structured logs to Grafana Loki for visualization.
+ *
+ * Configure LOKI_HOST in .env (default: http://localhost:3100).
  */
-const logger = mung.json(function transform(body, req, res) {
-  const duration = Date.now() - req._startTime;
-  const status = res.statusCode;
-  const level = status >= 400 ? "WARN" : "INFO";
-  console.log(
-    \`[\${new Date().toISOString()}] [\${level}] \${req.method} \${req.originalUrl} \${status} \${duration}ms\`,
-  );
-  console.log("  Request headers:", JSON.stringify(req.headers));
-  console.log("  Response body:", JSON.stringify(body));
-  return body;
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || "info",
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json(),
+  ),
+  defaultMeta: { service: process.env.APP_NAME || "app" },
+  transports: [
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.printf(({ timestamp, level, message, ...meta }) => {
+          const metaStr = Object.keys(meta).length > 1
+            ? " " + JSON.stringify(meta)
+            : "";
+          return \`[\${timestamp}] [\${level}] \${message}\${metaStr}\`;
+        }),
+      ),
+    }),
+    new LokiTransport({
+      host: process.env.LOKI_HOST || "http://localhost:3100",
+      labels: { app: process.env.APP_NAME || "app" },
+      json: true,
+      onConnectionError: (err) => console.error("Loki connection error:", err),
+    }),
+  ],
 });
 
-function startTimer(req, res, next) {
-  req._startTime = Date.now();
+/**
+ * Express middleware that logs every request/response.
+ */
+function requestLogger(req, res, next) {
+  const start = Date.now();
+
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    const level = res.statusCode >= 400 ? "warn" : "info";
+    logger.log({
+      level,
+      message: \`\${req.method} \${req.originalUrl} \${res.statusCode} \${duration}ms\`,
+      method: req.method,
+      url: req.originalUrl,
+      status: res.statusCode,
+      duration,
+    });
+  });
+
   next();
 }
 
-module.exports = [startTimer, logger];
+requestLogger.logger = logger;
+export default requestLogger;
 `;
   }
 
@@ -377,7 +428,7 @@ module.exports = [startTimer, logger];
  * Simple request logger middleware.
  * Logs method, URL, status code, and response time.
  */
-module.exports = function logger(req, res, next) {
+export default function logger(req, res, next) {
   const start = Date.now();
   const { method, originalUrl } = req;
 
@@ -391,7 +442,7 @@ module.exports = function logger(req, res, next) {
   });
 
   next();
-};
+}
 `;
 }
 
@@ -649,53 +700,41 @@ function generateInitialMigration(answers, date) {
   // NoSQL databases
   let content;
   if (answers.database === "mongodb") {
-    content = `"use strict";
+    content = `export async function up(db) {
+  await db.createCollection("_migrations");
+  await db.collection("_migrations").createIndex({ filename: 1 }, { unique: true });
+}
 
-module.exports = {
-  async up(db) {
-    await db.createCollection("_migrations");
-    await db.collection("_migrations").createIndex({ filename: 1 }, { unique: true });
-  },
-
-  async down(db) {
-    await db.collection("_migrations").drop();
-  },
-};
+export async function down(db) {
+  await db.collection("_migrations").drop();
+}
 `;
   } else if (answers.database === "redis") {
-    content = `"use strict";
+    content = `export async function up(db) {
+  // _migrations hash key will be created on first HSET
+  console.log("Redis migration tracking initialized using hash key: _migrations");
+}
 
-module.exports = {
-  async up(db) {
-    // _migrations hash key will be created on first HSET
-    console.log("Redis migration tracking initialized using hash key: _migrations");
-  },
-
-  async down(db) {
-    await db.del("_migrations");
-  },
-};
+export async function down(db) {
+  await db.del("_migrations");
+}
 `;
   } else {
     // dynamodb
-    content = `"use strict";
+    content = `import { CreateTableCommand, DeleteTableCommand } from "@aws-sdk/client-dynamodb";
 
-module.exports = {
-  async up(db) {
-    const { CreateTableCommand } = require("@aws-sdk/client-dynamodb");
-    await db.send(new CreateTableCommand({
-      TableName: "_migrations",
-      KeySchema: [{ AttributeName: "filename", KeyType: "HASH" }],
-      AttributeDefinitions: [{ AttributeName: "filename", AttributeType: "S" }],
-      BillingMode: "PAY_PER_REQUEST",
-    }));
-  },
+export async function up(db) {
+  await db.send(new CreateTableCommand({
+    TableName: "_migrations",
+    KeySchema: [{ AttributeName: "filename", KeyType: "HASH" }],
+    AttributeDefinitions: [{ AttributeName: "filename", AttributeType: "S" }],
+    BillingMode: "PAY_PER_REQUEST",
+  }));
+}
 
-  async down(db) {
-    const { DeleteTableCommand } = require("@aws-sdk/client-dynamodb");
-    await db.send(new DeleteTableCommand({ TableName: "_migrations" }));
-  },
-};
+export async function down(db) {
+  await db.send(new DeleteTableCommand({ TableName: "_migrations" }));
+}
 `;
   }
 
@@ -765,10 +804,410 @@ function generateGitignore() {
 `;
 }
 
+// ---------------------------------------------------------------------------
+// Commons: session.js generator
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate commons/session.js — session configuration module.
+ * @param {import('./types').InitAnswers} answers
+ * @returns {string}
+ */
+function generateSessionJs(answers) {
+  let imports = `import session from "express-session";\n`;
+
+  if (answers.session === "redis") {
+    imports += `import RedisStore from "connect-redis";\nimport { Redis } from "ioredis";\n`;
+  }
+
+  let storeSetup = "";
+  let storeOption = "";
+
+  if (answers.session === "redis") {
+    const redisConfig =
+      answers.database === "redis"
+        ? `  host: process.env.DB_HOST || "localhost",\n  port: process.env.DB_PORT || 6379,\n  password: process.env.DB_PASS,`
+        : `  host: process.env.REDIS_HOST || "localhost",\n  port: process.env.REDIS_PORT || 6379,\n  password: process.env.REDIS_PASS,`;
+
+    storeSetup = `\nconst redisClient = new Redis({\n${redisConfig}\n});\n`;
+    storeOption = `\n    store: new RedisStore({ client: redisClient }),`;
+  }
+
+  return `${imports}${storeSetup}
+/**
+ * Configure and return session middleware.
+ * Session store: ${answers.session}
+ */
+export default function configureSession() {
+  return session({${storeOption}
+    secret: process.env.SESSION_SECRET || "change-me",
+    resave: false,
+    saveUninitialized: false,
+  });
+}
+`;
+}
+
+// ---------------------------------------------------------------------------
+// Commons: migrate.js generator (standalone script)
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate commons/migrate.js — migration runner module.
+ * Works as both an importable module and a standalone script.
+ * @param {import('./types').InitAnswers} answers
+ * @param {string} [outputDir] - relative output directory
+ * @returns {string}
+ */
+function generateMigrateModule(answers, outputDir) {
+  const isNoSql = NOSQL_DATABASES.includes(answers.database);
+  // commons/migrate.js and migrations/ are sibling dirs inside the same outputDir
+  const migrationsRel = "../migrations";
+
+  if (isNoSql) {
+    return `#!/usr/bin/env node
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Run all pending migrations from the migrations directory.
+ * @param {object} db - db-model-router db instance
+ * @param {string} migrationsDir - absolute path to migrations folder
+ */
+export default async function runMigrations(db, migrationsDir) {
+  const files = fs.readdirSync(migrationsDir)
+    .filter(f => f.endsWith(".js"))
+    .sort();
+
+  let executed;
+  try {
+    const result = await db.get("_migrations");
+    executed = new Set((result || []).map(r => r.filename));
+  } catch (e) {
+    executed = new Set();
+  }
+
+  let ran = 0;
+  for (const file of files) {
+    if (executed.has(file)) {
+      console.log(\`  Skipping (already executed): \${file}\`);
+      continue;
+    }
+    const filePath = path.join(migrationsDir, file);
+    const content = fs.readFileSync(filePath, "utf8");
+    const checksum = crypto.createHash("md5").update(content).digest("hex");
+
+    const migration = await import(filePath);
+    console.log(\`  Running migration: \${file}\`);
+    await migration.up(db);
+    await db.insert("_migrations", {
+      filename: file,
+      executed_at: new Date().toISOString(),
+      checksum,
+    });
+    console.log(\`  Completed: \${file}\`);
+    ran++;
+  }
+
+  if (ran === 0) {
+    console.log("No pending migrations.");
+  } else {
+    console.log(\`\\n\${ran} migration(s) complete.\`);
+  }
+}
+
+// Run as standalone script
+const isMain = process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+if (isMain) {
+  await import("dotenv/config");
+  const { init, db } = await import("db-model-router");
+  init("${answers.database}");
+  const migrationsDir = path.join(__dirname, "${migrationsRel}");
+  runMigrations(db, migrationsDir)
+    .then(() => process.exit(0))
+    .catch(err => { console.error("Migration failed:", err); process.exit(1); });
+}
+`;
+  }
+
+  return `#!/usr/bin/env node
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Run all pending SQL migrations from the migrations directory.
+ * @param {object} db - db-model-router db instance
+ * @param {string} migrationsDir - absolute path to migrations folder
+ */
+export default async function runMigrations(db, migrationsDir) {
+  const files = fs.readdirSync(migrationsDir)
+    .filter(f => f.endsWith(".sql"))
+    .sort();
+
+  let executed;
+  try {
+    const result = await db.query("SELECT filename FROM _migrations");
+    executed = new Set((result || []).map(r => r.filename));
+  } catch (e) {
+    executed = new Set();
+  }
+
+  let ran = 0;
+  for (const file of files) {
+    if (executed.has(file)) {
+      console.log(\`  Skipping (already executed): \${file}\`);
+      continue;
+    }
+    const filePath = path.join(migrationsDir, file);
+    const content = fs.readFileSync(filePath, "utf8");
+    const checksum = crypto.createHash("md5").update(content).digest("hex");
+
+    console.log(\`  Running migration: \${file}\`);
+    await db.query(content);
+    await db.query(
+      "INSERT INTO _migrations (filename, checksum) VALUES (?, ?)",
+      [file, checksum]
+    );
+    console.log(\`  Completed: \${file}\`);
+    ran++;
+  }
+
+  if (ran === 0) {
+    console.log("No pending migrations.");
+  } else {
+    console.log(\`\\n\${ran} migration(s) complete.\`);
+  }
+}
+
+// Run as standalone script
+const isMain = process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+if (isMain) {
+  await import("dotenv/config");
+  const { init, db } = await import("db-model-router");
+  init("${answers.database}");
+  const migrationsDir = path.join(__dirname, "${migrationsRel}");
+  runMigrations(db, migrationsDir)
+    .then(() => process.exit(0))
+    .catch(err => { console.error("Migration failed:", err); process.exit(1); });
+}
+`;
+}
+
+// ---------------------------------------------------------------------------
+// Commons: add_migration.js generator (standalone script)
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate commons/add_migration.js — migration creation helper module.
+ * Works as both an importable module and a standalone script.
+ * @param {import('./types').InitAnswers} answers
+ * @param {string} [outputDir] - relative output directory
+ * @returns {string}
+ */
+function generateAddMigrationModule(answers, outputDir) {
+  const isNoSql = NOSQL_DATABASES.includes(answers.database);
+  const ext = isNoSql ? "js" : "sql";
+  const template = isNoSql
+    ? `export async function up(db) {\\n  // Write your migration here\\n}\\n\\nexport async function down(db) {\\n  // Write your rollback here\\n}\\n`
+    : `-- Write your migration SQL here\\n`;
+  const migrationsRel = "../migrations";
+
+  return `#!/usr/bin/env node
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Create a new timestamped migration file.
+ * @param {string} migrationsDir - absolute path to migrations folder
+ * @param {string} [name] - migration name (default: "migration")
+ * @returns {string} the created filename
+ */
+export default function addMigration(migrationsDir, name) {
+  const migrationName = name || "migration";
+  const now = new Date();
+  const y = String(now.getFullYear()).padStart(4, "0");
+  const mo = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const h = String(now.getHours()).padStart(2, "0");
+  const mi = String(now.getMinutes()).padStart(2, "0");
+  const s = String(now.getSeconds()).padStart(2, "0");
+  const ts = \`\${y}\${mo}\${d}\${h}\${mi}\${s}\`;
+
+  const filename = \`\${ts}_\${migrationName}.${ext}\`;
+  const filePath = path.join(migrationsDir, filename);
+
+  if (!fs.existsSync(migrationsDir)) {
+    fs.mkdirSync(migrationsDir, { recursive: true });
+  }
+
+  fs.writeFileSync(filePath, "${template}");
+  console.log(\`Created migration: \${filename}\`);
+  return filename;
+}
+
+// Run as standalone script
+const isMain = process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+if (isMain) {
+  const migrationsDir = path.join(__dirname, "${migrationsRel}");
+  const name = process.argv[2] || "migration";
+  addMigration(migrationsDir, name);
+}
+`;
+}
+
+// ---------------------------------------------------------------------------
+// Commons: security.js generator (helmet + header overrides)
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate commons/security.js — helmet and custom header security middleware.
+ * @param {import('./types').InitAnswers} answers
+ * @returns {string}
+ */
+function generateSecurityJs(answers) {
+  let imports = "";
+  if (answers.helmet) {
+    imports += `import helmet from "helmet";\n`;
+  }
+  if (answers.rateLimiting) {
+    imports += `import rateLimit from "express-rate-limit";\n`;
+  }
+
+  return `${imports}
+/**
+ * Apply security middleware to the Express app.
+ * Includes: ${answers.helmet ? "Helmet, " : ""}${answers.rateLimiting ? "rate limiting, " : ""}custom security headers.
+ * @param {import("express").Application} app
+ */
+export default function applySecurity(app) {
+${answers.helmet ? `  // Helmet — sets various HTTP headers for security\n  app.use(helmet());\n` : "  // Helmet is not enabled. Install and enable via --helmet flag.\n"}
+${answers.rateLimiting ? `  // Rate limiting\n  app.use(rateLimit({\n    windowMs: 15 * 60 * 1000,\n    max: 100,\n    standardHeaders: true,\n    legacyHeaders: false,\n  }));\n` : ""}
+  // Custom security headers (override or extend as needed)
+  app.use((req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("X-XSS-Protection", "1; mode=block");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.removeHeader("X-Powered-By");
+    next();
+  });
+}
+`;
+}
+
+// ---------------------------------------------------------------------------
+// Route: health.js generator
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate route/health.js — health check route.
+ * @returns {string}
+ */
+function generateHealthRoute() {
+  return `import express from "express";
+
+const router = express.Router();
+
+/**
+ * GET /health
+ * Returns server health status with uptime and memory usage.
+ */
+router.get("/", (req, res) => {
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+  });
+});
+
+export default router;
+`;
+}
+
+// ---------------------------------------------------------------------------
+// Updated app.js generator — links commons and route/health
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate the app.js file content (v2 — uses commons modules and route/health).
+ * @param {import('./types').InitAnswers} answers
+ * @param {string} [outputDir] - relative output directory for source files (e.g. "backend")
+ * @returns {string}
+ */
+function generateAppJsV2(answers, outputDir) {
+  const frameworkPkg =
+    answers.framework === "ultimate-express" ? "ultimate-express" : "express";
+
+  const commonsPrefix = outputDir ? `./${outputDir}/commons` : "./commons";
+  const routePrefix = outputDir ? `./${outputDir}/route` : "./route";
+  const middlewarePrefix = outputDir
+    ? `./${outputDir}/middleware`
+    : "./middleware";
+
+  let imports = `import "dotenv/config";
+import express from "${frameworkPkg}";
+import { init, db } from "db-model-router";
+import configureSession from "${commonsPrefix}/session.js";
+import applySecurity from "${commonsPrefix}/security.js";
+import logger from "${middlewarePrefix}/logger.js";
+import healthRoute from "${routePrefix}/health.js";`;
+
+  return `${imports}
+
+// Initialize database adapter
+init("${answers.database}");
+${dbConnectBlock(answers.database)}
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Security (helmet, rate limiting, custom headers)
+applySecurity(app);
+
+// Session
+app.use(configureSession());
+
+// Logger
+app.use(logger);
+
+// Routes
+app.use("/health", healthRoute);
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ type: "danger", message: "Internal Server Error" });
+});
+
+app.listen(PORT, () => {
+  console.log(\`Server running on port \${PORT}\`);
+});
+
+export default app;
+`;
+}
+
 module.exports = {
   migrationTimestamp,
   isSql,
   generateAppJs,
+  generateAppJsV2,
   generateEnvFile,
   generateEnvExample,
   generateLoggerMiddleware,
@@ -777,6 +1216,11 @@ module.exports = {
   generateInitialMigration,
   generateSessionMigration,
   generateGitignore,
+  generateSessionJs,
+  generateMigrateModule,
+  generateAddMigrationModule,
+  generateSecurityJs,
+  generateHealthRoute,
   SQL_DATABASES,
   NOSQL_DATABASES,
 };

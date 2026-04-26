@@ -19,9 +19,9 @@ const DEFAULT_ANSWERS = {
   framework: "express",
   database: "postgres",
   session: "memory",
-  rateLimiting: false,
-  helmet: false,
-  logger: false,
+  rateLimiting: true,
+  helmet: true,
+  logger: true,
 };
 
 /**
@@ -66,9 +66,13 @@ async function init(args, flags, ctx) {
     answers = await promptUser(prefilled);
   }
 
+  // Resolve --output directory (relative to cwd)
+  // CLI --output flag takes precedence, then interactive prompt answer
+  const outputDir = args.output || answers.output || "";
+
   // --dry-run: report planned files without writing
   if (flags.dryRun) {
-    const planned = planFiles(answers);
+    const planned = planFiles(answers, outputDir);
     if (flags.json) {
       ctx.result({
         files: planned,
@@ -89,10 +93,10 @@ async function init(args, flags, ctx) {
   ensurePackageJson();
 
   // Generate project files
-  const generated = generateFiles(answers);
+  const generated = generateFiles(answers, outputDir);
 
   // Update package.json with deps and scripts
-  updatePackageJson(answers);
+  updatePackageJson(answers, outputDir);
 
   // npm install (unless --no-install)
   const installed = !flags.noInstall;
@@ -103,7 +107,10 @@ async function init(args, flags, ctx) {
   // Output
   const allFiles = [
     ...generated.files,
-    ...generated.migrationFiles.map((m) => `migrations/${m}`),
+    ...generated.migrationFiles.map((m) => {
+      const base = outputDir || ".";
+      return base === "." ? `migrations/${m}` : `${base}/migrations/${m}`;
+    }),
   ];
 
   if (flags.json) {
@@ -127,24 +134,31 @@ async function init(args, flags, ctx) {
  * This mirrors the file list from generateFiles() without writing anything.
  *
  * @param {object} answers
+ * @param {string} [outputDir] - relative output directory for source files
  * @returns {string[]}
  */
-function planFiles(answers) {
+function planFiles(answers, outputDir) {
   const { isSql } = require("../init/generators");
+  const srcBase = outputDir || ".";
+  const prefix = srcBase === "." ? "" : srcBase + "/";
+
   const files = [
     "app.js",
     ".env",
     ".env.example",
-    "middleware/logger.js",
-    "migrate.js",
-    "add_migration.js",
     ".gitignore",
-    "migrations/<timestamp>_create_migrations_table" +
+    `${prefix}middleware/logger.js`,
+    `${prefix}commons/session.js`,
+    `${prefix}commons/migrate.js`,
+    `${prefix}commons/add_migration.js`,
+    `${prefix}commons/security.js`,
+    `${prefix}route/health.js`,
+    `${prefix}migrations/<timestamp>_create_migrations_table` +
       (isSql(answers.database) ? ".sql" : ".js"),
   ];
 
   if (answers.session === "database" && isSql(answers.database)) {
-    files.push("migrations/<timestamp>_create_sessions_table.sql");
+    files.push(`${prefix}migrations/<timestamp>_create_sessions_table.sql`);
   }
 
   return files;

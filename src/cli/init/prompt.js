@@ -62,6 +62,11 @@ function parseInitArgs(argv) {
     }
   }
 
+  // Output directory
+  if (args.output !== undefined && args.output !== "true") {
+    partial.output = args.output;
+  }
+
   return partial;
 }
 
@@ -114,12 +119,22 @@ async function promptUser(prefilledAnswers) {
     });
   }
 
+  if (prefilled.output === undefined) {
+    questions.push({
+      type: "input",
+      name: "output",
+      message:
+        "Output directory for backend source files (leave empty for root):",
+      default: "",
+    });
+  }
+
   if (prefilled.rateLimiting === undefined) {
     questions.push({
       type: "confirm",
       name: "rateLimiting",
       message: "Enable rate limiting?",
-      default: false,
+      default: true,
     });
   }
 
@@ -128,7 +143,7 @@ async function promptUser(prefilledAnswers) {
       type: "confirm",
       name: "helmet",
       message: "Enable Helmet security headers?",
-      default: false,
+      default: true,
     });
   }
 
@@ -136,8 +151,8 @@ async function promptUser(prefilledAnswers) {
     questions.push({
       type: "confirm",
       name: "logger",
-      message: "Enable request/response logger?",
-      default: false,
+      message: "Enable request/response logger (Winston + Loki)?",
+      default: true,
     });
   }
 

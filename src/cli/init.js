@@ -7,14 +7,18 @@ const { execSync } = require("child_process");
 
 const {
   generateAppJs,
+  generateAppJsV2,
   generateEnvFile,
   generateEnvExample,
   generateLoggerMiddleware,
-  generateMigrateScript,
-  generateAddMigrationScript,
   generateInitialMigration,
   generateSessionMigration,
   generateGitignore,
+  generateSessionJs,
+  generateMigrateModule,
+  generateAddMigrationModule,
+  generateSecurityJs,
+  generateHealthRoute,
 } = require("./init/generators");
 
 const { collectDependencies, getScripts } = require("./init/dependencies");
@@ -61,40 +65,81 @@ function safeWriteFile(filePath, content) {
  * Creates directories and writes files. Skips files that already exist.
  * Returns the list of generated filenames for the summary.
  * @param {import('./init/types').InitAnswers} answers
+ * @param {string} [outputDir] - relative directory for source files (e.g. "backend")
  * @returns {{ files: string[], migrationFiles: string[] }}
  */
-function generateFiles(answers) {
+function generateFiles(answers, outputDir) {
   const files = [];
   const migrationFiles = [];
 
+  // Resolve source directory (outputDir-relative or cwd)
+  const srcBase = outputDir || ".";
+
   // Create directories
-  if (!fs.existsSync("middleware")) {
-    fs.mkdirSync("middleware", { recursive: true });
-  }
-  if (!fs.existsSync("migrations")) {
-    fs.mkdirSync("migrations", { recursive: true });
+  const dirs = [
+    path.join(srcBase, "middleware"),
+    path.join(srcBase, "migrations"),
+    path.join(srcBase, "commons"),
+    path.join(srcBase, "route"),
+  ];
+  for (const dir of dirs) {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
   }
 
-  // Write files (skip if they already exist)
-  if (safeWriteFile("app.js", generateAppJs(answers))) files.push("app.js");
+  // Root-level files (always in cwd, not in outputDir)
+  // app.js uses the v2 generator that links commons/route modules
+  if (safeWriteFile("app.js", generateAppJsV2(answers, outputDir || "")))
+    files.push("app.js");
   if (safeWriteFile(".env", generateEnvFile(answers))) files.push(".env");
   if (safeWriteFile(".env.example", generateEnvExample(answers)))
     files.push(".env.example");
-
-  const loggerPath = path.join("middleware", "logger.js");
-  if (safeWriteFile(loggerPath, generateLoggerMiddleware(answers)))
-    files.push("middleware/logger.js");
-
-  if (safeWriteFile("migrate.js", generateMigrateScript(answers)))
-    files.push("migrate.js");
-  if (safeWriteFile("add_migration.js", generateAddMigrationScript(answers)))
-    files.push("add_migration.js");
   if (safeWriteFile(".gitignore", generateGitignore()))
     files.push(".gitignore");
 
-  // Initial migration
+  // Source files inside outputDir (or cwd if no outputDir)
+  const loggerPath = path.join(srcBase, "middleware", "logger.js");
+  if (safeWriteFile(loggerPath, generateLoggerMiddleware(answers)))
+    files.push(path.join(srcBase, "middleware/logger.js"));
+
+  // commons/session.js
+  const sessionPath = path.join(srcBase, "commons", "session.js");
+  if (safeWriteFile(sessionPath, generateSessionJs(answers)))
+    files.push(path.join(srcBase, "commons/session.js"));
+
+  // commons/migrate.js
+  const migratePath = path.join(srcBase, "commons", "migrate.js");
+  if (safeWriteFile(migratePath, generateMigrateModule(answers, outputDir)))
+    files.push(path.join(srcBase, "commons/migrate.js"));
+
+  // commons/add_migration.js
+  const addMigrationPath = path.join(srcBase, "commons", "add_migration.js");
+  if (
+    safeWriteFile(
+      addMigrationPath,
+      generateAddMigrationModule(answers, outputDir),
+    )
+  )
+    files.push(path.join(srcBase, "commons/add_migration.js"));
+
+  // commons/security.js
+  const securityPath = path.join(srcBase, "commons", "security.js");
+  if (safeWriteFile(securityPath, generateSecurityJs(answers)))
+    files.push(path.join(srcBase, "commons/security.js"));
+
+  // route/health.js
+  const healthPath = path.join(srcBase, "route", "health.js");
+  if (safeWriteFile(healthPath, generateHealthRoute()))
+    files.push(path.join(srcBase, "route/health.js"));
+
+  // Initial migration (inside outputDir/migrations)
   const initialMigration = generateInitialMigration(answers);
-  const initialPath = path.join("migrations", initialMigration.filename);
+  const initialPath = path.join(
+    srcBase,
+    "migrations",
+    initialMigration.filename,
+  );
   if (safeWriteFile(initialPath, initialMigration.content)) {
     migrationFiles.push(initialMigration.filename);
   }
@@ -102,8 +147,12 @@ function generateFiles(answers) {
   // Conditional session migration
   const sessionMigration = generateSessionMigration(answers);
   if (sessionMigration !== null) {
-    const sessionPath = path.join("migrations", sessionMigration.filename);
-    if (safeWriteFile(sessionPath, sessionMigration.content)) {
+    const sessionMigPath = path.join(
+      srcBase,
+      "migrations",
+      sessionMigration.filename,
+    );
+    if (safeWriteFile(sessionMigPath, sessionMigration.content)) {
       migrationFiles.push(sessionMigration.filename);
     }
   }
@@ -114,8 +163,9 @@ function generateFiles(answers) {
 /**
  * Update package.json with scripts and dependencies from the answers.
  * @param {import('./init/types').InitAnswers} answers
+ * @param {string} [outputDir] - relative output directory for source files
  */
-function updatePackageJson(answers) {
+function updatePackageJson(answers, outputDir) {
   let raw;
   try {
     raw = fs.readFileSync("package.json", "utf8");
@@ -135,8 +185,9 @@ function updatePackageJson(answers) {
   }
 
   const { dependencies, devDependencies } = collectDependencies(answers);
-  const scripts = getScripts();
+  const scripts = getScripts(outputDir);
 
+  pkg.type = "module";
   pkg.scripts = Object.assign({}, pkg.scripts || {}, scripts);
   pkg.dependencies = Object.assign({}, pkg.dependencies || {}, dependencies);
   pkg.devDependencies = Object.assign(
@@ -247,6 +298,9 @@ Options:
                         cockroachdb, oracle, redis, dynamodb
   --db <name>           Alias for --database
   --session <type>      Session store: memory, redis, database
+  --output <dir>        Directory for backend source files (e.g. --output backend).
+                        package.json stays in root; index.js, commons/, route/,
+                        middleware/, and migrations/ go inside the output folder.
   --rateLimiting        Enable rate limiting (express-rate-limit)
   --helmet              Enable Helmet security headers
   --logger              Enable request/response logger (express-mung)
@@ -255,6 +309,9 @@ Options:
 Examples:
   # Fully non-interactive (LLM-friendly)
   db-model-router-init --framework express --database postgres --session redis --rateLimiting --helmet --logger
+
+  # With output directory
+  db-model-router-init --framework express --database postgres --output backend --yes
 
   # Partial — only prompts for missing values
   db-model-router-init --database mysql --session memory

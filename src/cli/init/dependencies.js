@@ -53,7 +53,8 @@ function collectDependencies(answers) {
     dependencies["helmet"] = "latest";
   }
   if (answers.logger) {
-    dependencies["express-mung"] = "latest";
+    dependencies["winston"] = "latest";
+    dependencies["winston-loki"] = "latest";
   }
 
   // Dev dependencies
@@ -63,16 +64,18 @@ function collectDependencies(answers) {
 }
 
 /**
- * Returns the 5 package.json scripts.
+ * Returns the package.json scripts.
+ * @param {string} [outputDir] - relative output directory for source files
  * @returns {Record<string, string>}
  */
-function getScripts() {
+function getScripts(outputDir) {
+  const prefix = outputDir ? `${outputDir}/` : "";
   return {
     start: "node app.js",
     dev: "nodemon app.js",
     test: 'echo "Error: no test specified" && exit 1',
-    migrate: "node migrate.js",
-    add_migration: "node add_migration.js",
+    migrate: `node ${prefix}commons/migrate.js`,
+    add_migration: `node ${prefix}commons/add_migration.js`,
   };
 }
 
