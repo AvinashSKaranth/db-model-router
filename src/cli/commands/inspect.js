@@ -40,15 +40,32 @@ function modelMetaToSchema(adapter, framework, models) {
   for (const m of models) {
     const columns = {};
 
-    // Re-add columns from structure
+    const pk = m.primary_key || "id";
+    const opt = m.option || {};
+
+    // Add PK column as auto_increment
+    columns[pk] = "auto_increment";
+
+    // Add timestamp columns as datetime
+    if (opt.created_at) {
+      columns[opt.created_at] = "datetime";
+    }
+    if (opt.modified_at) {
+      columns[opt.modified_at] = "datetime";
+    }
+
+    // Add softDelete column
+    if (opt.safeDelete) {
+      columns[opt.safeDelete] = "boolean";
+    }
+
+    // Add remaining columns from structure
     for (const [col, rule] of Object.entries(m.structure)) {
       columns[col] = rule;
     }
 
-    const pk = m.primary_key || "id";
     const unique = m.unique && m.unique.length > 0 ? [...m.unique] : [pk];
 
-    const opt = m.option || {};
     const softDelete = opt.safeDelete || null;
     const timestamps = {
       created_at: opt.created_at || null,

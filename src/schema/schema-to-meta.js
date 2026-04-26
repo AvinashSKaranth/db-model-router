@@ -46,6 +46,10 @@ function schemaToModelMeta(schema) {
     const structure = {};
     for (const [colName, rule] of Object.entries(tableDef.columns)) {
       if (!excludeSet.has(colName)) {
+        // Strip auto_increment and datetime columns from model structure
+        // (DB handles these automatically)
+        const baseType = rule.replace(/^required\|/, "");
+        if (baseType === "auto_increment") continue;
         structure[colName] = rule;
       }
     }

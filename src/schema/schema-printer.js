@@ -30,12 +30,8 @@ function printSchema(schema) {
     const table = schema.tables[name];
     const tableDef = {
       columns: table.columns,
+      pk: table.pk || "id",
     };
-
-    // Include pk if not the default "id"
-    if (table.pk && table.pk !== "id") {
-      tableDef.pk = table.pk;
-    }
 
     // Preserve unique if not the default [pk]
     const defaultUnique = [table.pk || "id"];

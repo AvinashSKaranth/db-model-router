@@ -21,6 +21,7 @@ For the LLM skill reference, see [SKILL.md](./docs/SKILL.md).
 | Adapter                                       | Module Key    | Driver                   | Install                                                                |
 | --------------------------------------------- | ------------- | ------------------------ | ---------------------------------------------------------------------- |
 | [MySQL](#mysql-example)                       | `mysql`       | mysql2                   | `npm i db-model-router mysql2`                                         |
+| MariaDB                                       | `mariadb`     | mysql2                   | `npm i db-model-router mysql2`                                         |
 | [PostgreSQL](./docs/adapters/postgres.md)     | `postgres`    | pg                       | `npm i db-model-router pg`                                             |
 | [SQLite3](./docs/adapters/sqlite3.md)         | `sqlite3`     | better-sqlite3           | `npm i db-model-router better-sqlite3`                                 |
 | [MongoDB](./docs/adapters/mongodb.md)         | `mongodb`     | mongodb                  | `npm i db-model-router mongodb`                                        |
@@ -106,17 +107,21 @@ Instead of running multiple CLI commands manually, you can define your entire pr
     "session": "redis",
     "rateLimiting": true,
     "helmet": true,
-    "logger": true
+    "logger": true,
+    "loki": false
   },
   "tables": {
     "users": {
       "columns": {
+        "user_id": "auto_increment",
         "name": "required|string",
         "email": "required|string",
         "age": "integer",
-        "is_deleted": "boolean"
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "updated_at": "datetime"
       },
-      "pk": "id",
+      "pk": "user_id",
       "unique": ["email"],
       "softDelete": "is_deleted",
       "timestamps": {
@@ -126,12 +131,15 @@ Instead of running multiple CLI commands manually, you can define your entire pr
     },
     "posts": {
       "columns": {
+        "post_id": "auto_increment",
         "title": "required|string",
         "body": "string",
-        "user_id": "required|integer"
+        "user_id": "required|integer",
+        "created_at": "datetime",
+        "modified_at": "datetime"
       },
-      "pk": "id",
-      "unique": ["id"]
+      "pk": "post_id",
+      "unique": ["post_id"]
     }
   },
   "relationships": [
@@ -142,15 +150,19 @@ Instead of running multiple CLI commands manually, you can define your entire pr
 
 Table entries support these fields:
 
-| Field        | Required | Description                                                    |
-| ------------ | -------- | -------------------------------------------------------------- |
-| `columns`    | Yes      | Object mapping column names to Column_Rule strings             |
-| `pk`         | No       | Primary key column name (defaults to `"id"`)                   |
-| `unique`     | No       | Array of unique constraint columns (defaults to `[pk]`)        |
-| `softDelete` | No       | Column name used for soft-delete                               |
-| `timestamps` | No       | Object with `created_at` and `modified_at` column name mapping |
+| Field        | Required | Description                                                              |
+| ------------ | -------- | ------------------------------------------------------------------------ |
+| `columns`    | Yes      | Object mapping column names to Column_Rule strings (include ALL columns) |
+| `pk`         | Yes      | Primary key column name (convention: `<table>_id`)                       |
+| `unique`     | No       | Array of unique constraint columns (defaults to `[pk]`)                  |
+| `softDelete` | No       | Column name used for soft-delete                                         |
+| `timestamps` | No       | Object with `created_at` and `modified_at` column name mapping           |
 
-Column rules use the format `(required|)?(string|integer|numeric|boolean|object)` — e.g. `"required|string"`, `"integer"`, `"object"`.
+Column rules use the format `(required|)?(string|integer|numeric|boolean|object|datetime|auto_increment)`.
+
+- `auto_increment` — auto-incrementing PK (SERIAL in Postgres, AUTO_INCREMENT in MySQL/MariaDB)
+- `datetime` — date/time columns (TIMESTAMP, DATETIME, DATE)
+- `required|<type>` — NOT NULL constraint on insert/update
 
 ### Unified CLI: `db-model-router`
 
@@ -210,23 +222,27 @@ db-model-router generate --from dbmr.schema.json
 
 #### `init`
 
-Scaffold a new project from a schema file or interactively.
+Scaffold a new project from a schema file or interactively. Generates an ESM-based project (`"type": "module"` in package.json) with Docker support.
 
-| Flag / Arg           | Description                                                                                                                                                                   |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--from <path>`      | Read adapter, framework, and options from a `dbmr.schema.json` file                                                                                                           |
-| `--framework <name>` | Express framework to use: `express` or `ultimate-express`                                                                                                                     |
-| `--database <name>`  | Database adapter: `mysql`, `postgres`, `sqlite3`, `mongodb`, `mssql`, `cockroachdb`, `oracle`, `redis`, `dynamodb`                                                            |
-| `--db <name>`        | Alias for `--database`                                                                                                                                                        |
-| `--session <type>`   | Session store type: `memory`, `redis`, `database`                                                                                                                             |
-| `--output <dir>`     | Directory for backend source files (relative to cwd). `package.json` and `app.js` stay in root; `commons/`, `route/`, `middleware/`, and `migrations/` go inside this folder. |
-| `--rateLimiting`     | Enable rate limiting middleware (`express-rate-limit`)                                                                                                                        |
-| `--helmet`           | Enable Helmet security headers                                                                                                                                                |
-| `--logger`           | Enable request/response logger (`express-mung`)                                                                                                                               |
+| Flag / Arg           | Description                                                                                                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--from <path>`      | Read adapter, framework, and options from a `dbmr.schema.json` file                                                                                                       |
+| `--framework <name>` | Express framework: `express` or `ultimate-express`                                                                                                                        |
+| `--database <name>`  | Database adapter: `mysql`, `mariadb`, `postgres`, `sqlite3`, `mongodb`, `mssql`, `cockroachdb`, `oracle`, `redis`, `dynamodb`                                             |
+| `--db <name>`        | Alias for `--database`                                                                                                                                                    |
+| `--session <type>`   | Session store: `memory`, `redis`, `database`                                                                                                                              |
+| `--output <dir>`     | Directory for backend source files (relative to cwd). `package.json` and `app.js` stay in root; `commons/`, `route/`, `middleware/`, `migrations/` go inside this folder. |
+| `--rateLimiting`     | Enable rate limiting via `express-rate-limit` (default: yes)                                                                                                              |
+| `--helmet`           | Enable Helmet security headers (default: yes)                                                                                                                             |
+| `--logger`           | Enable Winston request logger (default: yes)                                                                                                                              |
+| `--loki`             | Enable Grafana Loki log transport + Loki/Grafana in docker-compose (default: no, only asked when `--logger` is enabled)                                                   |
 
 ```bash
 # Non-interactive with output directory
 db-model-router init --framework express --database postgres --output backend --yes
+
+# With Loki logging
+db-model-router init --database postgres --logger --loki --yes
 
 # From schema, skip install
 db-model-router init --from dbmr.schema.json --yes --no-install
@@ -238,37 +254,55 @@ db-model-router init --from dbmr.schema.json --dry-run
 Generated project structure (with `--output backend`):
 
 ```
-├── package.json          # root
-├── app.js                # root — links to backend/commons, backend/route
-├── .env
-├── .env.example
+├── package.json              # root (type: "module")
+├── app.js                    # ESM entry point
+├── .env / .env.example
 ├── .gitignore
-├── migrate.js            # root entry point for migrations
-├── add_migration.js      # root entry point for creating migrations
+├── Dockerfile                # node:alpine production image
+├── .dockerignore
+├── docker-compose.yml        # database + CloudBeaver + optional Loki/Grafana
+├── .cloudbeaver/
+│   └── data-sources.json     # auto-connects CloudBeaver to your DB
+├── .grafana/                 # (only when --loki)
+│   └── datasources.yml       # auto-connects Grafana to Loki
 └── backend/
     ├── commons/
+    │   ├── db.js             # database init, connect, global.db
     │   ├── session.js        # session configuration
-    │   ├── migrate.js        # migration runner module
-    │   ├── add_migration.js  # migration creation helper
-    │   └── security.js       # helmet, rate limiting, custom headers
+    │   ├── security.js       # helmet, rate limiting, custom headers
+    │   ├── migrate.js        # migration runner (importable + standalone script)
+    │   └── add_migration.js  # migration creator (importable + standalone script)
     ├── middleware/
-    │   └── logger.js         # request/response logger
+    │   └── logger.js         # Winston logger (+ Loki transport when LOKI_HOST is set)
     ├── route/
-    │   └── health.js         # GET /health endpoint
+    │   ├── index.js          # central route mounting
+    │   └── health.js         # GET /health with DB connectivity check
     └── migrations/
         └── <timestamp>_create_migrations_table.sql
 ```
+
+Docker services included automatically:
+
+| Service     | When                                  | Port   | Description                            |
+| ----------- | ------------------------------------- | ------ | -------------------------------------- |
+| Database    | Always (except sqlite3)               | Varies | Selected database with random password |
+| Redis       | `--session redis` (if DB isn't redis) | 6379   | Session store                          |
+| CloudBeaver | SQL/MongoDB databases                 | 8978   | Web-based DB admin, auto-connected     |
+| Loki        | `--loki`                              | 3100   | Log aggregation                        |
+| Grafana     | `--loki`                              | 3001   | Log visualization, Loki pre-configured |
+
+npm scripts added: `start`, `dev`, `test`, `migrate`, `add_migration`, `docker:build`, `docker:up`, `docker:down`.
 
 #### `inspect`
 
 Introspect a live database and produce a `dbmr.schema.json` file.
 
-| Flag / Arg         | Description                                                                                                 |
-| ------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `--type <adapter>` | Database adapter to introspect (required): `mysql`, `postgres`, `sqlite3`, `mssql`, `oracle`, `cockroachdb` |
-| `--env <path>`     | Path to `.env` file for database connection parameters                                                      |
-| `--out <path>`     | Output file path (default: `dbmr.schema.json`)                                                              |
-| `--tables <list>`  | Comma-separated list of tables to include (omit for all)                                                    |
+| Flag / Arg         | Description                                                                                                            |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `--type <adapter>` | Database adapter to introspect (required): `mysql`, `mariadb`, `postgres`, `sqlite3`, `mssql`, `oracle`, `cockroachdb` |
+| `--env <path>`     | Path to `.env` file for database connection parameters                                                                 |
+| `--out <path>`     | Output file path (default: `dbmr.schema.json`)                                                                         |
+| `--tables <list>`  | Comma-separated list of tables to include (omit for all)                                                               |
 
 ```bash
 db-model-router inspect --type postgres --env .env
@@ -278,7 +312,7 @@ db-model-router inspect --type mysql --json
 
 #### `generate`
 
-Generate models, routes, tests, OpenAPI spec, and LLM docs from a schema file.
+Generate models, routes, tests, OpenAPI spec, and LLM docs from a schema file. All generated code is ESM (`import`/`export`).
 
 | Flag / Arg      | Description                                                  |
 | --------------- | ------------------------------------------------------------ |
@@ -292,16 +326,9 @@ Generate models, routes, tests, OpenAPI spec, and LLM docs from a schema file.
 When no artifact flags are provided, all artifact types are generated.
 
 ```bash
-# Generate everything
 db-model-router generate --from dbmr.schema.json
-
-# Generate only models (dry run)
 db-model-router generate --models --dry-run
-
-# Generate routes and tests
 db-model-router generate --routes --tests
-
-# Machine-readable output
 db-model-router generate --from dbmr.schema.json --json
 ```
 
@@ -318,15 +345,11 @@ db-model-router doctor --from dbmr.schema.json
 db-model-router doctor --json
 ```
 
-Reports three checks:
-
-1. Schema validation (syntax and structure)
-2. Dependency check (adapter driver present in `package.json`)
-3. Sync check (generated files match what the schema would produce)
+Reports three checks: schema validation, dependency check, sync check.
 
 #### `diff`
 
-Preview changes between the current generated files and what the schema would produce. Read-only — does not modify any files.
+Preview changes between the current generated files and what the schema would produce. Read-only.
 
 | Flag / Arg      | Description                                       |
 | --------------- | ------------------------------------------------- |
@@ -337,7 +360,15 @@ db-model-router diff --from dbmr.schema.json
 db-model-router diff --json
 ```
 
-Output shows added, modified (with line diffs), and deleted files.
+#### `help`
+
+Show help for any command.
+
+```bash
+db-model-router help              # general overview with per-command flags
+db-model-router help init         # detailed help for init
+db-model-router init --help       # same as above
+```
 
 ## MySQL Example
 

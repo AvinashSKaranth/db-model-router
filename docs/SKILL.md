@@ -1,21 +1,22 @@
 ---
 name: db-model-router
-description: Database-agnostic REST API generator for Node.js/Express. Define model → get CRUD API + Express routes. 9 adapters, identical API. Works with express or ultimate-express.
+description: Database-agnostic REST API generator for Node.js/Express. Define model → get CRUD API + Express routes. 10 adapters, identical API. Works with express or ultimate-express.
 ---
 
 # db-model-router — LLM Skill Reference
 
-Database-agnostic REST API generator for Node.js/Express. Define model → get CRUD API + Express routes. 9 adapters, identical API. Works with `express` or `ultimate-express`.
+Database-agnostic REST API generator for Node.js/Express. Define model → get CRUD API + Express routes. 10 adapters, identical API. Works with `express` or `ultimate-express`. Generated projects use ESM (`import`/`export`).
 
 ## LLM Workflow (follow this order)
 
-1. **Scaffold**: `db-model-router-init --framework express --database postgres --session redis --rateLimiting --helmet --logger` (all flags → zero prompts)
-2. **Migrations**: Write SQL/JS migration files into `migrations/` for the user's schema, then `npm run migrate`
-3. **Generate models**: `db-model-router-generate-model --type postgres --env .env --output ./models`
-4. **Generate routes + tests**: `db-model-router-generate-route --models ./models --output ./routes --tables users,posts,posts.comments`
-5. **Run**: `npm run dev`
+1. **Scaffold**: `db-model-router init --framework express --database postgres --session redis --rateLimiting --helmet --logger --yes` (all flags → zero prompts)
+2. **Start infra**: `npm run docker:up` (starts DB + CloudBeaver + optional Loki/Grafana)
+3. **Migrations**: Write SQL/JS migration files into `migrations/`, then `npm run migrate`
+4. **Generate models**: `db-model-router generate --from dbmr.schema.json --models`
+5. **Generate routes + tests**: `db-model-router generate --from dbmr.schema.json --routes --tests`
+6. **Run**: `npm run dev`
 
-Step 1 creates the project. Step 2 defines the schema. Steps 3-4 introspect the DB and generate models, routes, tests, and OpenAPI spec. Step 5 starts the server.
+Step 1 creates the project with ESM, Docker, and all infrastructure. Step 2 starts containers. Steps 3-5 define schema and generate code. Step 6 starts the server.
 
 ## Install
 
@@ -31,6 +32,7 @@ Drivers: `mysql2`, `pg`, `better-sqlite3`, `mongodb`, `mssql`, `oracledb`, `iore
 | Module Key    | Driver                                           | Default Port |
 | ------------- | ------------------------------------------------ | ------------ |
 | `mysql`       | mysql2                                           | 3306         |
+| `mariadb`     | mysql2                                           | 3306         |
 | `postgres`    | pg                                               | 5432         |
 | `sqlite3`     | better-sqlite3                                   | —            |
 | `mongodb`     | mongodb                                          | 27017        |
@@ -72,12 +74,12 @@ app.use("/users", route(users));
 
 ## model(db, table, structure, pk, unique, option)
 
-| Param     | Type            | Description                                                                                                                    |
-| --------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| structure | `{col: "rule"}` | Types: `string\|integer\|numeric\|boolean\|object`. Prefix `required\|` for NOT NULL. Exclude PK, timestamps, soft-delete cols |
-| pk        | string          | Primary key column. Default `"id"`                                                                                             |
-| unique    | string[]        | Columns for upsert conflict resolution                                                                                         |
-| option    | object          | `{ safeDelete, created_at, modified_at }` — column names or null                                                               |
+| Param     | Type            | Description                                                                                                                                                                              |
+| --------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| structure | `{col: "rule"}` | Types: `string\|integer\|numeric\|boolean\|object\|datetime\|auto_increment`. Prefix `required\|` for NOT NULL. PK, timestamps, soft-delete cols are auto-excluded by the code generator |
+| pk        | string          | Primary key column. Convention: `<table>_id`                                                                                                                                             |
+| unique    | string[]        | Columns for upsert conflict resolution                                                                                                                                                   |
+| option    | object          | `{ safeDelete, created_at, modified_at }` — column names or null                                                                                                                         |
 
 ## Model Methods (all async)
 
@@ -153,94 +155,128 @@ Generates Express Router with 9 endpoints:
 
 ## CLI Tools
 
-### db-model-router-init (interactive project scaffold)
-
-Scaffolds a complete Express-based REST API project from scratch. Supports both interactive prompts and fully non-interactive CLI flags.
+### Unified CLI: `db-model-router`
 
 ```bash
-# Interactive (prompts for everything)
-npx db-model-router-init
-
-# Fully non-interactive (LLM-friendly — no prompts)
-db-model-router-init --framework express --database postgres --session redis --rateLimiting --helmet --logger
-
-# Partial flags — only prompts for missing values
-db-model-router-init --database mysql --session memory
+db-model-router <command> [options]
+db-model-router help <command>     # detailed help for any command
 ```
 
-Flags: `--framework <name>`, `--database <name>` (or `--db`), `--session <type>`, `--rateLimiting`, `--helmet`, `--logger`, `--help`
+#### `init` — Project Scaffold
 
-When all 6 options are provided, runs with zero prompts.
-
-Prompts (for missing values): framework (`ultimate-express`|`express`), database (9 options), session (`memory`|`redis`|`database`), rate limiting (y/n), helmet (y/n), logger (y/n).
-
-If no `package.json` exists, runs `npm init` first. After prompts: generates files, updates `package.json`, runs `npm install`.
-
-Generated structure:
-
-```
-app.js, .env, .env.example, .gitignore, migrate.js, add_migration.js,
-middleware/logger.js, migrations/{timestamp}_create_migrations_table.sql|.js
-```
-
-Session migration (`{timestamp}_create_sessions_table.sql`) generated only for SQL databases with `session=database`.
-
-Scripts added: `start` (node app.js), `dev` (nodemon app.js), `test`, `migrate` (node migrate.js), `add_migration` (node add_migration.js).
-
-Dependencies always included: `db-model-router`, `dotenv`, selected framework, database driver(s), `express-session`. DevDeps: `nodemon`.
-Conditional: `connect-redis` + `ioredis` (session=redis), `express-rate-limit`, `helmet`, `express-mung` (logger).
-
-#### Environment Variables by Database
-
-| Database    | Variables                                                                   |
-| ----------- | --------------------------------------------------------------------------- |
-| mysql       | `PORT=3000 DB_HOST DB_PORT=3306 DB_NAME DB_USER DB_PASS`                    |
-| postgres    | `PORT=3000 DB_HOST DB_PORT=5432 DB_NAME DB_USER DB_PASS`                    |
-| cockroachdb | `PORT=3000 DB_HOST DB_PORT=26257 DB_NAME DB_USER DB_PASS`                   |
-| sqlite3     | `PORT=3000 DB_NAME=./data.db`                                               |
-| mongodb     | `PORT=3000 DB_HOST DB_PORT=27017 DB_NAME DB_USER DB_PASS`                   |
-| mssql       | `PORT=3000 DB_HOST DB_PORT=1433 DB_NAME DB_USER DB_PASS`                    |
-| oracle      | `PORT=3000 DB_HOST DB_PORT=1521 DB_NAME DB_USER DB_PASS`                    |
-| redis       | `PORT=3000 DB_HOST DB_PORT=6379 DB_PASS`                                    |
-| dynamodb    | `PORT=3000 AWS_REGION AWS_ENDPOINT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY` |
-
-When `session=redis` and database ≠ redis: adds `REDIS_HOST=localhost REDIS_PORT=6379 REDIS_PASS`.
-
-#### Migration Infrastructure
-
-- `migrate.js` — reads `migrations/` dir, diffs against `_migrations` tracking table, executes pending in order
-- `add_migration.js` — creates timestamped empty migration (`.sql` for SQL, `.js` for NoSQL)
-- Tracking table `_migrations`: `{id, filename, executed_at, checksum}` (SQL) or equivalent collection/hash/table (NoSQL)
-- Timestamp format: `YYYYMMDDHHMMSS`
-
-### generate-model (DB introspection → model files)
+Scaffolds a complete ESM-based Express REST API project with Docker support.
 
 ```bash
-db-model-router-generate-model --type <db> --env .env [--output ./models] [--tables t1,t2] [--schema public]
+# Fully non-interactive (LLM-friendly — zero prompts)
+db-model-router init --framework express --database postgres --session redis \
+  --rateLimiting --helmet --logger --yes
+
+# With Loki logging + Grafana
+db-model-router init --database postgres --logger --loki --yes
+
+# With output directory
+db-model-router init --database mysql --output backend --yes
+
+# From schema file
+db-model-router init --from dbmr.schema.json --yes --no-install
 ```
 
-Options: `--type`, `--host`, `--port`, `--database`, `--user`, `--password`, `--schema`, `--output`, `--tables`, `--env`
+| Flag                 | Description                                                                                                 | Default    |
+| -------------------- | ----------------------------------------------------------------------------------------------------------- | ---------- |
+| `--from <path>`      | Read config from schema file                                                                                |            |
+| `--framework <name>` | `express` or `ultimate-express`                                                                             | (prompted) |
+| `--database <name>`  | `mysql`, `mariadb`, `postgres`, `sqlite3`, `mongodb`, `mssql`, `cockroachdb`, `oracle`, `redis`, `dynamodb` | (prompted) |
+| `--db <name>`        | Alias for `--database`                                                                                      |            |
+| `--session <type>`   | `memory`, `redis`, `database`                                                                               | (prompted) |
+| `--output <dir>`     | Backend source directory (relative to cwd)                                                                  | (root)     |
+| `--rateLimiting`     | Enable rate limiting                                                                                        | yes        |
+| `--helmet`           | Enable Helmet security headers                                                                              | yes        |
+| `--logger`           | Enable Winston request logger                                                                               | yes        |
+| `--loki`             | Enable Loki transport + Loki/Grafana in docker-compose                                                      | no         |
 
-Auto-detects: PK, unique indexes, DEFAULT→optional, timestamp cols (`created_at`, `updated_at`, `modified_at`, `createdAt`, etc.), soft-delete cols (`is_deleted`, `deleted`, `is_active`, `archived`, etc.). Multi-column unique indexes correctly grouped.
+Generated files (ESM, `"type": "module"`):
 
-### generate-route (model files → route files + tests + OpenAPI)
+```
+app.js                          Express entry point
+.env / .env.example             Environment config (random passwords)
+Dockerfile                      node:alpine production image
+docker-compose.yml              DB + CloudBeaver + optional Loki/Grafana
+.cloudbeaver/data-sources.json  Auto-connects CloudBeaver to DB
+.grafana/datasources.yml        Auto-connects Grafana to Loki (when --loki)
+<output>/commons/db.js          Database init, connect, global.db
+<output>/commons/session.js     Session configuration
+<output>/commons/security.js    Helmet, rate limiting, custom headers
+<output>/commons/migrate.js     Migration runner (importable + standalone)
+<output>/commons/add_migration.js  Migration creator (importable + standalone)
+<output>/middleware/logger.js   Winston logger (+ Loki when LOKI_HOST is set)
+<output>/route/index.js         Central route mounting
+<output>/route/health.js        GET /health with DB connectivity check
+<output>/migrations/            Initial migration files
+```
+
+Docker services (auto-generated in docker-compose.yml):
+
+| Service     | When                        | Port   | Notes                                 |
+| ----------- | --------------------------- | ------ | ------------------------------------- |
+| Database    | Always (except sqlite3)     | Varies | Random password, bind mount `./data/` |
+| Redis       | `session=redis`, DB ≠ redis | 6379   | Session store                         |
+| CloudBeaver | SQL/MongoDB databases       | 8978   | Web DB admin, auto-connected          |
+| Loki        | `--loki`                    | 3100   | Log aggregation                       |
+| Grafana     | `--loki`                    | 3001   | Log visualization                     |
+
+Scripts: `start`, `dev`, `test`, `migrate`, `add_migration`, `docker:build`, `docker:up`, `docker:down`.
+
+**Critical**: `db-model-router` is CJS. Generated ESM code must use: `import dbModelRouter from "db-model-router"; const { init, db } = dbModelRouter;` — NOT named imports.
+
+#### `inspect` — DB Introspection
 
 ```bash
-db-model-router-generate-route --models ./models --output ./routes [--tables posts,posts.comments]
+db-model-router inspect --type postgres --env .env [--out schema.json] [--tables t1,t2]
 ```
 
-Options: `--models`, `--output`, `--type`, `--host`, `--port`, `--database`, `--user`, `--password`, `--schema`, `--tables`, `--env`
+| Flag               | Description                             |
+| ------------------ | --------------------------------------- |
+| `--type <adapter>` | Database adapter (required)             |
+| `--env <path>`     | Path to .env file                       |
+| `--out <path>`     | Output file (default: dbmr.schema.json) |
+| `--tables <list>`  | Comma-separated table filter            |
 
-Generates:
+#### `generate` — Code Generation
 
-- Route files for each model
-- `index.js` mounting all routes on an Express Router
-- `openapi.json` (OpenAPI 3.0 spec)
-- Test files in `tests/` directory for all routes and methods (uses `supertest` + `assert`)
+```bash
+db-model-router generate --from dbmr.schema.json [--models] [--routes] [--openapi] [--tests] [--llm-docs]
+```
 
-Dot notation `parent.child` creates nested routes: `parent/:parent_id/child` with FK scoping via `<parent_singular>_id`. Also generates child route test files.
+| Flag            | Description                             |
+| --------------- | --------------------------------------- |
+| `--from <path>` | Schema file (default: dbmr.schema.json) |
+| `--models`      | Generate only model files               |
+| `--routes`      | Generate only route files + index       |
+| `--openapi`     | Generate only OpenAPI spec              |
+| `--tests`       | Generate only test files                |
+| `--llm-docs`    | Generate only LLM docs                  |
 
-Generated test files cover all 8 CRUD endpoints per table: GET by ID, POST add, PUT update, DELETE, list, bulk insert, bulk update, bulk delete.
+No flags = generate all. Generated routes/tests use ESM imports.
+
+#### `doctor` — Validation
+
+```bash
+db-model-router doctor [--from dbmr.schema.json] [--json]
+```
+
+Checks: schema validation, dependency check, file sync.
+
+#### `diff` — Preview Changes
+
+```bash
+db-model-router diff [--from dbmr.schema.json] [--json]
+```
+
+Shows added/modified/deleted files without writing.
+
+#### Universal Flags (all commands)
+
+`--yes`, `--json`, `--dry-run`, `--no-install`, `--help`
 
 ## Connection Configs
 
@@ -294,21 +330,42 @@ db.connect({ region, endpoint, accessKeyId, secretAccessKey });
 
 ## Rules
 
-1. `init()` before `db.connect()`. Don't destructure `db` before `init()`.
-2. `model structure` excludes: PK col, timestamp cols, soft-delete cols.
-3. `update()`/`patch()` require PK in payload. `upsert()` PK is optional.
-4. `findOne()` returns `false` on no match. `byId()` returns `null`.
-5. Bulk ops wrap in `{ data: [...] }`. Single ops use flat object.
-6. Timestamps auto-stripped from payloads. DB handles defaults/triggers.
-7. `safeDelete` makes `remove()` soft-delete; all reads auto-filter deleted rows.
-8. `list()` defaults: page=0, size=30. `sort` array: `["-col"]` for DESC.
-9. CommonJS only (`require`). Use dynamic `import()` for ESM.
-10. `db-model-router-init` for new projects (interactive). `generate-model` + `generate-route` for existing databases. Or use the unified `db-model-router` CLI with a `dbmr.schema.json` file.
-11. `generate-route` auto-generates test files alongside routes. Tests use `supertest`.
+1. `init()` before `db.connect()`. Don't destructure `db` before `init()` — it's a getter.
+2. Generated projects are ESM (`"type": "module"`). The library itself is CJS. Use default import: `import dbModelRouter from "db-model-router"; const { init, db } = dbModelRouter;`
+3. `model structure` excludes: PK col, timestamp cols, soft-delete cols.
+4. `update()`/`patch()` require PK in payload. `upsert()` PK is optional.
+5. `findOne()` returns `false` on no match. `byId()` returns `null`.
+6. Bulk ops wrap in `{ data: [...] }`. Single ops use flat object.
+7. Timestamps auto-stripped from payloads. DB handles defaults/triggers.
+8. `safeDelete` makes `remove()` soft-delete; all reads auto-filter deleted rows.
+9. `list()` defaults: page=0, size=30. `sort` array: `["-col"]` for DESC.
+10. Use the unified `db-model-router` CLI with `dbmr.schema.json` for new projects.
+11. `generate` auto-generates test files alongside routes. Tests use `supertest`.
+12. `global.db` is set by `commons/db.js` — accessible anywhere without imports.
+13. Logger dynamically loads `winston-loki` only when `LOKI_HOST` env var is set.
+14. Docker passwords are randomly generated and shared between `.env` and `docker-compose.yml`.
 
-## Schema-Driven Workflow (Unified CLI)
+## Environment Variables by Database
 
-The `db-model-router` command is the unified CLI entry point. It uses a single `dbmr.schema.json` file as the source of truth for all code generation.
+| Database    | Variables                                                              |
+| ----------- | ---------------------------------------------------------------------- |
+| mysql       | `PORT DB_HOST DB_PORT=3306 DB_NAME DB_USER DB_PASS`                    |
+| mariadb     | `PORT DB_HOST DB_PORT=3306 DB_NAME DB_USER DB_PASS`                    |
+| postgres    | `PORT DB_HOST DB_PORT=5432 DB_NAME DB_USER DB_PASS`                    |
+| cockroachdb | `PORT DB_HOST DB_PORT=26257 DB_NAME DB_USER DB_PASS`                   |
+| sqlite3     | `PORT DB_NAME=./data/data.db`                                          |
+| mongodb     | `PORT DB_HOST DB_PORT=27017 DB_NAME DB_USER DB_PASS`                   |
+| mssql       | `PORT DB_HOST DB_PORT=1433 DB_NAME DB_USER DB_PASS`                    |
+| oracle      | `PORT DB_HOST DB_PORT=1521 DB_NAME DB_USER DB_PASS`                    |
+| redis       | `PORT DB_HOST DB_PORT=6379 DB_PASS`                                    |
+| dynamodb    | `PORT AWS_REGION AWS_ENDPOINT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY` |
+
+When `session=redis` and database ≠ redis: adds `REDIS_HOST REDIS_PORT REDIS_PASS`.
+When `logger=true`: adds `APP_NAME LOG_LEVEL LOKI_HOST` (LOKI_HOST empty unless `--loki`).
+
+## Schema-Driven Workflow
+
+The `db-model-router` command uses `dbmr.schema.json` as the source of truth.
 
 ### LLM Workflow (schema-driven)
 
@@ -317,27 +374,6 @@ The `db-model-router` command is the unified CLI entry point. It uses a single `
 3. **Generate**: `db-model-router generate --from dbmr.schema.json` → models, routes, tests, OpenAPI
 4. **Doctor**: `db-model-router doctor --from dbmr.schema.json` → validate schema + check sync
 5. **Run**: `npm run dev`
-
-Or for new projects: `db-model-router init --from dbmr.schema.json --yes`
-
-### Subcommands
-
-| Subcommand | Description                                                 |
-| ---------- | ----------------------------------------------------------- |
-| `init`     | Scaffold project (optionally from schema file via `--from`) |
-| `inspect`  | Introspect live DB → produce `dbmr.schema.json`             |
-| `generate` | Generate models/routes/tests/OpenAPI from schema            |
-| `doctor`   | Validate schema, check deps, verify files in sync           |
-| `diff`     | Preview changes regeneration would make (read-only)         |
-
-### Universal Flags
-
-All subcommands accept: `--yes`, `--json`, `--dry-run`, `--no-install`, `--help`.
-
-- `--yes`: suppress prompts, accept defaults
-- `--json`: machine-readable JSON output only
-- `--dry-run`: preview without writing files
-- `--no-install`: skip `npm install`
 
 ### dbmr.schema.json Format
 
@@ -349,16 +385,21 @@ All subcommands accept: `--yes`, `--json`, `--dry-run`, `--no-install`, `--help`
     "session": "redis",
     "rateLimiting": true,
     "helmet": true,
-    "logger": true
+    "logger": true,
+    "loki": false
   },
   "tables": {
     "users": {
       "columns": {
+        "user_id": "auto_increment",
         "name": "required|string",
         "email": "required|string",
-        "age": "integer"
+        "age": "integer",
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "updated_at": "datetime"
       },
-      "pk": "id",
+      "pk": "user_id",
       "unique": ["email"],
       "softDelete": "is_deleted",
       "timestamps": { "created_at": "created_at", "modified_at": "updated_at" }
@@ -370,5 +411,9 @@ All subcommands accept: `--yes`, `--json`, `--dry-run`, `--no-install`, `--help`
 }
 ```
 
-Fields per table: `columns` (required), `pk` (default `"id"`), `unique` (default `[pk]`), `softDelete`, `timestamps`.
-Column rules: `(required|)?(string|integer|numeric|boolean|object)`.
+Fields per table: `columns` (required, include ALL columns), `pk` (required, convention: `<table>_id`), `unique` (default `[pk]`), `softDelete`, `timestamps`.
+Column rules: `(required|)?(string|integer|numeric|boolean|object|datetime|auto_increment)`.
+
+- `auto_increment` — auto-incrementing PK (SERIAL in Postgres, AUTO_INCREMENT in MySQL/MariaDB)
+- `datetime` — date/time columns (TIMESTAMP, DATETIME, DATE)
+- `required|<type>` — NOT NULL constraint

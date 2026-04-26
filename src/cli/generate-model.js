@@ -475,7 +475,7 @@ function mysqlTypeToValidator(t) {
   if (/json/.test(t)) return "object";
   if (/text|char|varchar|enum|set/.test(t)) return "string";
   if (/blob|binary/.test(t)) return "string";
-  if (/date|time|year/.test(t)) return "string";
+  if (/date|time|year/.test(t)) return "datetime";
   if (/bool/.test(t)) return "integer";
   return "string";
 }
@@ -487,7 +487,7 @@ function pgTypeToValidator(t) {
   if (/json/.test(t)) return "object";
   if (/bool/.test(t)) return "integer";
   if (/char|text|varchar|uuid/.test(t)) return "string";
-  if (/date|time|interval/.test(t)) return "string";
+  if (/date|time|interval/.test(t)) return "datetime";
   return "string";
 }
 
@@ -496,6 +496,7 @@ function sqliteTypeToValidator(t) {
   if (/int/.test(t)) return "integer";
   if (/real|float|double|numeric|decimal/.test(t)) return "numeric";
   if (/json/.test(t)) return "object";
+  if (/date|time/.test(t)) return "datetime";
   if (/blob/.test(t)) return "string";
   return "string";
 }
@@ -506,7 +507,7 @@ function mssqlTypeToValidator(t) {
   if (/decimal|numeric|float|real|money/.test(t)) return "numeric";
   if (/bit/.test(t)) return "integer";
   if (/char|text|varchar|nchar|nvarchar|ntext/.test(t)) return "string";
-  if (/date|time|datetime/.test(t)) return "string";
+  if (/date|time|datetime/.test(t)) return "datetime";
   if (/uniqueidentifier/.test(t)) return "string";
   return "string";
 }
@@ -515,7 +516,7 @@ function oracleTypeToValidator(t) {
   if (/NUMBER|INTEGER|FLOAT|BINARY_FLOAT|BINARY_DOUBLE/.test(t))
     return "numeric";
   if (/CLOB|BLOB|RAW|LONG/.test(t)) return "string";
-  if (/DATE|TIMESTAMP/.test(t)) return "string";
+  if (/DATE|TIMESTAMP/.test(t)) return "datetime";
   if (/CHAR|VARCHAR|NCHAR|NVARCHAR/.test(t)) return "string";
   return "string";
 }
