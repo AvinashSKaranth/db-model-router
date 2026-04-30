@@ -114,6 +114,8 @@ function validateSchema(raw) {
  * Validate all table entries.
  */
 function validateTables(tables, errors) {
+  const tableNames = new Set(Object.keys(tables));
+
   for (const [tableName, tableDef] of Object.entries(tables)) {
     const basePath = `tables.${tableName}`;
 
@@ -191,6 +193,21 @@ function validateTables(tables, errors) {
         errors.push({
           path: `${basePath}.softDelete`,
           message: `softDelete column "${tableDef.softDelete}" does not exist in table "${tableName}"`,
+        });
+      }
+    }
+
+    // Validate parent (route nesting)
+    if (tableDef.parent !== undefined && tableDef.parent !== null) {
+      if (typeof tableDef.parent !== "string") {
+        errors.push({
+          path: `${basePath}.parent`,
+          message: `parent must be a string or null in table "${tableName}"`,
+        });
+      } else if (!tableNames.has(tableDef.parent)) {
+        errors.push({
+          path: `${basePath}.parent`,
+          message: `parent "${tableDef.parent}" does not reference an existing table in table "${tableName}"`,
         });
       }
     }

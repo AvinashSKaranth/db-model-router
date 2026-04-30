@@ -1715,7 +1715,7 @@ function generateAppJsV2(answers, outputDir) {
     answers.framework === "ultimate-express" ? "ultimate-express" : "express";
 
   const commonsPrefix = outputDir ? `./${outputDir}/commons` : "./commons";
-  const routePrefix = outputDir ? `./${outputDir}/route` : "./route";
+  const routePrefix = outputDir ? `./${outputDir}/routes` : "./routes";
   const middlewarePrefix = outputDir
     ? `./${outputDir}/middleware`
     : "./middleware";

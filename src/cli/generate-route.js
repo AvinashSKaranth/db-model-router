@@ -58,8 +58,15 @@ export default route(${varName}, { ${fkColumn}: "params.${fkColumn}" });
 /**
  * Generate the routes index file that mounts all routes on an express Router.
  * Supports parent-child nesting: parent/:pk/child
+ *
+ * Child routes are placed in subfolders: routes/<parent>/<child>.js
+ * Children are only mounted under their parent path (no duplicate top-level route).
+ *
+ * @param {string[]} tableNames
+ * @param {Array<{parent, child, foreignKey}>} relationships
+ * @param {{ includeDocs?: boolean }} [options]
  */
-function generateRoutesIndexFile(tableNames, relationships = []) {
+function generateRoutesIndexFile(tableNames, relationships = [], options = {}) {
   let imports = `import express from "express";\n\nconst router = express.Router();\n\n`;
 
   // Collect child tables that are nested under parents
@@ -68,35 +75,42 @@ function generateRoutesIndexFile(tableNames, relationships = []) {
     nestedChildren.add(rel.child);
   }
 
+  // Import top-level routes only (not children)
   for (const table of tableNames) {
+    if (nestedChildren.has(table)) continue;
     const varName = safeVarName(table);
     imports += `import ${varName}Route from "./${table}.js";\n`;
   }
-  // Import child routes with _child suffix for nested ones
+
+  // Import child routes from subfolders
   for (const rel of relationships) {
     const varName = safeVarName(rel.child);
-    imports += `import ${varName}ChildRoute from "./${rel.child}_child_of_${rel.parent}.js";\n`;
+    imports += `import ${varName}ChildRoute from "./${rel.parent}/${rel.child}.js";\n`;
+  }
+
+  // Import docs route if openapi is generated
+  if (options.includeDocs) {
+    imports += `import docsRoute from "./docs.js";\n`;
   }
 
   imports += "\n";
 
-  // Mount top-level routes (skip tables that are ONLY children)
+  // Mount docs route first
+  if (options.includeDocs) {
+    imports += `router.use("/docs", docsRoute);\n`;
+  }
+
+  // Mount top-level routes
   for (const table of tableNames) {
     if (nestedChildren.has(table)) continue;
     const varName = safeVarName(table);
     imports += `router.use("/${table}", ${varName}Route);\n`;
   }
 
-  // Mount nested child routes under parent
+  // Mount child routes under parent path
   for (const rel of relationships) {
     const childVar = safeVarName(rel.child);
-    imports += `router.use("/${rel.parent}/:${rel.fkColumn}/${rel.child}", ${childVar}ChildRoute);\n`;
-  }
-
-  // Also mount children as top-level for direct access
-  for (const rel of relationships) {
-    const varName = safeVarName(rel.child);
-    imports += `router.use("/${rel.child}", ${varName}Route);\n`;
+    imports += `router.use("/${rel.parent}/:${rel.foreignKey}/${rel.child}", ${childVar}ChildRoute);\n`;
   }
 
   imports += "\nexport default router;\n";
@@ -387,7 +401,7 @@ async function main() {
         const fkColumn = parent.replace(/s$/, "") + "_id";
         // Only add if both tables exist in our model set
         if (tableNames.includes(parent) && tableNames.includes(child)) {
-          relationships.push({ parent, child, fkColumn });
+          relationships.push({ parent, child, foreignKey: fkColumn });
         }
       }
     }
@@ -398,23 +412,36 @@ async function main() {
     fs.mkdirSync(routesDir, { recursive: true });
   }
 
+  // Collect child tables to skip top-level route files
+  const nestedChildren = new Set();
+  for (const rel of relationships) {
+    nestedChildren.add(rel.child);
+  }
+
   for (const table of tableNames) {
+    if (nestedChildren.has(table)) continue;
     const filePath = path.join(routesDir, table + ".js");
     fs.writeFileSync(filePath, generateRouteFile(table, modelsRelPath));
     console.log(`  Created ${filePath}`);
   }
 
-  // Write child route files for parent-child relationships
+  // Write child route files in subfolders: routes/<parent>/<child>.js
   for (const rel of relationships) {
-    const fileName = `${rel.child}_child_of_${rel.parent}.js`;
-    const filePath = path.join(routesDir, fileName);
+    const parentDir = path.join(routesDir, rel.parent);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+    const filePath = path.join(parentDir, `${rel.child}.js`);
+    const childModelsRelPath = path
+      .relative(parentDir, path.resolve(modelsDir))
+      .replace(/\\/g, "/");
     fs.writeFileSync(
       filePath,
       generateChildRouteFile(
         rel.child,
         rel.parent,
-        rel.fkColumn,
-        modelsRelPath,
+        rel.foreignKey,
+        childModelsRelPath,
       ),
     );
     console.log(`  Created ${filePath}`);
@@ -473,7 +500,7 @@ async function main() {
     console.log(`  Created ${testPath}`);
   }
 
-  // Generate child route test files
+  // Generate child route test files in subfolders
   for (const rel of relationships) {
     let pk = "id";
     const modelPath = path.join(modelsDir, rel.child + ".js");
@@ -484,13 +511,14 @@ async function main() {
       );
       if (meta && meta.primary_key) pk = meta.primary_key;
     }
-    const testPath = path.join(
-      testsDir,
-      `${rel.child}_child_of_${rel.parent}.test.js`,
-    );
+    const parentTestDir = path.join(testsDir, rel.parent);
+    if (!fs.existsSync(parentTestDir)) {
+      fs.mkdirSync(parentTestDir, { recursive: true });
+    }
+    const testPath = path.join(parentTestDir, `${rel.child}.test.js`);
     fs.writeFileSync(
       testPath,
-      generateChildTestFile(rel.child, rel.parent, rel.fkColumn, pk),
+      generateChildTestFile(rel.child, rel.parent, rel.foreignKey, pk),
     );
     console.log(`  Created ${testPath}`);
   }

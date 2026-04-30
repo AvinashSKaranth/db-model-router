@@ -48,6 +48,13 @@ function printSchema(schema) {
       tableDef.softDelete = table.softDelete;
     }
 
+    // Preserve parent if set
+    if (table.parent !== null && table.parent !== undefined) {
+      tableDef.parent = table.parent;
+    } else {
+      tableDef.parent = null;
+    }
+
     // Preserve timestamps if not the default { created_at: null, modified_at: null }
     if (table.timestamps) {
       const hasCustomTimestamps =

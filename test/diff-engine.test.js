@@ -212,12 +212,17 @@ describe("Diff Engine", function () {
         // Empty disk — everything should be added
         const result = computeDiff(tmpDir, meta, rels);
         assert.ok(
-          result.added.includes("routes/posts_child_of_users.js"),
-          "child route should be added",
+          result.added.includes("routes/users/posts.js"),
+          "child route should be added in subfolder",
         );
         assert.ok(
-          result.added.includes("test/posts_child_of_users.test.js"),
-          "child test should be added",
+          result.added.includes("test/users/posts.test.js"),
+          "child test should be added in subfolder",
+        );
+        // Child should NOT have a top-level route
+        assert.ok(
+          !result.added.includes("routes/posts.js"),
+          "child should not have top-level route",
         );
       } finally {
         fs.rmSync(tmpDir, { recursive: true, force: true });

@@ -14,21 +14,26 @@ const {
 } = require("../generate-route");
 const { generateOpenAPISpec } = require("../generate-openapi");
 const { generateLlmsTxt, generateLlmMd } = require("./generate-llm-docs");
+const { generateMigrationFiles } = require("../generate-migration");
+const { generateDocsRoute } = require("../generate-docs-route");
+const { migrationTimestamp } = require("../init/generators");
 
 /**
  * Generate command handler for the unified CLI.
  *
  * Reads a schema file, converts to ModelMeta[], and generates
- * models, routes, tests, and OpenAPI spec files.
+ * models, routes, tests, OpenAPI spec, migrations, and docs route.
  *
  * Supported flags:
- *   --from      Path to schema file (default: dbmr.schema.json)
- *   --models    Generate only model files
- *   --routes    Generate only route files (including child routes and index)
- *   --openapi   Generate only OpenAPI spec
- *   --tests     Generate only test files
- *   --dry-run   Report planned files without writing
- *   --json      Output JSON result via ctx
+ *   --from        Path to schema file (default: dbmr.schema.json)
+ *   --models      Generate only model files
+ *   --routes      Generate only route files (including child routes and index)
+ *   --openapi     Generate only OpenAPI spec + docs route
+ *   --tests       Generate only test files
+ *   --migrations  Generate only migration files
+ *   --llm-docs    Generate only LLM documentation
+ *   --dry-run     Report planned files without writing
+ *   --json        Output JSON result via ctx
  *
  * When no artifact flags are provided, all artifact types are generated.
  *
@@ -80,12 +85,14 @@ async function generate(args, flags, ctx) {
     args.routes === true ||
     args.openapi === true ||
     args.tests === true ||
+    args.migrations === true ||
     args["llm-docs"] === true;
 
   const genModels = !hasArtifactFlag || args.models === true;
   const genRoutes = !hasArtifactFlag || args.routes === true;
   const genOpenapi = !hasArtifactFlag || args.openapi === true;
   const genTests = !hasArtifactFlag || args.tests === true;
+  const genMigrations = !hasArtifactFlag || args.migrations === true;
   const genLlmDocs = !hasArtifactFlag || args["llm-docs"] === true;
 
   const modelsRelPath = "../models";
@@ -106,57 +113,91 @@ async function generate(args, flags, ctx) {
 
   // --- Route files ---
   if (genRoutes) {
-    // One route per table
+    // Collect child tables to skip generating top-level route files for them
+    const nestedChildren = new Set();
+    for (const rel of relationships) {
+      nestedChildren.add(rel.child);
+    }
+
+    // One route per top-level table (skip children)
     for (const m of meta) {
+      if (nestedChildren.has(m.table)) continue;
       planned.push({
         relPath: `routes/${m.table}.js`,
         content: generateRouteFile(m.table, modelsRelPath),
       });
     }
 
-    // Child route files (one per relationship)
+    // Child route files in subfolders: routes/<parent>/<child>.js
     for (const rel of relationships) {
       planned.push({
-        relPath: `routes/${rel.child}_child_of_${rel.parent}.js`,
+        relPath: `routes/${rel.parent}/${rel.child}.js`,
         content: generateChildRouteFile(
           rel.child,
           rel.parent,
           rel.foreignKey,
-          modelsRelPath,
+          `../../models`,
         ),
       });
     }
 
-    // Routes index file
+    // Routes index file (include docs route when openapi is being generated)
     planned.push({
       relPath: "routes/index.js",
-      content: generateRoutesIndexFile(tableNames, relationships),
+      content: generateRoutesIndexFile(tableNames, relationships, {
+        includeDocs: genOpenapi,
+      }),
     });
   }
 
-  // --- OpenAPI spec ---
+  // --- OpenAPI spec + docs route ---
   if (genOpenapi) {
     planned.push({
       relPath: "openapi.json",
       content: JSON.stringify(generateOpenAPISpec(meta), null, 2) + "\n",
     });
+
+    // Generate Swagger UI docs route
+    planned.push({
+      relPath: "routes/docs.js",
+      content: generateDocsRoute(),
+    });
+  }
+
+  // --- Migration files ---
+  if (genMigrations) {
+    const migrationFiles = generateMigrationFiles(schema);
+    const ts = migrationTimestamp(new Date());
+    for (const mf of migrationFiles) {
+      planned.push({
+        relPath: `migrations/${ts}_${mf.filename}`,
+        content: mf.content,
+      });
+    }
   }
 
   // --- Test files ---
   if (genTests) {
+    // Collect child tables to skip generating top-level test files for them
+    const nestedChildrenForTests = new Set();
+    for (const rel of relationships) {
+      nestedChildrenForTests.add(rel.child);
+    }
+
     for (const m of meta) {
+      if (nestedChildrenForTests.has(m.table)) continue;
       planned.push({
         relPath: `test/${m.table}.test.js`,
         content: generateTestFile(m.table, m.primary_key),
       });
     }
 
-    // Child test files (one per relationship)
+    // Child test files in subfolders: test/<parent>/<child>.test.js
     for (const rel of relationships) {
       const childMeta = meta.find((m) => m.table === rel.child);
       const pk = childMeta ? childMeta.primary_key : "id";
       planned.push({
-        relPath: `test/${rel.child}_child_of_${rel.parent}.test.js`,
+        relPath: `test/${rel.parent}/${rel.child}.test.js`,
         content: generateChildTestFile(
           rel.child,
           rel.parent,

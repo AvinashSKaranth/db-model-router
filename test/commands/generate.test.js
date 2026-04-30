@@ -118,18 +118,14 @@ describe("CLI Commands - generate (src/cli/commands/generate.js)", function () {
         "Should generate posts model",
       );
 
-      // Route files: users.js, posts.js, child route, index.js
+      // Route files: users.js, child route in subfolder, index.js
       assert.ok(
         paths.includes("routes/users.js"),
         "Should generate users route",
       );
       assert.ok(
-        paths.includes("routes/posts.js"),
-        "Should generate posts route",
-      );
-      assert.ok(
-        paths.includes("routes/posts_child_of_users.js"),
-        "Should generate child route",
+        paths.includes("routes/users/posts.js"),
+        "Should generate child route in subfolder",
       );
       assert.ok(
         paths.includes("routes/index.js"),
@@ -145,12 +141,8 @@ describe("CLI Commands - generate (src/cli/commands/generate.js)", function () {
         "Should generate users test",
       );
       assert.ok(
-        paths.includes("test/posts.test.js"),
-        "Should generate posts test",
-      );
-      assert.ok(
-        paths.includes("test/posts_child_of_users.test.js"),
-        "Should generate child test",
+        paths.includes("test/users/posts.test.js"),
+        "Should generate child test in subfolder",
       );
 
       // Verify files actually exist on disk
@@ -233,12 +225,8 @@ describe("CLI Commands - generate (src/cli/commands/generate.js)", function () {
         "Should generate users route",
       );
       assert.ok(
-        paths.includes("routes/posts.js"),
-        "Should generate posts route",
-      );
-      assert.ok(
-        paths.includes("routes/posts_child_of_users.js"),
-        "Should generate child route",
+        paths.includes("routes/users/posts.js"),
+        "Should generate child route in subfolder",
       );
       assert.ok(
         paths.includes("routes/index.js"),

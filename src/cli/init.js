@@ -95,7 +95,7 @@ function generateFiles(answers, outputDir) {
     path.join(srcBase, "middleware"),
     path.join(srcBase, "migrations"),
     path.join(srcBase, "commons"),
-    path.join(srcBase, "route"),
+    path.join(srcBase, "routes"),
   ];
   // SQLite3 needs a data/ folder for the database file
   if (answers.database === "sqlite3") {
@@ -189,15 +189,15 @@ function generateFiles(answers, outputDir) {
   if (safeWriteFile(dbPath, generateDbModule(answers)))
     files.push(path.join(srcBase, "commons/db.js"));
 
-  // route/health.js
-  const healthPath = path.join(srcBase, "route", "health.js");
+  // routes/health.js
+  const healthPath = path.join(srcBase, "routes", "health.js");
   if (safeWriteFile(healthPath, generateHealthRoute()))
-    files.push(path.join(srcBase, "route/health.js"));
+    files.push(path.join(srcBase, "routes/health.js"));
 
-  // route/index.js
-  const routeIndexPath = path.join(srcBase, "route", "index.js");
+  // routes/index.js
+  const routeIndexPath = path.join(srcBase, "routes", "index.js");
   if (safeWriteFile(routeIndexPath, generateRouteIndexFile()))
-    files.push(path.join(srcBase, "route/index.js"));
+    files.push(path.join(srcBase, "routes/index.js"));
 
   // Initial migration (inside outputDir/migrations)
   const initialMigration = generateInitialMigration(answers);
@@ -365,7 +365,7 @@ Options:
   --db <name>           Alias for --database
   --session <type>      Session store: memory, redis, database
   --output <dir>        Directory for backend source files (e.g. --output backend).
-                        package.json stays in root; index.js, commons/, route/,
+                        package.json stays in root; index.js, commons/, routes/,
                         middleware/, and migrations/ go inside the output folder.
   --rateLimiting        Enable rate limiting (express-rate-limit)
   --helmet              Enable Helmet security headers

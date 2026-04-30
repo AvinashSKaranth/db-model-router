@@ -14,7 +14,11 @@ Scaffold the project, write the migrations, generate models and routes with pare
 relationships for projects.tasks, and make sure everything runs.
 ```
 
-For the LLM skill reference, see [SKILL.md](./docs/SKILL.md).
+For the LLM skill reference, see [SKILL.md](./skill/SKILL.md). You can also add it directly to your AI assistant:
+
+```bash
+npx skills add https://github.com/AvinashSKaranth/db-model-router/skill
+```
 
 ## Supported Adapters
 
@@ -97,7 +101,31 @@ Instead of running multiple CLI commands manually, you can define your entire pr
 
 ### The Schema File
 
-`dbmr.schema.json` is a declarative JSON file that describes your adapter, framework, tables, columns, relationships, and options — all in one place:
+`dbmr.schema.json` is a declarative JSON file that describes your adapter, framework, tables, columns, module hierarchy, and options — all in one place.
+
+#### Modules and the `parent` Field
+
+Each table in the schema represents a **module**. Modules are either top-level or nested under a parent module using the `parent` field:
+
+- `"parent": null` — top-level module, routes mount at `/<table>/`
+- `"parent": "posts"` — child module, routes mount at `/posts/:post_id/comments/:comment_id`
+
+When a table has `parent` set, the CLI automatically:
+
+1. Creates a child route file scoped by the parent's PK as a URL parameter
+2. Mounts the child routes under the parent path
+3. Also mounts the child as a top-level route for direct access
+
+#### Best Practice: Don't Use System Tables as Parents
+
+Tables like `users`, `tenants`, `roles`, `permissions`, `sessions`, and `role_permissions` are cross-cutting concerns — they are referenced by almost every feature module via foreign key columns (e.g. `user_id`, `tenant_id`). Making them route parents would nest every feature module under them, which is not the intent.
+
+Keep system tables as top-level modules (`"parent": null`) and reference them via FK columns in your feature tables. Only use `parent` for true domain hierarchies like `posts → comments`, `orders → order_items`, or `projects → tasks`.
+
+Examples of tables that should stay top-level (not be parents of feature modules):
+`users`, `tenants`, `roles`, `role_permissions`, `permissions`, `sessions`, `accounts`, `auth_tokens`
+
+#### Example Schema
 
 ```json
 {
@@ -127,7 +155,8 @@ Instead of running multiple CLI commands manually, you can define your entire pr
       "timestamps": {
         "created_at": "created_at",
         "modified_at": "updated_at"
-      }
+      },
+      "parent": null
     },
     "posts": {
       "columns": {
@@ -139,16 +168,35 @@ Instead of running multiple CLI commands manually, you can define your entire pr
         "modified_at": "datetime"
       },
       "pk": "post_id",
-      "unique": ["post_id"]
+      "unique": ["post_id"],
+      "parent": null
+    },
+    "comments": {
+      "columns": {
+        "comment_id": "auto_increment",
+        "post_id": "required|integer",
+        "user_id": "required|integer",
+        "body": "required|string",
+        "created_at": "datetime"
+      },
+      "pk": "comment_id",
+      "unique": ["comment_id"],
+      "parent": "posts"
     }
-  },
-  "relationships": [
-    { "parent": "users", "child": "posts", "foreignKey": "user_id" }
-  ]
+  }
 }
 ```
 
-Table entries support these fields:
+This generates routes:
+
+- `GET /users/`, `GET /users/:user_id` — top-level
+- `GET /posts/`, `GET /posts/:post_id` — top-level
+- `GET /posts/:post_id/comments/`, `GET /posts/:post_id/comments/:comment_id` — nested under posts
+- `GET /comments/`, `GET /comments/:comment_id` — also available as top-level
+
+Note: `comments` has `user_id` as a foreign key column but `users` is NOT its parent — `posts` is. The `user_id` is just a data reference, not a route hierarchy.
+
+#### Table Fields
 
 | Field        | Required | Description                                                              |
 | ------------ | -------- | ------------------------------------------------------------------------ |
@@ -157,12 +205,23 @@ Table entries support these fields:
 | `unique`     | No       | Array of unique constraint columns (defaults to `[pk]`)                  |
 | `softDelete` | No       | Column name used for soft-delete                                         |
 | `timestamps` | No       | Object with `created_at` and `modified_at` column name mapping           |
+| `parent`     | No       | Parent table name for route nesting, or `null` for top-level             |
 
-Column rules use the format `(required|)?(string|integer|numeric|boolean|object|datetime|auto_increment)`.
+#### Column Rules
 
-- `auto_increment` — auto-incrementing PK (SERIAL in Postgres, AUTO_INCREMENT in MySQL/MariaDB)
-- `datetime` — date/time columns (TIMESTAMP, DATETIME, DATE)
-- `required|<type>` — NOT NULL constraint on insert/update
+Format: `(required|)?(string|integer|numeric|boolean|object|datetime|auto_increment)`
+
+| Type             | Description                                                        |
+| ---------------- | ------------------------------------------------------------------ |
+| `auto_increment` | Auto-incrementing PK (SERIAL in Postgres, AUTO_INCREMENT in MySQL) |
+| `datetime`       | Date/time columns (TIMESTAMP, DATETIME, DATE)                      |
+| `string`         | Text columns (VARCHAR, TEXT, CHAR, UUID)                           |
+| `integer`        | Integer columns (INT, BIGINT, SMALLINT)                            |
+| `numeric`        | Decimal columns (DECIMAL, FLOAT, DOUBLE, MONEY)                    |
+| `boolean`        | Boolean columns (BOOLEAN, BIT)                                     |
+| `object`         | JSON columns (JSON, JSONB)                                         |
+
+Prefix with `required|` for NOT NULL constraint (e.g. `"required|string"`).
 
 ### Unified CLI: `db-model-router`
 
@@ -617,4 +676,14 @@ Apache-2.0
 
 ## LLM Skill Reference
 
-For AI/LLM integration, see the [Skill Reference](./docs/SKILL.md) — a structured document covering the full API surface, patterns, constraints, and connection configs for all adapters.
+For AI/LLM integration, see the [Skill Reference](./skill/SKILL.md) — a structured document covering the full API surface, patterns, constraints, and connection configs for all adapters.
+
+### Add the Skill to Your AI Assistant
+
+You can install the db-model-router skill directly into any compatible AI assistant using:
+
+```bash
+npx skills add https://github.com/AvinashSKaranth/db-model-router/skill
+```
+
+Once installed, your AI assistant will automatically know how to scaffold projects, generate models and routes, write migrations, and work with all 10 supported database adapters.

@@ -658,8 +658,8 @@ describe("CLI Init - src/cli/init.js orchestration", function () {
         "commons/security.js should exist",
       );
       assert.ok(
-        fs.existsSync(path.join(tmpDir, "route", "health.js")),
-        "route/health.js should exist",
+        fs.existsSync(path.join(tmpDir, "routes", "health.js")),
+        "routes/health.js should exist",
       );
       assert.ok(
         fs.existsSync(path.join(tmpDir, "middleware", "logger.js")),

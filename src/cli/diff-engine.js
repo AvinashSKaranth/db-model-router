@@ -11,6 +11,7 @@ const {
   generateChildTestFile,
 } = require("./generate-route.js");
 const { generateOpenAPISpec } = require("./generate-openapi.js");
+const { generateDocsRoute } = require("./generate-docs-route.js");
 
 /**
  * Simple line-by-line diff between two strings.
@@ -52,54 +53,63 @@ function buildExpectedFiles(meta, relationships) {
   const modelsRelPath = "../models";
   const tableNames = meta.map((m) => m.table).sort();
 
+  // Collect child tables
+  const nestedChildren = new Set();
+  for (const rel of relationships) {
+    nestedChildren.add(rel.child);
+  }
+
   // Model files
   for (const m of meta) {
     expected.set(`models/${m.table}.js`, generateModelFile(m));
   }
 
-  // Route files (one per table)
+  // Route files (top-level only, skip children)
   for (const m of meta) {
+    if (nestedChildren.has(m.table)) continue;
     expected.set(
       `routes/${m.table}.js`,
       generateRouteFile(m.table, modelsRelPath),
     );
   }
 
-  // Child route files (one per relationship)
+  // Child route files in subfolders: routes/<parent>/<child>.js
   for (const rel of relationships) {
-    const childMeta = meta.find((m) => m.table === rel.child);
-    const pk = childMeta ? childMeta.primary_key : "id";
     expected.set(
-      `routes/${rel.child}_child_of_${rel.parent}.js`,
+      `routes/${rel.parent}/${rel.child}.js`,
       generateChildRouteFile(
         rel.child,
         rel.parent,
         rel.foreignKey,
-        modelsRelPath,
+        `../../models`,
       ),
     );
   }
 
-  // Routes index file
+  // Routes index file (with docs route)
   expected.set(
     "routes/index.js",
-    generateRoutesIndexFile(tableNames, relationships),
+    generateRoutesIndexFile(tableNames, relationships, { includeDocs: true }),
   );
 
-  // Test files (one per table)
+  // Docs route (Swagger UI)
+  expected.set("routes/docs.js", generateDocsRoute());
+
+  // Test files (top-level only, skip children)
   for (const m of meta) {
+    if (nestedChildren.has(m.table)) continue;
     expected.set(
       `test/${m.table}.test.js`,
       generateTestFile(m.table, m.primary_key),
     );
   }
 
-  // Child test files (one per relationship)
+  // Child test files in subfolders: test/<parent>/<child>.test.js
   for (const rel of relationships) {
     const childMeta = meta.find((m) => m.table === rel.child);
     const pk = childMeta ? childMeta.primary_key : "id";
     expected.set(
-      `test/${rel.child}_child_of_${rel.parent}.test.js`,
+      `test/${rel.parent}/${rel.child}.test.js`,
       generateChildTestFile(rel.child, rel.parent, rel.foreignKey, pk),
     );
   }
@@ -115,7 +125,7 @@ function buildExpectedFiles(meta, relationships) {
 
 /**
  * Scan known artifact directories on disk and return a set of relative paths
- * that exist.
+ * that exist. Recursively scans subdirectories.
  *
  * @param {string} baseDir
  * @returns {Set<string>}
@@ -123,21 +133,41 @@ function buildExpectedFiles(meta, relationships) {
 function scanDiskFiles(baseDir) {
   const files = new Set();
 
-  const dirs = [
-    { dir: "models", ext: ".js" },
-    { dir: "routes", ext: ".js" },
-    { dir: "test", ext: ".test.js" },
-  ];
-
-  for (const { dir, ext } of dirs) {
+  function scanDir(dir, prefix) {
     const fullDir = path.join(baseDir, dir);
-    if (!fs.existsSync(fullDir)) continue;
-    for (const file of fs.readdirSync(fullDir)) {
-      if (file.endsWith(ext)) {
-        files.add(`${dir}/${file}`);
+    if (!fs.existsSync(fullDir)) return;
+    for (const entry of fs.readdirSync(fullDir, { withFileTypes: true })) {
+      const relPath = prefix
+        ? `${prefix}/${entry.name}`
+        : `${dir}/${entry.name}`;
+      if (entry.isDirectory()) {
+        scanDir(path.join(dir, entry.name), relPath);
+      } else if (entry.name.endsWith(".js")) {
+        files.add(relPath);
       }
     }
   }
+
+  scanDir("models");
+  scanDir("routes");
+
+  // For test dir, only include .test.js files
+  function scanTestDir(dir, prefix) {
+    const fullDir = path.join(baseDir, dir);
+    if (!fs.existsSync(fullDir)) return;
+    for (const entry of fs.readdirSync(fullDir, { withFileTypes: true })) {
+      const relPath = prefix
+        ? `${prefix}/${entry.name}`
+        : `${dir}/${entry.name}`;
+      if (entry.isDirectory()) {
+        scanTestDir(path.join(dir, entry.name), relPath);
+      } else if (entry.name.endsWith(".test.js")) {
+        files.add(relPath);
+      }
+    }
+  }
+
+  scanTestDir("test");
 
   // Check for openapi.json at root
   const openapiPath = path.join(baseDir, "openapi.json");

@@ -165,8 +165,8 @@ function planFiles(answers, outputDir) {
     `${prefix}commons/add_migration.js`,
     `${prefix}commons/security.js`,
     `${prefix}commons/db.js`,
-    `${prefix}route/health.js`,
-    `${prefix}route/index.js`,
+    `${prefix}routes/health.js`,
+    `${prefix}routes/index.js`,
     `${prefix}migrations/<timestamp>_create_migrations_table` +
       (isSql(answers.database) ? ".sql" : ".js"),
   );

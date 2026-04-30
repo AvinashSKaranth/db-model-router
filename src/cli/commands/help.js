@@ -8,7 +8,7 @@ const COMMAND_HELP = {
   init: `Usage: db-model-router init [options]
 
 Scaffold a new project from a schema file or interactively.
-Creates app.js, .env, commons/, route/, middleware/, and migrations/.
+Creates app.js, .env, commons/, routes/, middleware/, and migrations/.
 
 Options:
   --from <path>          Read adapter, framework, and options from a schema file
@@ -18,7 +18,7 @@ Options:
   --db <name>            Alias for --database
   --session <type>       Session store: memory, redis, database
   --output <dir>         Directory for backend source files (relative to cwd).
-                         package.json and app.js stay in root; commons/, route/,
+                         package.json and app.js stay in root; commons/, routes/,
                          middleware/, and migrations/ go inside this folder.
   --rateLimiting         Enable rate limiting (default: yes)
   --helmet               Enable Helmet security headers (default: yes)
@@ -39,8 +39,8 @@ Generated files:
   <output>/commons/add_migration.js   Migration creation helper (also runs as script)
   <output>/commons/security.js        Helmet, rate limiting, custom headers
   <output>/middleware/logger.js        Winston + Loki request logger
-  <output>/route/index.js             Central route mounting
-  <output>/route/health.js            GET /health endpoint
+  <output>/routes/index.js             Central route mounting
+  <output>/routes/health.js            GET /health endpoint
   <output>/migrations/                Initial migration files
 
 Examples:
@@ -79,8 +79,9 @@ Options:
   --from <path>          Path to schema file (default: dbmr.schema.json)
   --models               Generate only model files
   --routes               Generate only route files (including child routes and index)
-  --openapi              Generate only OpenAPI spec
+  --openapi              Generate only OpenAPI spec + Swagger UI docs route
   --tests                Generate only test files
+  --migrations           Generate only database migration files
   --llm-docs             Generate only LLM documentation (llms.txt + docs/llm.md)
   --yes                  Accept all defaults without prompting
   --json                 Output machine-readable JSON
@@ -90,8 +91,11 @@ Options:
 Generated files:
   models/<table>.js                        Model with CRUD operations
   routes/<table>.js                        Express route handlers
-  routes/<child>_child_of_<parent>.js      Child route (scoped by FK)
+  routes/<parent>/<child>.js               Child route (scoped by FK)
+  routes/docs.js                           Swagger UI at /docs
   routes/index.js                          Route mounting index
+  migrations/<timestamp>_create_tables.sql Database migration (SQL adapters)
+  migrations/<timestamp>_create_<t>.js     Database migration (NoSQL adapters)
   test/<table>.test.js                     CRUD endpoint tests
   openapi.json                             OpenAPI 3.0 spec
   llms.txt                                 LLM quick reference
@@ -101,6 +105,7 @@ Examples:
   db-model-router generate --from dbmr.schema.json
   db-model-router generate --models --dry-run
   db-model-router generate --routes --tests
+  db-model-router generate --migrations
   db-model-router generate --from dbmr.schema.json --json`,
 
   doctor: `Usage: db-model-router doctor [options]

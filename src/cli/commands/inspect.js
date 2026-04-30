@@ -79,6 +79,7 @@ function modelMetaToSchema(adapter, framework, models) {
       unique,
       softDelete,
       timestamps,
+      parent: null,
     };
   }
 

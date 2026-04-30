@@ -1,0 +1,333 @@
+{
+  "adapter": "sqlite3",
+  "framework": "express",
+  "options": {
+    "session": "redis",
+    "rateLimiting": true,
+    "helmet": true,
+    "logger": true,
+    "loki": false
+  },
+  "tables": {
+    "users": {
+      "columns": {
+        "user_id": "auto_increment",
+        "name": "required|string",
+        "email": "required|string",
+        "password_hash": "required|string",
+        "phone": "string",
+        "avatar_url": "string",
+        "role": "required|string",
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "pk": "user_id",
+      "unique": ["email"],
+      "softDelete": "is_deleted",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "updated_at"
+      },
+      "parent": null
+    },
+    "addresses": {
+      "columns": {
+        "address_id": "auto_increment",
+        "user_id": "required|integer",
+        "label": "string",
+        "line1": "required|string",
+        "line2": "string",
+        "city": "required|string",
+        "state": "required|string",
+        "postal_code": "required|string",
+        "country": "required|string",
+        "is_default": "boolean",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "pk": "address_id",
+      "unique": ["address_id"],
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "updated_at"
+      },
+      "parent": null
+    },
+    "categories": {
+      "columns": {
+        "category_id": "auto_increment",
+        "name": "required|string",
+        "slug": "required|string",
+        "description": "string",
+        "parent_category_id": "integer",
+        "image_url": "string",
+        "sort_order": "integer",
+        "is_active": "boolean",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "pk": "category_id",
+      "unique": ["slug"],
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "updated_at"
+      },
+      "parent": null
+    },
+    "products": {
+      "columns": {
+        "product_id": "auto_increment",
+        "category_id": "required|integer",
+        "name": "required|string",
+        "slug": "required|string",
+        "description": "string",
+        "short_description": "string",
+        "sku": "required|string",
+        "price": "required|numeric",
+        "compare_at_price": "numeric",
+        "cost_price": "numeric",
+        "currency": "required|string",
+        "stock_quantity": "required|integer",
+        "low_stock_threshold": "integer",
+        "weight": "numeric",
+        "weight_unit": "string",
+        "is_active": "boolean",
+        "is_featured": "boolean",
+        "is_deleted": "boolean",
+        "meta": "object",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "pk": "product_id",
+      "unique": ["sku", "slug"],
+      "softDelete": "is_deleted",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "updated_at"
+      },
+      "parent": null
+    },
+    "product_images": {
+      "columns": {
+        "product_image_id": "auto_increment",
+        "product_id": "required|integer",
+        "url": "required|string",
+        "alt_text": "string",
+        "sort_order": "integer",
+        "is_primary": "boolean",
+        "created_at": "datetime"
+      },
+      "pk": "product_image_id",
+      "unique": ["product_image_id"],
+      "timestamps": {
+        "created_at": "created_at"
+      },
+      "parent": "products"
+    },
+    "product_variants": {
+      "columns": {
+        "variant_id": "auto_increment",
+        "product_id": "required|integer",
+        "name": "required|string",
+        "sku": "required|string",
+        "price": "required|numeric",
+        "stock_quantity": "required|integer",
+        "attributes": "object",
+        "is_active": "boolean",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "pk": "variant_id",
+      "unique": ["sku"],
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "updated_at"
+      },
+      "parent": "products"
+    },
+    "product_reviews": {
+      "columns": {
+        "review_id": "auto_increment",
+        "product_id": "required|integer",
+        "user_id": "required|integer",
+        "rating": "required|integer",
+        "title": "string",
+        "body": "string",
+        "is_verified": "boolean",
+        "is_approved": "boolean",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "pk": "review_id",
+      "unique": ["review_id"],
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "updated_at"
+      },
+      "parent": "products"
+    },
+    "carts": {
+      "columns": {
+        "cart_id": "auto_increment",
+        "user_id": "integer",
+        "session_id": "string",
+        "currency": "required|string",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "pk": "cart_id",
+      "unique": ["cart_id"],
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "updated_at"
+      },
+      "parent": null
+    },
+    "cart_items": {
+      "columns": {
+        "cart_item_id": "auto_increment",
+        "cart_id": "required|integer",
+        "product_id": "required|integer",
+        "variant_id": "integer",
+        "quantity": "required|integer",
+        "unit_price": "required|numeric",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "pk": "cart_item_id",
+      "unique": ["cart_item_id"],
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "updated_at"
+      },
+      "parent": "carts"
+    },
+    "orders": {
+      "columns": {
+        "order_id": "auto_increment",
+        "user_id": "required|integer",
+        "order_number": "required|string",
+        "status": "required|string",
+        "subtotal": "required|numeric",
+        "tax_amount": "required|numeric",
+        "shipping_amount": "required|numeric",
+        "discount_amount": "numeric",
+        "total": "required|numeric",
+        "currency": "required|string",
+        "shipping_address_id": "integer",
+        "billing_address_id": "integer",
+        "notes": "string",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "pk": "order_id",
+      "unique": ["order_number"],
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "updated_at"
+      },
+      "parent": null
+    },
+    "order_items": {
+      "columns": {
+        "order_item_id": "auto_increment",
+        "order_id": "required|integer",
+        "product_id": "required|integer",
+        "variant_id": "integer",
+        "product_name": "required|string",
+        "sku": "required|string",
+        "quantity": "required|integer",
+        "unit_price": "required|numeric",
+        "total_price": "required|numeric",
+        "created_at": "datetime"
+      },
+      "pk": "order_item_id",
+      "unique": ["order_item_id"],
+      "timestamps": {
+        "created_at": "created_at"
+      },
+      "parent": "orders"
+    },
+    "payments": {
+      "columns": {
+        "payment_id": "auto_increment",
+        "order_id": "required|integer",
+        "method": "required|string",
+        "provider": "string",
+        "provider_transaction_id": "string",
+        "amount": "required|numeric",
+        "currency": "required|string",
+        "status": "required|string",
+        "paid_at": "datetime",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "pk": "payment_id",
+      "unique": ["payment_id"],
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "updated_at"
+      },
+      "parent": "orders"
+    },
+    "shipments": {
+      "columns": {
+        "shipment_id": "auto_increment",
+        "order_id": "required|integer",
+        "carrier": "required|string",
+        "tracking_number": "string",
+        "status": "required|string",
+        "shipped_at": "datetime",
+        "delivered_at": "datetime",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "pk": "shipment_id",
+      "unique": ["shipment_id"],
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "updated_at"
+      },
+      "parent": "orders"
+    },
+    "coupons": {
+      "columns": {
+        "coupon_id": "auto_increment",
+        "code": "required|string",
+        "description": "string",
+        "discount_type": "required|string",
+        "discount_value": "required|numeric",
+        "min_order_amount": "numeric",
+        "max_uses": "integer",
+        "used_count": "integer",
+        "starts_at": "datetime",
+        "expires_at": "datetime",
+        "is_active": "boolean",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "pk": "coupon_id",
+      "unique": ["code"],
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "updated_at"
+      },
+      "parent": null
+    },
+    "wishlists": {
+      "columns": {
+        "wishlist_id": "auto_increment",
+        "user_id": "required|integer",
+        "product_id": "required|integer",
+        "created_at": "datetime"
+      },
+      "pk": "wishlist_id",
+      "unique": ["wishlist_id"],
+      "timestamps": {
+        "created_at": "created_at"
+      },
+      "parent": null
+    }
+  }
+}

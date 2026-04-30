@@ -56,6 +56,11 @@ function parseSchema(input) {
     const softDelete =
       tableDef.softDelete !== undefined ? tableDef.softDelete : null;
 
+    const parent =
+      tableDef.parent !== undefined && tableDef.parent !== null
+        ? tableDef.parent
+        : null;
+
     tables[tableName] = {
       name: tableName,
       columns: { ...tableDef.columns },
@@ -63,14 +68,51 @@ function parseSchema(input) {
       unique,
       softDelete,
       timestamps,
+      parent,
     };
+  }
+
+  // Derive relationships from parent fields on tables.
+  // If a table has parent set, create a relationship entry.
+  // Also merge any explicitly declared relationships.
+  const derivedRelationships = [];
+  const seenRels = new Set();
+
+  for (const [tableName, tableDef] of Object.entries(tables)) {
+    if (tableDef.parent) {
+      const parentTable = tables[tableDef.parent];
+      if (parentTable) {
+        // FK column is the parent's PK name (e.g. post_id for posts)
+        const fkColumn = parentTable.pk;
+        const key = `${tableDef.parent}:${tableName}:${fkColumn}`;
+        if (!seenRels.has(key)) {
+          derivedRelationships.push({
+            parent: tableDef.parent,
+            child: tableName,
+            foreignKey: fkColumn,
+          });
+          seenRels.add(key);
+        }
+      }
+    }
+  }
+
+  // Merge explicit relationships (from the relationships array) that aren't already derived
+  if (raw.relationships) {
+    for (const rel of raw.relationships) {
+      const key = `${rel.parent}:${rel.child}:${rel.foreignKey}`;
+      if (!seenRels.has(key)) {
+        derivedRelationships.push({ ...rel });
+        seenRels.add(key);
+      }
+    }
   }
 
   return {
     adapter: raw.adapter,
     framework: raw.framework,
     tables,
-    relationships: raw.relationships ? [...raw.relationships] : [],
+    relationships: derivedRelationships,
     options: raw.options ? { ...raw.options } : {},
   };
 }

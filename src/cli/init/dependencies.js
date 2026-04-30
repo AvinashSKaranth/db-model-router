@@ -63,6 +63,9 @@ function collectDependencies(answers) {
   // Dev dependencies
   devDependencies["nodemon"] = "latest";
 
+  // Swagger UI for API documentation
+  dependencies["swagger-ui-express"] = "latest";
+
   return { dependencies, devDependencies };
 }
 
