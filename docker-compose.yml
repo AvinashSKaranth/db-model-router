@@ -128,7 +128,7 @@ services:
       - db-network
 
   oracle:
-    image: gvenzl/oracle-xe:21-slim
+    image: gvenzl/oracle-free
     container_name: db-model-router-oracle
     restart: unless-stopped
     ports:

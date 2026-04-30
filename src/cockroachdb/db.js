@@ -371,22 +371,30 @@ async function insert(table, data, uniqueKeys = []) {
     }
   }
 
-  // Bulk insert via multi-row VALUES
+  // Bulk insert via multi-row VALUES in batches of 1000
+  const BATCH_SIZE = 1000;
+  const colList = columns.join(",");
   const client = await pool.connect();
   try {
-    let paramIdx = 0;
-    const allParams = [];
-    const valuesClauses = array.map((row) => {
-      const placeholders = columns.map((c) => {
-        paramIdx++;
-        allParams.push(sanitizeValue(row[c]));
-        return "$" + paramIdx;
+    await client.query("BEGIN");
+    for (let offset = 0; offset < total; offset += BATCH_SIZE) {
+      const batch = array.slice(offset, offset + BATCH_SIZE);
+      let paramIdx = 0;
+      const allParams = [];
+      const valuesClauses = batch.map((row) => {
+        const placeholders = columns.map((c) => {
+          paramIdx++;
+          allParams.push(sanitizeValue(row[c]));
+          return "$" + paramIdx;
+        });
+        return "(" + placeholders.join(",") + ")";
       });
-      return "(" + placeholders.join(",") + ")";
-    });
-    const sql = `INSERT INTO ${table} (${columns.join(",")}) VALUES ${valuesClauses.join(",")}`;
-    await client.query(sql, allParams);
+      const sql = `INSERT INTO ${table} (${colList}) VALUES ${valuesClauses.join(",")}`;
+      await client.query(sql, allParams);
+    }
+    await client.query("COMMIT");
   } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
     throw mapPgError(e);
   } finally {
     client.release();
@@ -407,35 +415,40 @@ async function _insertOnConflict(table, array, columns, uniqueKeys, total) {
   let lastId = 0;
   const pk = await getPkColumn(table);
   const conflictCols = uniqueKeys.join(",");
+  const colList = columns.join(",");
+  const BATCH_SIZE = 1000;
 
-  for (const row of array) {
-    const vals = columns.map((c) => sanitizeValue(row[c]));
-    const placeholders = columns.map((_, i) => "$" + (i + 1)).join(",");
-    let sql = `INSERT INTO ${table} (${columns.join(",")}) VALUES (${placeholders}) ON CONFLICT (${conflictCols}) DO NOTHING`;
-    if (pk) sql += ` RETURNING ${pk}`;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
 
-    const client = await pool.connect();
-    try {
-      const result = await client.query(sql, vals);
-      if (result.rows && result.rows.length > 0 && pk) {
-        lastId = result.rows[0][pk] || 0;
-      } else if (total === 1 && pk) {
-        // Row already existed, fetch its PK
-        const whereClauses = uniqueKeys
-          .map((k, i) => `${k} = $${i + 1}`)
-          .join(" AND ");
-        const whereVals = uniqueKeys.map((k) => row[k]);
-        const fetched = await client.query(
-          `SELECT ${pk} FROM ${table} WHERE ${whereClauses}`,
-          whereVals,
-        );
-        if (fetched.rows.length > 0) lastId = fetched.rows[0][pk] || 0;
+    for (let offset = 0; offset < total; offset += BATCH_SIZE) {
+      const batch = array.slice(offset, offset + BATCH_SIZE);
+      let paramIdx = 0;
+      const allParams = [];
+      const valuesClauses = batch.map((row) => {
+        const placeholders = columns.map((c) => {
+          paramIdx++;
+          allParams.push(sanitizeValue(row[c]));
+          return "$" + paramIdx;
+        });
+        return "(" + placeholders.join(",") + ")";
+      });
+      let sql = `INSERT INTO ${table} (${colList}) VALUES ${valuesClauses.join(",")} ON CONFLICT (${conflictCols}) DO NOTHING`;
+      if (pk) sql += ` RETURNING ${pk}`;
+
+      const result = await client.query(sql, allParams);
+      if (pk && result.rows && result.rows.length > 0) {
+        lastId = result.rows[result.rows.length - 1][pk] || lastId;
       }
-    } catch (e) {
-      throw mapPgError(e);
-    } finally {
-      client.release();
     }
+
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw mapPgError(e);
+  } finally {
+    client.release();
   }
 
   return {
@@ -471,13 +484,13 @@ async function upsert(table, data, uniqueKeys = []) {
         const updateCols = columns.filter((c) => c !== keyCol);
         if (updateCols.length === 0) continue;
         const setClause = updateCols
-          .map((c, i) => `${c} = $${i + 1}`)
+          .map((c, i) => `${c} = ${i + 1}`)
           .join(", ");
         const vals = [
           ...updateCols.map((c) => sanitizeValue(row[c])),
           row[keyCol],
         ];
-        const sql = `UPDATE ${table} SET ${setClause} WHERE ${keyCol} = $${updateCols.length + 1}`;
+        const sql = `UPDATE ${table} SET ${setClause} WHERE ${keyCol} = ${updateCols.length + 1}`;
         await query(sql, vals);
         if (row[keyCol]) lastId = row[keyCol];
       }
@@ -497,34 +510,51 @@ async function upsert(table, data, uniqueKeys = []) {
   const nonUniqueColumns = columns.filter((c) => !uniqueKeys.includes(c));
   const pk = await getPkColumn(table);
   let lastId = 0;
+  const BATCH_SIZE = 1000;
 
-  for (const row of array) {
-    const vals = columns.map((c) => sanitizeValue(row[c]));
-    const placeholders = columns.map((_, i) => "$" + (i + 1)).join(",");
-    const conflictCols = uniqueKeys.join(",");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
     const updateSetSql = nonUniqueColumns
       .map((c) => `${c} = EXCLUDED.${c}`)
       .join(", ");
+    const conflictCols = uniqueKeys.join(",");
+    const colList = columns.join(",");
 
-    let sql = `INSERT INTO ${table} (${columns.join(",")}) VALUES (${placeholders}) ON CONFLICT (${conflictCols})`;
-    if (updateSetSql) {
-      sql += ` DO UPDATE SET ${updateSetSql}`;
-    } else {
-      sql += ` DO NOTHING`;
-    }
-    if (pk) sql += ` RETURNING ${pk}`;
+    for (let offset = 0; offset < total; offset += BATCH_SIZE) {
+      const batch = array.slice(offset, offset + BATCH_SIZE);
+      let paramIdx = 0;
+      const allParams = [];
+      const valuesClauses = batch.map((row) => {
+        const placeholders = columns.map((c) => {
+          paramIdx++;
+          allParams.push(sanitizeValue(row[c]));
+          return "$" + paramIdx;
+        });
+        return "(" + placeholders.join(",") + ")";
+      });
 
-    const client = await pool.connect();
-    try {
-      const result = await client.query(sql, vals);
-      if (result.rows && result.rows.length > 0 && pk) {
-        lastId = result.rows[0][pk] || 0;
+      let sql = `INSERT INTO ${table} (${colList}) VALUES ${valuesClauses.join(",")} ON CONFLICT (${conflictCols})`;
+      if (updateSetSql) {
+        sql += ` DO UPDATE SET ${updateSetSql}`;
+      } else {
+        sql += ` DO NOTHING`;
       }
-    } catch (e) {
-      throw mapPgError(e);
-    } finally {
-      client.release();
+      if (pk) sql += ` RETURNING ${pk}`;
+
+      const result = await client.query(sql, allParams);
+      if (pk && result.rows && result.rows.length > 0) {
+        lastId = result.rows[result.rows.length - 1][pk] || lastId;
+      }
     }
+
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw mapPgError(e);
+  } finally {
+    client.release();
   }
 
   const response = {

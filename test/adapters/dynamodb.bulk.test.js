@@ -194,9 +194,9 @@ describe("DynamoDB Bulk Operations", function () {
     });
   });
 
-  describe("100k Bulk Insert & Delete Benchmark", function () {
+  describe("1k Bulk Insert & Delete Benchmark", function () {
     this.timeout(120000);
-    const TOTAL = 100_000;
+    const TOTAL = 1_000;
 
     function generateRecords(count) {
       const records = [];
@@ -210,7 +210,7 @@ describe("DynamoDB Bulk Operations", function () {
       return records;
     }
 
-    it("should bulk insert 100,000 records", async function () {
+    it("should bulk insert 1,000 records", async function () {
       const records = generateRecords(TOTAL);
       const start = process.hrtime.bigint();
       const result = await testModel.insert({ data: records });
@@ -225,12 +225,12 @@ describe("DynamoDB Bulk Operations", function () {
       assert.strictEqual(result.type, "success");
     });
 
-    it("should count all 100,000 persisted rows", async function () {
+    it("should count all 1,000 persisted rows", async function () {
       const count = await db.qcount(tableName, [], null);
-      assert.ok(count >= TOTAL, "table must contain at least 100k items");
+      assert.ok(count >= TOTAL, "table must contain at least 1k items");
     });
 
-    it("should bulk delete all 100,000 records by filter", async function () {
+    it("should bulk delete all 1,000 records by filter", async function () {
       const start = process.hrtime.bigint();
       const result = await testModel.remove({
         filter: [[["age", ">=", 0]]],

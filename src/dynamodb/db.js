@@ -295,27 +295,43 @@ async function remove(table, filter, safeDelete = null) {
   const items = await getAllMatchingItems(table, whereData);
 
   if (safeDelete != null) {
-    // Soft delete: update each item
-    for (const item of items) {
-      const key = extractKey(item);
-      await docClient.send(
-        new UpdateCommand({
-          TableName: tableName(table),
-          Key: key,
-          UpdateExpression: `SET #sd = :sdVal`,
-          ExpressionAttributeNames: { "#sd": safeDelete },
-          ExpressionAttributeValues: { ":sdVal": 1 },
-        }),
+    // Soft delete: update each item in parallel batches
+    const CONCURRENCY = 25;
+    for (let i = 0; i < items.length; i += CONCURRENCY) {
+      const batch = items.slice(i, i + CONCURRENCY);
+      await Promise.all(
+        batch.map((item) =>
+          docClient.send(
+            new UpdateCommand({
+              TableName: tableName(table),
+              Key: extractKey(item),
+              UpdateExpression: `SET #sd = :sdVal`,
+              ExpressionAttributeNames: { "#sd": safeDelete },
+              ExpressionAttributeValues: { ":sdVal": 1 },
+            }),
+          ),
+        ),
       );
     }
   } else {
-    // Hard delete
-    for (const item of items) {
-      const key = extractKey(item);
-      await docClient.send(
-        new DeleteCommand({
-          TableName: tableName(table),
-          Key: key,
+    // Hard delete in batches of 25, run in parallel groups
+    const PARALLEL = 40;
+    const deleteBatches = [];
+    for (let i = 0; i < items.length; i += 25) {
+      deleteBatches.push(items.slice(i, i + 25));
+    }
+    for (let i = 0; i < deleteBatches.length; i += PARALLEL) {
+      const group = deleteBatches.slice(i, i + PARALLEL);
+      await Promise.all(
+        group.map((batch) => {
+          const requestItems = {
+            [tableName(table)]: batch.map((item) => ({
+              DeleteRequest: { Key: extractKey(item) },
+            })),
+          };
+          return docClient.send(
+            new BatchWriteCommand({ RequestItems: requestItems }),
+          );
         }),
       );
     }
@@ -437,20 +453,26 @@ async function insert(table, data, uniqueKeys = []) {
       }
       return response;
     } else {
-      // Batch write (max 25 items per batch)
+      // Batch write (max 25 items per batch), run in parallel groups
       const batches = [];
       for (let i = 0; i < array.length; i += 25) {
         batches.push(array.slice(i, i + 25));
       }
 
-      for (const batch of batches) {
-        const requestItems = {
-          [tableName(table)]: batch.map((item) => ({
-            PutRequest: { Item: item },
-          })),
-        };
-        await docClient.send(
-          new BatchWriteCommand({ RequestItems: requestItems }),
+      const PARALLEL = 40;
+      for (let i = 0; i < batches.length; i += PARALLEL) {
+        const group = batches.slice(i, i + PARALLEL);
+        await Promise.all(
+          group.map((batch) => {
+            const requestItems = {
+              [tableName(table)]: batch.map((item) => ({
+                PutRequest: { Item: item },
+              })),
+            };
+            return docClient.send(
+              new BatchWriteCommand({ RequestItems: requestItems }),
+            );
+          }),
         );
       }
 
