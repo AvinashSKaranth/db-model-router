@@ -55,14 +55,14 @@
     "node-input-validator": "^4.5.0"
   },
   "peerDependencies": {
-    "@aws-sdk/client-dynamodb": "^3.1029.0",
-    "@aws-sdk/lib-dynamodb": "^3.1029.0",
+    "@aws-sdk/client-dynamodb": "^3.1039.0",
+    "@aws-sdk/lib-dynamodb": "^3.1039.0",
     "better-sqlite3": "^12.9.0",
     "express": "^4.17.2 || ^5.0.0",
     "ioredis": "^5.10.1",
-    "mongodb": "^7.1.1",
-    "mssql": "^12.2.1",
-    "mysql2": "^3.14.4",
+    "mongodb": "^7.2.0",
+    "mssql": "^12.5.0",
+    "mysql2": "^3.22.3",
     "oracledb": "^6.10.0",
     "pg": "^8.20.0",
     "ultimate-express": "^2.0.0"

@@ -495,7 +495,7 @@ This creates 9 endpoints:
 | GET    | `/users/`    | List with pagination            |
 | POST   | `/users/`    | Bulk insert (`{ data: [...] }`) |
 | PUT    | `/users/`    | Bulk update (`{ data: [...] }`) |
-| DELETE | `/users/`    | Bulk delete                     |
+| DELETE | `/users/`    | Bulk delete `{ name: "Bob" }`   |
 
 ### 4. Payload Override
 
@@ -602,7 +602,7 @@ await users.remove({ name: "Bob" });
 
 Filters use a nested array structure: `[OR_groups[AND_conditions[column, operator, value]]]`
 
-Supported operators: `=`, `like`, `not like`, `in`, `not in`, `<`, `>`, `<=`, `>=`, `!=`
+Supported operators: `=`, `!=`, `<`, `>`, `<=`, `>=`, `LIKE`, `NOT LIKE`, `IN`, `NOT IN`
 
 ```js
 // Find users named Alice OR aged > 30
@@ -619,6 +619,31 @@ const result = await db.get("users", [
   ],
 ]);
 ```
+
+### Query Parameter Filter Operators
+
+When using `GET /` (list endpoint), query parameters are automatically parsed into filter conditions. Special value prefixes and patterns control the SQL operator used:
+
+| Query Param Value      | Operator   | Example URL                   | Resulting Filter                     |
+| ---------------------- | ---------- | ----------------------------- | ------------------------------------ |
+| `value`                | `=`        | `?name=john`                  | `name = 'john'`                      |
+| `!value`               | `!=`       | `?name=!john`                 | `name != 'john'`                     |
+| `>value`               | `>`        | `?age=>25`                    | `age > 25`                           |
+| `>=value` (use `>%3D`) | `>=`       | `?age=>%3D25`                 | `age >= 25`                          |
+| `<value`               | `<`        | `?age=<25`                    | `age < 25`                           |
+| `<=value` (use `<%3D`) | `<=`       | `?age=<%3D25`                 | `age <= 25`                          |
+| `%value%` (use `%25`)  | `LIKE`     | `?name=%25john%25`            | `name LIKE '%john%'`                 |
+| `!%value%`             | `NOT LIKE` | `?name=!%25john%25`           | `name NOT LIKE '%john%'`             |
+| `in(a,b,c)`            | `IN`       | `?status=in(active,pending)`  | `status IN ('active','pending')`     |
+| `!in(a,b,c)`           | `NOT IN`   | `?status=!in(active,pending)` | `status NOT IN ('active','pending')` |
+
+**Notes:**
+
+- `%` must be URL-encoded as `%25` in query strings. After URL decoding, the `%` character triggers `LIKE` detection.
+- `=` in `>=` and `<=` must be URL-encoded as `%3D` (e.g. `>%3D25` for `>=25`).
+- `LIKE` patterns follow SQL conventions: `%25john%25` → contains "john", `%25john` → ends with "john", `john%25` → starts with "john".
+- `IN` and `NOT IN` values are comma-separated inside parentheses.
+  Operators are detected in order of specificity: `!in(...)` → `in(...)` → `!%...%` → `%...%` → `>=` → `<=` → `>` → `<` → `!value` → `=` (default).
 
 ## Switching Adapters
 

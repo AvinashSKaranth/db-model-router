@@ -544,6 +544,7 @@ module.exports = {
   where,
   qcount,
   remove,
+  delete: remove,
   upsert,
   change: upsert,
   insert,

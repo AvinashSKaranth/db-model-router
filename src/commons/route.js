@@ -157,12 +157,10 @@ module.exports = function route(model, override = {}) {
     })
     .post("/", (req, res) => {
       if (!req.body || !Array.isArray(req.body.data)) {
-        return res
-          .status(400)
-          .send({
-            type: "danger",
-            message: "Request body must contain a 'data' array",
-          });
+        return res.status(400).send({
+          type: "danger",
+          message: "Request body must contain a 'data' array",
+        });
       }
       let payload = payloadOverride(req.body.data, req, override);
       model
@@ -176,12 +174,10 @@ module.exports = function route(model, override = {}) {
     })
     .put("/", (req, res) => {
       if (!req.body || !Array.isArray(req.body.data)) {
-        return res
-          .status(400)
-          .send({
-            type: "danger",
-            message: "Request body must contain a 'data' array",
-          });
+        return res.status(400).send({
+          type: "danger",
+          message: "Request body must contain a 'data' array",
+        });
       }
       let payload = payloadOverride(req.body.data, req, override);
       model
@@ -194,15 +190,19 @@ module.exports = function route(model, override = {}) {
         });
     })
     .delete("/", (req, res) => {
-      if (!req.body || !Array.isArray(req.body.data)) {
-        return res
-          .status(400)
-          .send({
-            type: "danger",
-            message: "Request body must contain a 'data' array",
-          });
+      if (!req.body || Object.keys(req.body).length === 0) {
+        return res.status(400).send({
+          type: "danger",
+          message: "Request body must contain filter criteria",
+        });
       }
-      let payload = payloadOverride(req.body.data, req, override);
+      // Accept { data: [...] } (legacy array) or plain filter object in body
+      let payload;
+      if (req.body.data && Array.isArray(req.body.data)) {
+        payload = payloadOverride(req.body.data, req, override);
+      } else {
+        payload = payloadOverride(req.body, req, override);
+      }
       model
         .remove(payload)
         .then((response) => {

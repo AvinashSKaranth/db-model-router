@@ -338,6 +338,7 @@ module.exports = {
   query,
   qcount,
   remove,
+  delete: remove,
   upsert,
   change: upsert,
   insert,

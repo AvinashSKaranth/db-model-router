@@ -11,16 +11,16 @@ Database-agnostic REST API generator for Node.js/Express. Define a model → get
 
 For adapter-specific connection options, env vars, upsert behavior, and table creation SQL, read the relevant file **on demand** (only when the user's task involves that adapter):
 
-| Adapter      | Reference File                          |
-| ------------ | --------------------------------------- |
-| `postgres`   | `references/postgres.md`               |
-| `cockroachdb`| `references/cockroachdb.md`            |
-| `sqlite3`    | `references/sqlite3.md`                |
-| `mongodb`    | `references/mongodb.md`                |
-| `mssql`      | `references/mssql.md`                  |
-| `oracle`     | `references/oracle.md`                 |
-| `redis`      | `references/redis.md`                  |
-| `dynamodb`   | `references/dynamodb.md`               |
+| Adapter       | Reference File              |
+| ------------- | --------------------------- |
+| `postgres`    | `references/postgres.md`    |
+| `cockroachdb` | `references/cockroachdb.md` |
+| `sqlite3`     | `references/sqlite3.md`     |
+| `mongodb`     | `references/mongodb.md`     |
+| `mssql`       | `references/mssql.md`       |
+| `oracle`      | `references/oracle.md`      |
+| `redis`       | `references/redis.md`       |
+| `dynamodb`    | `references/dynamodb.md`    |
 
 MySQL/MariaDB use `mysql2` — no separate reference file needed (see Connection Configs below).
 
@@ -36,6 +36,7 @@ MySQL/MariaDB use `mysql2` — no separate reference file needed (see Connection
 6. **Run**: `npm run dev`
 
 For existing databases, use `inspect` first:
+
 ```bash
 db-model-router inspect --type postgres --env .env   # → writes dbmr.schema.json
 db-model-router generate --from dbmr.schema.json      # → models, routes, tests, OpenAPI
@@ -51,18 +52,18 @@ npm install db-model-router <framework> <driver>
 
 Frameworks: `express` or `ultimate-express` (auto-detected; prefers ultimate-express when both present).
 
-| Adapter       | Driver                                              | Install                                                                    |
-| ------------- | --------------------------------------------------- | -------------------------------------------------------------------------- |
-| `mysql`       | mysql2                                              | `npm i db-model-router mysql2`                                             |
-| `mariadb`     | mysql2                                              | `npm i db-model-router mysql2`                                             |
-| `postgres`    | pg                                                  | `npm i db-model-router pg`                                                 |
-| `sqlite3`     | better-sqlite3                                      | `npm i db-model-router better-sqlite3`                                     |
-| `mongodb`     | mongodb                                             | `npm i db-model-router mongodb`                                            |
-| `mssql`       | mssql                                               | `npm i db-model-router mssql`                                              |
-| `cockroachdb` | pg                                                  | `npm i db-model-router pg`                                                 |
-| `oracle`      | oracledb                                            | `npm i db-model-router oracledb`                                           |
-| `redis`       | ioredis                                             | `npm i db-model-router ioredis`                                            |
-| `dynamodb`    | @aws-sdk/client-dynamodb + @aws-sdk/lib-dynamodb    | `npm i db-model-router @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb`     |
+| Adapter       | Driver                                           | Install                                                                |
+| ------------- | ------------------------------------------------ | ---------------------------------------------------------------------- |
+| `mysql`       | mysql2                                           | `npm i db-model-router mysql2`                                         |
+| `mariadb`     | mysql2                                           | `npm i db-model-router mysql2`                                         |
+| `postgres`    | pg                                               | `npm i db-model-router pg`                                             |
+| `sqlite3`     | better-sqlite3                                   | `npm i db-model-router better-sqlite3`                                 |
+| `mongodb`     | mongodb                                          | `npm i db-model-router mongodb`                                        |
+| `mssql`       | mssql                                            | `npm i db-model-router mssql`                                          |
+| `cockroachdb` | pg                                               | `npm i db-model-router pg`                                             |
+| `oracle`      | oracledb                                         | `npm i db-model-router oracledb`                                       |
+| `redis`       | ioredis                                          | `npm i db-model-router ioredis`                                        |
+| `dynamodb`    | @aws-sdk/client-dynamodb + @aws-sdk/lib-dynamodb | `npm i db-model-router @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb` |
 
 ---
 
@@ -88,12 +89,12 @@ const users = model(
     age: "integer",
     meta: "object",
   },
-  "id",          // primary key column
-  ["email"],     // unique columns (for upsert conflict)
+  "id", // primary key column
+  ["email"], // unique columns (for upsert conflict)
   {
-    safeDelete: "is_deleted",   // soft-delete column
-    created_at: "created_at",   // auto-managed timestamp
-    modified_at: "updated_at",  // auto-managed timestamp
+    safeDelete: "is_deleted", // soft-delete column
+    created_at: "created_at", // auto-managed timestamp
+    modified_at: "updated_at", // auto-managed timestamp
   },
 );
 
@@ -109,12 +110,12 @@ For adapter-specific connect options (ports, env vars, upsert behavior), read th
 
 ## model(db, table, structure, pk, unique, option)
 
-| Param       | Type            | Description                                                                                                         |
-| ----------- | --------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `structure` | `{col: "rule"}` | Types: `string\|integer\|numeric\|boolean\|object\|datetime\|auto_increment`. Prefix `required\|` for NOT NULL.    |
-| `pk`        | string          | Primary key column. Convention: `<table>_id`                                                                        |
-| `unique`    | string[]        | Columns for upsert conflict resolution                                                                              |
-| `option`    | object          | `{ safeDelete, created_at, modified_at }` — column names or null                                                   |
+| Param       | Type            | Description                                                                                                     |
+| ----------- | --------------- | --------------------------------------------------------------------------------------------------------------- |
+| `structure` | `{col: "rule"}` | Types: `string\|integer\|numeric\|boolean\|object\|datetime\|auto_increment`. Prefix `required\|` for NOT NULL. |
+| `pk`        | string          | Primary key column. Convention: `<table>_id`                                                                    |
+| `unique`    | string[]        | Columns for upsert conflict resolution                                                                          |
+| `option`    | object          | `{ safeDelete, created_at, modified_at }` — column names or null                                                |
 
 > PK, timestamp, soft-delete, and `auto_increment` cols are auto-excluded from insert/update payloads.
 
@@ -153,21 +154,45 @@ await m.remove({ name: "Bob" })
 ## Filter Syntax
 
 Structure: `[OR_groups[AND_conditions[col, op, val]]]`
-Operators: `= != < > <= >= like not like in not in`
+Operators: `= != < > <= >= LIKE NOT LIKE IN NOT IN`
 
 ```js
 // AND: age > 25 AND type = 1
-[[["age", ">", 25], ["type", "=", 1]]]
-
-// OR: name = "A" OR name = "B"
-[[["name", "=", "A"]], [["name", "=", "B"]]]
-
-// IN
-[[["type", "in", [1, 2, 3]]]]
-
-// LIKE (auto-wraps with %)
-[[["name", "like", "Ali"]]]
+[
+  [
+    ["age", ">", 25],
+    ["type", "=", 1],
+  ],
+][
+  // OR: name = "A" OR name = "B"
+  ([["name", "=", "A"]], [["name", "=", "B"]])
+][
+  // IN
+  [["type", "in", [1, 2, 3]]]
+][
+  // LIKE (auto-wraps with %)
+  [["name", "like", "Ali"]]
+];
 ```
+
+### Query Parameter Filter Operators
+
+When using `GET /` (list endpoint), query parameters are automatically parsed into filter conditions. Special value prefixes and patterns control the operator:
+
+| Query Param Value  | Operator   | Example                       | Resulting Filter                     |
+| ------------------ | ---------- | ----------------------------- | ------------------------------------ |
+| `value`            | `=`        | `?name=john`                  | `name = 'john'`                      |
+| `!value`           | `!=`       | `?name=!john`                 | `name != 'john'`                     |
+| `>value`           | `>`        | `?age=>25`                    | `age > 25`                           |
+| `>=value` (`>%3D`) | `>=`       | `?age=>%3D25`                 | `age >= 25`                          |
+| `<value`           | `<`        | `?age=<25`                    | `age < 25`                           |
+| `<=value` (`<%3D`) | `<=`       | `?age=<%3D25`                 | `age <= 25`                          |
+| `%value%` (`%25`)  | `LIKE`     | `?name=%25john%25`            | `name LIKE '%john%'`                 |
+| `!%value%`         | `NOT LIKE` | `?name=!%25john%25`           | `name NOT LIKE '%john%'`             |
+| `in(a,b,c)`        | `IN`       | `?status=in(active,pending)`  | `status IN ('active','pending')`     |
+| `!in(a,b,c)`       | `NOT IN`   | `?status=!in(active,pending)` | `status NOT IN ('active','pending')` |
+
+`%` is URL-encoded as `%25`; `=` in `>=`/`<=` is URL-encoded as `%3D`. `LIKE` patterns follow SQL conventions: `%25john%25` → contains, `%25john` → ends with, `john%25` → starts with. `IN`/`NOT IN` values are comma-separated inside parentheses.
 
 ---
 
@@ -185,7 +210,7 @@ Generates an Express Router with 9 endpoints:
 | GET    | `/`    | List (page, size, sort, filters) |
 | POST   | `/`    | Bulk insert `{data:[...]}`       |
 | PUT    | `/`    | Bulk update `{data:[...]}`       |
-| DELETE | `/`    | Bulk delete                      |
+| DELETE | `/`    | Bulk delete `{filter_object}`    |
 
 **Payload override** (multi-tenancy): `route(m, { tenant_id: "user.tenant_id" })` — maps columns to `req` paths via lodash.get.
 
@@ -217,6 +242,7 @@ db-model-router init --from dbmr.schema.json --yes --no-install
 Key flags: `--framework`, `--database` (or `--db`), `--session`, `--output`, `--rateLimiting`, `--helmet`, `--logger`, `--loki`, `--yes`, `--no-install`
 
 Generated structure (ESM, `"type":"module"`):
+
 ```
 app.js                             Express entry point
 .env / .env.example                Env config (random passwords)
@@ -268,7 +294,12 @@ Universal flags (all commands): `--yes`, `--json`, `--dry-run`, `--no-install`, 
 {
   "adapter": "postgres",
   "framework": "express",
-  "options": { "session": "redis", "rateLimiting": true, "helmet": true, "logger": true },
+  "options": {
+    "session": "redis",
+    "rateLimiting": true,
+    "helmet": true,
+    "logger": true
+  },
   "tables": {
     "users": {
       "columns": {
@@ -286,12 +317,25 @@ Universal flags (all commands): `--yes`, `--json`, `--dry-run`, `--no-install`, 
       "parent": null
     },
     "posts": {
-      "columns": { "post_id": "auto_increment", "title": "required|string", "user_id": "required|integer", "created_at": "datetime" },
-      "pk": "post_id", "unique": ["post_id"], "parent": null
+      "columns": {
+        "post_id": "auto_increment",
+        "title": "required|string",
+        "user_id": "required|integer",
+        "created_at": "datetime"
+      },
+      "pk": "post_id",
+      "unique": ["post_id"],
+      "parent": null
     },
     "comments": {
-      "columns": { "comment_id": "auto_increment", "post_id": "required|integer", "user_id": "required|integer", "body": "required|string" },
-      "pk": "comment_id", "unique": ["comment_id"],
+      "columns": {
+        "comment_id": "auto_increment",
+        "post_id": "required|integer",
+        "user_id": "required|integer",
+        "body": "required|string"
+      },
+      "pk": "comment_id",
+      "unique": ["comment_id"],
       "parent": "posts"
     }
   }
@@ -312,14 +356,14 @@ Include ALL columns in schema (PK, timestamps, softDelete). The generator auto-e
 
 ### Table Fields
 
-| Field        | Required | Description                                          |
-| ------------ | -------- | ---------------------------------------------------- |
-| `columns`    | Yes      | All columns including PK, timestamps, softDelete     |
-| `pk`         | Yes      | Primary key (convention: `<table>_id`)               |
-| `unique`     | No       | Unique constraint columns (default: `[pk]`)          |
-| `softDelete` | No       | Column name for soft-delete                          |
-| `timestamps` | No       | `{ created_at, modified_at }` column mapping         |
-| `parent`     | No       | Parent table for route nesting, or `null`            |
+| Field        | Required | Description                                      |
+| ------------ | -------- | ------------------------------------------------ |
+| `columns`    | Yes      | All columns including PK, timestamps, softDelete |
+| `pk`         | Yes      | Primary key (convention: `<table>_id`)           |
+| `unique`     | No       | Unique constraint columns (default: `[pk]`)      |
+| `softDelete` | No       | Column name for soft-delete                      |
+| `timestamps` | No       | `{ created_at, modified_at }` column mapping     |
+| `parent`     | No       | Parent table for route nesting, or `null`        |
 
 ---
 
@@ -330,7 +374,14 @@ For full details (env vars, upsert behavior, notes), read the adapter reference 
 ```js
 // MySQL / MariaDB (default adapter)
 init("mysql");
-db.connect({ host, port: 3306, user, password, database, connectionLimit: 100 });
+db.connect({
+  host,
+  port: 3306,
+  user,
+  password,
+  database,
+  connectionLimit: 100,
+});
 
 // PostgreSQL — see references/postgres.md
 init("postgres");
@@ -347,7 +398,14 @@ db.connect({ host, port: 27017, username, password, database });
 
 // MSSQL — see references/mssql.md (db.connect is async — use await)
 init("mssql");
-await db.connect({ server: host, port: 1433, user, password, database, options: { encrypt: false, trustServerCertificate: true } });
+await db.connect({
+  server: host,
+  port: 1433,
+  user,
+  password,
+  database,
+  options: { encrypt: false, trustServerCertificate: true },
+});
 
 // Oracle — see references/oracle.md
 init("oracle");

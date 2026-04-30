@@ -280,51 +280,61 @@ async function upsert(table, data, uniqueKeys = []) {
   const columns = Object.keys(array[0]);
   const nonUniqueColumns = columns.filter((c) => !uniqueKeys.includes(c));
   let lastId = 0;
+  // MSSQL has a 2100 parameter limit per request
+  const MAX_PARAMS = 2000;
+  const BATCH_SIZE = Math.max(1, Math.floor(MAX_PARAMS / columns.length));
 
-  for (const row of array) {
-    const request = pool.request();
-    let paramIdx = 0;
+  const transaction = new sql.Transaction(pool);
+  await transaction.begin();
+  try {
+    for (let offset = 0; offset < total; offset += BATCH_SIZE) {
+      const batch = array.slice(offset, offset + BATCH_SIZE);
+      const request = new sql.Request(transaction);
+      let paramIdx = 0;
 
-    // Build source VALUES
-    const valuePlaceholders = columns.map((c) => {
-      const p = "@param" + paramIdx;
-      request.input("param" + paramIdx, row[c]);
-      paramIdx++;
-      return p;
-    });
+      const valueRows = batch.map((row) => {
+        const placeholders = columns.map((c) => {
+          const p = "@p" + paramIdx;
+          request.input("p" + paramIdx, row[c]);
+          paramIdx++;
+          return p;
+        });
+        return "(" + placeholders.join(",") + ")";
+      });
 
-    const colList = columns.map(escapeId).join(",");
-    const onClause = uniqueKeys
-      .map((k) => `target.${escapeId(k)} = source.${escapeId(k)}`)
-      .join(" AND ");
+      const colList = columns.map(escapeId).join(",");
+      const onClause = uniqueKeys
+        .map((k) => `target.${escapeId(k)} = source.${escapeId(k)}`)
+        .join(" AND ");
 
-    let mergeSql = `MERGE INTO ${escapeId(table)} AS target`;
-    mergeSql += ` USING (VALUES (${valuePlaceholders.join(",")})) AS source (${colList})`;
-    mergeSql += ` ON ${onClause}`;
+      let mergeSql = `MERGE INTO ${escapeId(table)} AS target`;
+      mergeSql += ` USING (VALUES ${valueRows.join(",")}) AS source (${colList})`;
+      mergeSql += ` ON ${onClause}`;
 
-    if (nonUniqueColumns.length > 0) {
-      const updateSet = nonUniqueColumns
-        .map((c) => `target.${escapeId(c)} = source.${escapeId(c)}`)
+      if (nonUniqueColumns.length > 0) {
+        const updateSet = nonUniqueColumns
+          .map((c) => `target.${escapeId(c)} = source.${escapeId(c)}`)
+          .join(",");
+        mergeSql += ` WHEN MATCHED THEN UPDATE SET ${updateSet}`;
+      }
+
+      const insertCols = nonUniqueColumns.map((c) => escapeId(c)).join(",");
+      const insertVals = nonUniqueColumns
+        .map((c) => `source.${escapeId(c)}`)
         .join(",");
-      mergeSql += ` WHEN MATCHED THEN UPDATE SET ${updateSet}`;
-    }
+      mergeSql += ` WHEN NOT MATCHED THEN INSERT (${insertCols}) VALUES (${insertVals})`;
+      mergeSql += ` OUTPUT INSERTED.*;`;
 
-    const insertCols = nonUniqueColumns.map((c) => escapeId(c)).join(",");
-    const insertVals = nonUniqueColumns
-      .map((c) => `source.${escapeId(c)}`)
-      .join(",");
-    mergeSql += ` WHEN NOT MATCHED THEN INSERT (${insertCols}) VALUES (${insertVals})`;
-    mergeSql += ` OUTPUT INSERTED.*;`;
-
-    try {
       const result = await request.query(mergeSql);
       if (result.recordset && result.recordset.length > 0) {
-        const firstRow = result.recordset[0];
-        lastId = firstRow.id || firstRow[Object.keys(firstRow)[0]] || 0;
+        const lastRow = result.recordset[result.recordset.length - 1];
+        lastId = lastRow.id || lastRow[Object.keys(lastRow)[0]] || lastId;
       }
-    } catch (e) {
-      throw mapMssqlError(e);
     }
+    await transaction.commit();
+  } catch (e) {
+    await transaction.rollback().catch(() => {});
+    throw mapMssqlError(e);
   }
 
   const response = {
@@ -395,36 +405,53 @@ async function insert(table, data, uniqueKeys = []) {
     }
   }
 
-  // Bulk insert
-  for (const row of array) {
-    const request = pool.request();
-    const colList = columns.map(escapeId).join(",");
-    const valuePlaceholders = columns.map((c, i) => {
-      request.input("param" + i, row[c]);
-      return "@param" + i;
-    });
+  // Bulk insert in batches within a transaction
+  // MSSQL has a 2100 parameter limit per request
+  const MAX_PARAMS = 2000;
+  const BATCH_SIZE = Math.max(1, Math.floor(MAX_PARAMS / columns.length));
+  const transaction = new sql.Transaction(pool);
+  await transaction.begin();
+  try {
+    for (let offset = 0; offset < total; offset += BATCH_SIZE) {
+      const batch = array.slice(offset, offset + BATCH_SIZE);
+      const request = new sql.Request(transaction);
+      let paramIdx = 0;
 
-    let sqlStr;
-    if (hasAllUniqueKeys) {
-      const onClause = uniqueKeys
-        .map((k) => `target.${escapeId(k)} = source.${escapeId(k)}`)
-        .join(" AND ");
-      const insertCols = columns.map(escapeId).join(",");
-      const insertVals = columns.map((c) => `source.${escapeId(c)}`).join(",");
+      const valueRows = batch.map((row) => {
+        const placeholders = columns.map((c) => {
+          const p = "@p" + paramIdx;
+          request.input("p" + paramIdx, row[c]);
+          paramIdx++;
+          return p;
+        });
+        return "(" + placeholders.join(",") + ")";
+      });
 
-      sqlStr = `MERGE INTO ${escapeId(table)} AS target`;
-      sqlStr += ` USING (VALUES (${valuePlaceholders.join(",")})) AS source (${colList})`;
-      sqlStr += ` ON ${onClause}`;
-      sqlStr += ` WHEN NOT MATCHED THEN INSERT (${insertCols}) VALUES (${insertVals});`;
-    } else {
-      sqlStr = `INSERT INTO ${escapeId(table)} (${colList}) VALUES (${valuePlaceholders.join(",")})`;
-    }
+      const colList = columns.map(escapeId).join(",");
+      let sqlStr;
+      if (hasAllUniqueKeys) {
+        const onClause = uniqueKeys
+          .map((k) => `target.${escapeId(k)} = source.${escapeId(k)}`)
+          .join(" AND ");
+        const insertCols = columns.map(escapeId).join(",");
+        const insertVals = columns
+          .map((c) => `source.${escapeId(c)}`)
+          .join(",");
 
-    try {
+        sqlStr = `MERGE INTO ${escapeId(table)} AS target`;
+        sqlStr += ` USING (VALUES ${valueRows.join(",")}) AS source (${colList})`;
+        sqlStr += ` ON ${onClause}`;
+        sqlStr += ` WHEN NOT MATCHED THEN INSERT (${insertCols}) VALUES (${insertVals});`;
+      } else {
+        sqlStr = `INSERT INTO ${escapeId(table)} (${colList}) VALUES ${valueRows.join(",")}`;
+      }
+
       await request.query(sqlStr);
-    } catch (e) {
-      throw mapMssqlError(e);
     }
+    await transaction.commit();
+  } catch (e) {
+    await transaction.rollback().catch(() => {});
+    throw mapMssqlError(e);
   }
 
   return {
@@ -453,6 +480,7 @@ module.exports = {
   query,
   qcount,
   remove,
+  delete: remove,
   upsert,
   change: upsert,
   insert,

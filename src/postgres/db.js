@@ -462,22 +462,30 @@ async function insert(table, data, uniqueKeys = []) {
     }
   }
 
-  // Bulk insert via multi-row VALUES
+  // Bulk insert via multi-row VALUES in batches of 1000
+  const BATCH_SIZE = 1000;
+  const colList = columns.map(escapeId).join(",");
   const client = await pool.connect();
   try {
-    let paramIdx = 0;
-    const allParams = [];
-    const valuesClauses = array.map((row) => {
-      const placeholders = columns.map((c) => {
-        paramIdx++;
-        allParams.push(sanitizeValue(row[c]));
-        return "$" + paramIdx;
+    await client.query("BEGIN");
+    for (let offset = 0; offset < total; offset += BATCH_SIZE) {
+      const batch = array.slice(offset, offset + BATCH_SIZE);
+      let paramIdx = 0;
+      const allParams = [];
+      const valuesClauses = batch.map((row) => {
+        const placeholders = columns.map((c) => {
+          paramIdx++;
+          allParams.push(sanitizeValue(row[c]));
+          return "$" + paramIdx;
+        });
+        return "(" + placeholders.join(",") + ")";
       });
-      return "(" + placeholders.join(",") + ")";
-    });
-    const sql = `INSERT INTO ${escapeId(table)} (${columns.map(escapeId).join(",")}) VALUES ${valuesClauses.join(",")}`;
-    await client.query(sql, allParams);
+      const sql = `INSERT INTO ${escapeId(table)} (${colList}) VALUES ${valuesClauses.join(",")}`;
+      await client.query(sql, allParams);
+    }
+    await client.query("COMMIT");
   } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
     throw mapPgError(e);
   } finally {
     client.release();
@@ -499,31 +507,30 @@ async function _insertOnConflict(table, array, columns, uniqueKeys, total) {
   const pk = await getPkColumn(table);
   const conflictCols = uniqueKeys.map(escapeId).join(",");
   const colList = columns.map(escapeId).join(",");
+  const BATCH_SIZE = 1000;
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
-    for (const row of array) {
-      const vals = columns.map((c) => sanitizeValue(row[c]));
-      const placeholders = columns.map((_, i) => "$" + (i + 1)).join(",");
-      let sql = `INSERT INTO ${escapeId(table)} (${colList}) VALUES (${placeholders}) ON CONFLICT (${conflictCols}) DO NOTHING`;
+    for (let offset = 0; offset < total; offset += BATCH_SIZE) {
+      const batch = array.slice(offset, offset + BATCH_SIZE);
+      let paramIdx = 0;
+      const allParams = [];
+      const valuesClauses = batch.map((row) => {
+        const placeholders = columns.map((c) => {
+          paramIdx++;
+          allParams.push(sanitizeValue(row[c]));
+          return "$" + paramIdx;
+        });
+        return "(" + placeholders.join(",") + ")";
+      });
+      let sql = `INSERT INTO ${escapeId(table)} (${colList}) VALUES ${valuesClauses.join(",")} ON CONFLICT (${conflictCols}) DO NOTHING`;
       if (pk) sql += ` RETURNING ${escapeId(pk)}`;
 
-      const result = await client.query(sql, vals);
-      if (result.rows && result.rows.length > 0 && pk) {
-        lastId = result.rows[0][pk] || 0;
-      } else if (total === 1 && pk) {
-        // Row already existed, fetch its PK
-        const whereClauses = uniqueKeys
-          .map((k, i) => `${escapeId(k)} = ${i + 1}`)
-          .join(" AND ");
-        const whereVals = uniqueKeys.map((k) => row[k]);
-        const fetched = await client.query(
-          `SELECT ${escapeId(pk)} FROM ${escapeId(table)} WHERE ${whereClauses}`,
-          whereVals,
-        );
-        if (fetched.rows.length > 0) lastId = fetched.rows[0][pk] || 0;
+      const result = await client.query(sql, allParams);
+      if (pk && result.rows && result.rows.length > 0) {
+        lastId = result.rows[result.rows.length - 1][pk] || lastId;
       }
     }
 
@@ -594,20 +601,32 @@ async function upsert(table, data, uniqueKeys = []) {
   const nonUniqueColumns = columns.filter((c) => !uniqueKeys.includes(c));
   const pk = await getPkColumn(table);
   let lastId = 0;
+  const BATCH_SIZE = 1000;
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
-    for (const row of array) {
-      const vals = columns.map((c) => sanitizeValue(row[c]));
-      const placeholders = columns.map((_, i) => "$" + (i + 1)).join(",");
-      const conflictCols = uniqueKeys.map(escapeId).join(",");
-      const updateSetSql = nonUniqueColumns
-        .map((c) => `${escapeId(c)} = EXCLUDED.${escapeId(c)}`)
-        .join(", ");
+    const updateSetSql = nonUniqueColumns
+      .map((c) => `${escapeId(c)} = EXCLUDED.${escapeId(c)}`)
+      .join(", ");
+    const conflictCols = uniqueKeys.map(escapeId).join(",");
+    const colList = columns.map(escapeId).join(",");
 
-      let sql = `INSERT INTO ${escapeId(table)} (${columns.map(escapeId).join(",")}) VALUES (${placeholders}) ON CONFLICT (${conflictCols})`;
+    for (let offset = 0; offset < total; offset += BATCH_SIZE) {
+      const batch = array.slice(offset, offset + BATCH_SIZE);
+      let paramIdx = 0;
+      const allParams = [];
+      const valuesClauses = batch.map((row) => {
+        const placeholders = columns.map((c) => {
+          paramIdx++;
+          allParams.push(sanitizeValue(row[c]));
+          return "$" + paramIdx;
+        });
+        return "(" + placeholders.join(",") + ")";
+      });
+
+      let sql = `INSERT INTO ${escapeId(table)} (${colList}) VALUES ${valuesClauses.join(",")} ON CONFLICT (${conflictCols})`;
       if (updateSetSql) {
         sql += ` DO UPDATE SET ${updateSetSql}`;
       } else {
@@ -615,9 +634,9 @@ async function upsert(table, data, uniqueKeys = []) {
       }
       if (pk) sql += ` RETURNING ${escapeId(pk)}`;
 
-      const result = await client.query(sql, vals);
-      if (result.rows && result.rows.length > 0 && pk) {
-        lastId = result.rows[0][pk] || 0;
+      const result = await client.query(sql, allParams);
+      if (pk && result.rows && result.rows.length > 0) {
+        lastId = result.rows[result.rows.length - 1][pk] || lastId;
       }
     }
 
@@ -656,6 +675,7 @@ module.exports = {
   query,
   qcount,
   remove,
+  delete: remove,
   upsert,
   change: upsert,
   insert,

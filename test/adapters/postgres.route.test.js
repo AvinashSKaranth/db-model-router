@@ -253,7 +253,7 @@ describe("PostgreSQL Route REST API", function () {
 
       const res = await request(app)
         .delete("/test/")
-        .send({ data: { name: "ToRemove" } })
+        .send({ name: "ToRemove" })
         .expect("Content-Type", /json/)
         .expect(200);
 

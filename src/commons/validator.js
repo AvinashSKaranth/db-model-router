@@ -107,10 +107,66 @@ function getErrorMessage(errors) {
   }
   return message;
 }
+function parseFilterValue(value) {
+  if (typeof value !== "string") {
+    return ["=", value];
+  }
+
+  // !in(john,snow,ram) -> not in
+  if (/^!in\((.+)\)$/i.test(value)) {
+    const items = value.match(/^!in\((.+)\)$/i)[1].split(",");
+    return ["not in", items];
+  }
+
+  // in(john,snow,ram) -> in
+  if (/^in\((.+)\)$/i.test(value)) {
+    const items = value.match(/^in\((.+)\)$/i)[1].split(",");
+    return ["in", items];
+  }
+
+  // !%john% -> not like
+  if (value.startsWith("!") && value.slice(1).includes("%")) {
+    return ["not like", value.slice(1)];
+  }
+
+  // %john% -> like
+  if (value.includes("%")) {
+    return ["like", value];
+  }
+
+  // >= (value arrives as >=xxx after URL decoding of >%3Dxxx)
+  if (value.startsWith(">=")) {
+    return [">=", value.slice(2)];
+  }
+
+  // <= (value arrives as <=xxx after URL decoding of <%3Dxxx)
+  if (value.startsWith("<=")) {
+    return ["<=", value.slice(2)];
+  }
+
+  // > greater than
+  if (value.startsWith(">")) {
+    return [">", value.slice(1)];
+  }
+
+  // < less than
+  if (value.startsWith("<")) {
+    return ["<", value.slice(1)];
+  }
+
+  // !value -> not equal
+  if (value.startsWith("!")) {
+    return ["!=", value.slice(1)];
+  }
+
+  return ["=", value];
+}
+
 function objectToFilter(obj) {
   let filterArray = [];
   for (let key in obj) {
-    filterArray.push([key, "=", obj[key]]);
+    let [operator, value] = parseFilterValue(obj[key]);
+    filterArray.push([key, operator, value]);
   }
   return [filterArray];
 }
@@ -150,6 +206,7 @@ module.exports = {
   errorResponse,
   validateInput,
   getErrorMessage,
+  parseFilterValue,
   objectToFilter,
   dataToFilter,
 };
