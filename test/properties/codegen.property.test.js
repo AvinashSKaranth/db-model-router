@@ -20,7 +20,6 @@ const { schemaToModelMeta } = require("../../src/schema/schema-to-meta");
 const { buildExpectedFiles } = require("../../src/cli/diff-engine");
 const { computeDiff } = require("../../src/cli/diff-engine");
 const { ADAPTER_DRIVER_MAP } = require("../../src/cli/commands/doctor");
-const { generateLlmsTxt } = require("../../src/cli/commands/generate-llm-docs");
 const { OutputContext } = require("../../src/cli/flags");
 
 // =============================================================================
@@ -867,34 +866,6 @@ describe("Feature: schema-driven-cli, Property 17: Dry-Run Prevents Side Effects
         }
       }),
       { numRuns: 20 },
-    );
-  });
-});
-
-// =============================================================================
-// Property 18: LLM Docs Line Limit
-// =============================================================================
-
-describe("Feature: schema-driven-cli, Property 18: LLM Docs Line Limit", function () {
-  /**
-   * **Validates: Requirements 9.3**
-   *
-   * The generated llms.txt file shall contain no more than 200 lines.
-   */
-  it("generateLlmsTxt produces ≤200 lines for any valid schema", function () {
-    fc.assert(
-      fc.property(arbSchema, (rawSchema) => {
-        // generateLlmsTxt() is schema-independent (static content),
-        // but we verify the property holds for any schema context
-        const content = generateLlmsTxt();
-        const lineCount = content.split("\n").length;
-
-        assert.ok(
-          lineCount <= 200,
-          `llms.txt should have ≤200 lines, got ${lineCount}`,
-        );
-      }),
-      { numRuns: 100 },
     );
   });
 });

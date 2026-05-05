@@ -2,7 +2,7 @@
   "adapter": "sqlite3",
   "framework": "express",
   "options": {
-    "session": "redis",
+    "session": "memory",
     "rateLimiting": true,
     "helmet": true,
     "logger": true,

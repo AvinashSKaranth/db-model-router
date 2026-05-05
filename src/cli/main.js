@@ -64,7 +64,7 @@ const COMMAND_FLAGS = {
     ["--routes", "Generate only route files"],
     ["--openapi", "Generate only OpenAPI spec"],
     ["--tests", "Generate only test files"],
-    ["--llm-docs", "Generate only LLM documentation"],
+    ["--db-manager", "Generate DB Manager UI (SQL adapters only)"],
   ],
   doctor: [["--from <path>", "Schema file (default: dbmr.schema.json)"]],
   diff: [["--from <path>", "Schema file (default: dbmr.schema.json)"]],

@@ -100,17 +100,17 @@ function generateRoutesIndexFile(tableNames, relationships = [], options = {}) {
     imports += `router.use("/docs", docsRoute);\n`;
   }
 
+  // Mount child routes BEFORE parent routes to prevent path clashing
+  for (const rel of relationships) {
+    const childVar = safeVarName(rel.child);
+    imports += `router.use("/${rel.parent}/:${rel.foreignKey}/${rel.child}", ${childVar}ChildRoute);\n`;
+  }
+
   // Mount top-level routes
   for (const table of tableNames) {
     if (nestedChildren.has(table)) continue;
     const varName = safeVarName(table);
     imports += `router.use("/${table}", ${varName}Route);\n`;
-  }
-
-  // Mount child routes under parent path
-  for (const rel of relationships) {
-    const childVar = safeVarName(rel.child);
-    imports += `router.use("/${rel.parent}/:${rel.foreignKey}/${rel.child}", ${childVar}ChildRoute);\n`;
   }
 
   imports += "\nexport default router;\n";
@@ -472,7 +472,7 @@ async function main() {
       }
     }
     if (modelMeta.length > 0) {
-      const spec = generateOpenAPISpec(modelMeta);
+      const spec = generateOpenAPISpec(modelMeta, { relationships });
       const specPath = path.join(routesDir, "openapi.json");
       fs.writeFileSync(specPath, JSON.stringify(spec, null, 2));
       console.log(`  Created ${specPath}`);

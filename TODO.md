@@ -12,3 +12,4 @@ Main page will have 3 tabs
    This needs to added in route like /database
 
 The api that this will use is POST /database/login, GET /database/tables, GET /database/tables/:table_name?sort=1&size=30&post_name=%title%
+the UI should be able to filter,sort and move through the pages

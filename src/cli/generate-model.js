@@ -544,7 +544,9 @@ function generateModelFile(m) {
     if (opt.modified_at) parts.push(`modified_at: "${opt.modified_at}"`);
     optionStr = `\n  { ${parts.join(", ")} },`;
   }
-  return `const { db, model } = require("db-model-router");
+  return `import dbModelRouter from "db-model-router";
+
+const { db, model } = dbModelRouter;
 
 const ${varName} = model(
   db,
@@ -554,7 +556,7 @@ const ${varName} = model(
   ${uniqueStr},${optionStr}
 );
 
-module.exports = ${varName};
+export default ${varName};
 `;
 }
 
@@ -563,11 +565,14 @@ function generateIndexFile(models) {
   let exports = "";
   for (const m of models) {
     const varName = safeVarName(m.table);
-    imports += `const ${varName} = require("./${m.table}");\n`;
+    imports += `import ${varName} from "./${m.table}.js";\n`;
     exports += `  ${varName},\n`;
   }
   return `${imports}
-module.exports = {
+export {
+${exports}};
+
+export default {
 ${exports}};
 `;
 }

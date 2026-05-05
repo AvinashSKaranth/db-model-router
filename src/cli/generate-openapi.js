@@ -5,6 +5,13 @@ function generateOpenAPISpec(models, options = {}) {
   const basePath = options.basePath || "/api";
   const title = options.title || "REST Router API";
   const version = options.version || "1.0.0";
+  const relationships = options.relationships || [];
+
+  // Build a lookup: child table -> { parent, foreignKey }
+  const childMap = {};
+  for (const rel of relationships) {
+    childMap[rel.child] = { parent: rel.parent, foreignKey: rel.foreignKey };
+  }
 
   const spec = {
     openapi: "3.0.3",
@@ -39,14 +46,34 @@ function generateOpenAPISpec(models, options = {}) {
     };
 
     const ref = { $ref: `#/components/schemas/${schemaName}` };
-    const prefix = `${basePath}/${m.table}`;
+
+    // Determine path prefix: nested under parent if this is a child table
+    let prefix;
+    const isChild = !!childMap[m.table];
+    let fkParam = null;
+    if (isChild) {
+      const { parent, foreignKey } = childMap[m.table];
+      prefix = `${basePath}/${parent}/{${foreignKey}}/${m.table}`;
+      fkParam = {
+        name: foreignKey,
+        in: "path",
+        required: true,
+        schema: { type: "string" },
+        description: `${capitalize(parent)} foreign key`,
+      };
+    } else {
+      prefix = `${basePath}/${m.table}`;
+    }
+
+    // Helper: prepend FK path param for child routes
+    const withFk = (params) => (fkParam ? [fkParam, ...params] : params);
 
     // GET / — list
     spec.paths[`${prefix}/`] = {
       get: {
         tags: [tag],
         summary: `List ${m.table}`,
-        parameters: [
+        parameters: withFk([
           {
             name: "page",
             in: "query",
@@ -69,7 +96,7 @@ function generateOpenAPISpec(models, options = {}) {
             in: "query",
             schema: { type: "string", enum: ["json", "csv", "xml"] },
           },
-        ],
+        ]),
         responses: {
           200: {
             description: "Success",
@@ -141,7 +168,7 @@ function generateOpenAPISpec(models, options = {}) {
       get: {
         tags: [tag],
         summary: `Get ${m.table} by ${pk}`,
-        parameters: [
+        parameters: withFk([
           { name: pk, in: "path", required: true, schema: { type: "string" } },
           { name: "select_columns", in: "query", schema: { type: "string" } },
           {
@@ -149,7 +176,7 @@ function generateOpenAPISpec(models, options = {}) {
             in: "query",
             schema: { type: "string", enum: ["json", "csv", "xml"] },
           },
-        ],
+        ]),
         responses: {
           200: {
             description: "Success",
@@ -161,9 +188,9 @@ function generateOpenAPISpec(models, options = {}) {
       post: {
         tags: [tag],
         summary: `Insert a ${m.table}`,
-        parameters: [
+        parameters: withFk([
           { name: pk, in: "path", required: true, schema: { type: "string" } },
-        ],
+        ]),
         requestBody: { content: { "application/json": { schema: ref } } },
         responses: {
           200: {
@@ -175,9 +202,9 @@ function generateOpenAPISpec(models, options = {}) {
       put: {
         tags: [tag],
         summary: `Update a ${m.table}`,
-        parameters: [
+        parameters: withFk([
           { name: pk, in: "path", required: true, schema: { type: "string" } },
-        ],
+        ]),
         requestBody: { content: { "application/json": { schema: ref } } },
         responses: {
           200: {
@@ -190,9 +217,9 @@ function generateOpenAPISpec(models, options = {}) {
       patch: {
         tags: [tag],
         summary: `Partial update a ${m.table}`,
-        parameters: [
+        parameters: withFk([
           { name: pk, in: "path", required: true, schema: { type: "string" } },
-        ],
+        ]),
         requestBody: {
           content: { "application/json": { schema: { type: "object" } } },
         },
@@ -207,9 +234,9 @@ function generateOpenAPISpec(models, options = {}) {
       delete: {
         tags: [tag],
         summary: `Delete a ${m.table}`,
-        parameters: [
+        parameters: withFk([
           { name: pk, in: "path", required: true, schema: { type: "string" } },
-        ],
+        ]),
         responses: {
           200: { description: "Deleted" },
           404: { description: "Not Found" },

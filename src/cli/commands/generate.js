@@ -13,9 +13,9 @@ const {
   generateChildTestFile,
 } = require("../generate-route");
 const { generateOpenAPISpec } = require("../generate-openapi");
-const { generateLlmsTxt, generateLlmMd } = require("./generate-llm-docs");
 const { generateMigrationFiles } = require("../generate-migration");
 const { generateDocsRoute } = require("../generate-docs-route");
+const { generateDbManager } = require("../generate-db-manager");
 const { migrationTimestamp } = require("../init/generators");
 
 /**
@@ -31,7 +31,7 @@ const { migrationTimestamp } = require("../init/generators");
  *   --openapi     Generate only OpenAPI spec + docs route
  *   --tests       Generate only test files
  *   --migrations  Generate only migration files
- *   --llm-docs    Generate only LLM documentation
+ *   --db-manager  Generate DB Manager UI (SQL adapters only)
  *   --dry-run     Report planned files without writing
  *   --json        Output JSON result via ctx
  *
@@ -86,14 +86,15 @@ async function generate(args, flags, ctx) {
     args.openapi === true ||
     args.tests === true ||
     args.migrations === true ||
-    args["llm-docs"] === true;
+    args["db-manager"] === true;
 
   const genModels = !hasArtifactFlag || args.models === true;
   const genRoutes = !hasArtifactFlag || args.routes === true;
   const genOpenapi = !hasArtifactFlag || args.openapi === true;
   const genTests = !hasArtifactFlag || args.tests === true;
   const genMigrations = !hasArtifactFlag || args.migrations === true;
-  const genLlmDocs = !hasArtifactFlag || args["llm-docs"] === true;
+  //const genDbManager = !hasArtifactFlag || args["db-manager"] === true;
+  const genDbManager = false;
 
   const modelsRelPath = "../models";
   const baseDir = process.cwd();
@@ -154,7 +155,9 @@ async function generate(args, flags, ctx) {
   if (genOpenapi) {
     planned.push({
       relPath: "openapi.json",
-      content: JSON.stringify(generateOpenAPISpec(meta), null, 2) + "\n",
+      content:
+        JSON.stringify(generateOpenAPISpec(meta, { relationships }), null, 2) +
+        "\n",
     });
 
     // Generate Swagger UI docs route
@@ -208,16 +211,36 @@ async function generate(args, flags, ctx) {
     }
   }
 
-  // --- LLM docs ---
-  if (genLlmDocs) {
-    planned.push({
-      relPath: "llms.txt",
-      content: generateLlmsTxt(),
-    });
-    planned.push({
-      relPath: "docs/llm.md",
-      content: generateLlmMd(),
-    });
+  // --- DB Manager ---
+  if (genDbManager) {
+    const dbmOptions = {};
+    const envPath = path.join(baseDir, ".env");
+    const envExamplePath = path.join(baseDir, ".env.example");
+    const appJsPath = path.join(baseDir, "app.js");
+    const pkgJsonPath = path.join(baseDir, "package.json");
+
+    if (fs.existsSync(envPath)) {
+      dbmOptions.envContent = fs.readFileSync(envPath, "utf8");
+    }
+    if (fs.existsSync(envExamplePath)) {
+      dbmOptions.envExampleContent = fs.readFileSync(envExamplePath, "utf8");
+    }
+    if (fs.existsSync(appJsPath)) {
+      dbmOptions.appJsContent = fs.readFileSync(appJsPath, "utf8");
+    }
+    if (fs.existsSync(pkgJsonPath)) {
+      dbmOptions.packageJsonContent = fs.readFileSync(pkgJsonPath, "utf8");
+    }
+
+    const dbmResult = generateDbManager(schema, dbmOptions);
+
+    for (const f of dbmResult.files) {
+      planned.push(f);
+    }
+
+    for (const w of dbmResult.warnings) {
+      ctx.log(`  warning: ${w}`);
+    }
   }
 
   // --- Process planned files ---

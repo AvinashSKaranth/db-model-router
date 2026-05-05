@@ -367,21 +367,21 @@ function generateAppJs(answers) {
     answers.framework === "ultimate-express" ? "ultimate-express" : "express";
 
   // Imports
-  let imports = `const express = require("${frameworkPkg}");
-const { init, db } = require("db-model-router");
-const session = require("express-session");`;
+  let imports = `import express from "${frameworkPkg}";
+import { init, db } from "db-model-router";
+import session from "express-session";`;
 
   if (answers.session === "redis") {
-    imports += `\nconst RedisStore = require("connect-redis").default;
-const { Redis } = require("ioredis");`;
+    imports += `\nimport RedisStore from "connect-redis";
+import { Redis } from "ioredis";`;
   }
   if (answers.rateLimiting) {
-    imports += `\nconst rateLimit = require("express-rate-limit");`;
+    imports += `\nimport rateLimit from "express-rate-limit";`;
   }
   if (answers.helmet) {
-    imports += `\nconst helmet = require("helmet");`;
+    imports += `\nimport helmet from "helmet";`;
   }
-  imports += `\nconst logger = require("./middleware/logger");`;
+  imports += `\nimport logger from "./middleware/logger.js";`;
 
   // Rate limiting block
   const rateLimitBlock = answers.rateLimiting
@@ -396,9 +396,7 @@ const { Redis } = require("ioredis");`;
   const helmetBlock = answers.helmet ? `app.use(helmet());` : "";
 
   return `${imports}
-
-// Load environment variables
-require("dotenv").config();
+import "dotenv/config";
 
 // Initialize database adapter
 init("${answers.database}");
@@ -428,7 +426,7 @@ app.listen(PORT, () => {
   console.log(\`Server running on port \${PORT}\`);
 });
 
-module.exports = app;
+export default app;
 `;
 }
 
@@ -551,14 +549,15 @@ function generateMigrateScript(answers) {
 
   if (isNoSql) {
     return `#!/usr/bin/env node
-"use strict";
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
+import { fileURLToPath } from "url";
+import "dotenv/config";
 
-const fs = require("fs");
-const path = require("path");
-const crypto = require("crypto");
-require("dotenv").config();
+import { init, db } from "db-model-router";
 
-const { init, db } = require("db-model-router");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 init("${answers.database}");
 
@@ -598,7 +597,7 @@ async function migrate() {
     const content = fs.readFileSync(filePath, "utf8");
     const checksum = crypto.createHash("md5").update(content).digest("hex");
 
-    const migration = require(filePath);
+    const migration = await import(filePath);
     console.log(\`  Running migration: \${file}\`);
     await migration.up(db);
     await recordMigration(file, checksum);
@@ -622,14 +621,15 @@ migrate().catch(err => {
   }
 
   return `#!/usr/bin/env node
-"use strict";
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
+import { fileURLToPath } from "url";
+import "dotenv/config";
 
-const fs = require("fs");
-const path = require("path");
-const crypto = require("crypto");
-require("dotenv").config();
+import { init, db } from "db-model-router";
 
-const { init, db } = require("db-model-router");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 init("${answers.database}");
 
@@ -700,14 +700,15 @@ function generateAddMigrationScript(answers) {
   const isNoSql = NOSQL_DATABASES.includes(answers.database);
   const ext = isNoSql ? "js" : "sql";
   const template = isNoSql
-    ? `"use strict";\\n\\nmodule.exports = {\\n  async up(db) {\\n    // Write your migration here\\n  },\\n\\n  async down(db) {\\n    // Write your rollback here\\n  },\\n};\\n`
+    ? `export async function up(db) {\\n  // Write your migration here\\n}\\n\\nexport async function down(db) {\\n  // Write your rollback here\\n}\\n`
     : `-- Write your migration SQL here\\n`;
 
   return `#!/usr/bin/env node
-"use strict";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
-const fs = require("fs");
-const path = require("path");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const migrationsDir = path.join(__dirname, "migrations");
 
@@ -1422,6 +1423,8 @@ if (isMain) {
   const pkg = await import("db-model-router");
   const mod = pkg.default || pkg;
   mod.init("${answers.database}");
+  mod.db.connect({
+  ${dbConnectArgs(answers.database)}});
   const migrationsDir = path.join(__dirname, "${migrationsRel}");
   runMigrations(mod.db, migrationsDir)
     .then(() => process.exit(0))
@@ -1490,6 +1493,8 @@ if (isMain) {
   const pkg = await import("db-model-router");
   const mod = pkg.default || pkg;
   mod.init("${answers.database}");
+  mod.db.connect({
+  ${dbConnectArgs(answers.database)}});
   const migrationsDir = path.join(__dirname, "${migrationsRel}");
   runMigrations(mod.db, migrationsDir)
     .then(() => process.exit(0))
@@ -1726,7 +1731,8 @@ import configureSession from "${commonsPrefix}/session.js";
 import applySecurity from "${commonsPrefix}/security.js";
 import logger from "${middlewarePrefix}/logger.js";
 import route from "${routePrefix}/index.js";
-
+import { fileURLToPath } from 'node:url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
 

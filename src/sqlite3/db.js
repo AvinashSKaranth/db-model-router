@@ -16,6 +16,17 @@ function connect(config) {
 }
 
 function query(sql, parameter = []) {
+  // Use exec() for multi-statement SQL (e.g., migration files)
+  if (
+    parameter.length === 0 &&
+    sql
+      .replace(/--[^\n]*/g, "")
+      .split(";")
+      .filter((s) => s.trim()).length > 1
+  ) {
+    db.exec(sql);
+    return { changes: 0 };
+  }
   const stmt = db.prepare(sql);
   if (sql.trimStart().match(/^(SELECT|PRAGMA|WITH\s)/i)) {
     return stmt.all(...parameter);

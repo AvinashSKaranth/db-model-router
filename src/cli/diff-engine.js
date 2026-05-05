@@ -117,7 +117,8 @@ function buildExpectedFiles(meta, relationships) {
   // OpenAPI spec
   expected.set(
     "openapi.json",
-    JSON.stringify(generateOpenAPISpec(meta), null, 2) + "\n",
+    JSON.stringify(generateOpenAPISpec(meta, { relationships }), null, 2) +
+      "\n",
   );
 
   return expected;
