@@ -1261,8 +1261,51 @@
     if (pageSize) pageSize.addEventListener("change", onPageSizeChange);
   }
 
+  // === Theme Switcher ===
+  function initThemeSwitcher() {
+    var themeBtns = document.querySelectorAll(".theme-btn");
+    if (!themeBtns.length) return;
+
+    var currentTheme = localStorage.getItem("dbm-theme") || "system";
+
+    function setActiveBtn(theme) {
+      for (var i = 0; i < themeBtns.length; i++) {
+        var btn = themeBtns[i];
+        if (btn.getAttribute("data-theme-value") === theme) {
+          btn.classList.add("active");
+          btn.setAttribute("aria-checked", "true");
+        } else {
+          btn.classList.remove("active");
+          btn.setAttribute("aria-checked", "false");
+        }
+      }
+    }
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      localStorage.setItem("dbm-theme", theme);
+      setActiveBtn(theme);
+    }
+
+    // Set initial state
+    setActiveBtn(currentTheme);
+
+    // Bind click handlers
+    for (var i = 0; i < themeBtns.length; i++) {
+      (function (btn) {
+        btn.addEventListener("click", function () {
+          var theme = btn.getAttribute("data-theme-value");
+          applyTheme(theme);
+        });
+      })(themeBtns[i]);
+    }
+  }
+
   // === Initialize ===
   function init() {
+    // Initialize theme switcher on all pages
+    initThemeSwitcher();
+
     // Initialize nav links on all pages
     initNavLinks();
 

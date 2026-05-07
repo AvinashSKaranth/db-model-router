@@ -1,8 +1,36 @@
 <header class="app-header">
   <h1>DB Manager</h1>
-  <div class="connection-info">
-    <span class="db-type"><%= dbType %></span>
-    <span class="db-name"><%= dbName %></span>
-    <span class="db-host"><%= dbHost %></span>
+  <div class="header-right">
+    <div class="connection-info">
+      <span class="db-type"><%= dbType %></span>
+      <span class="db-name"><%= dbName %></span>
+      <span class="db-host"><%= dbHost %></span>
+    </div>
+    <div class="theme-switcher" role="radiogroup" aria-label="Theme selection">
+      <button
+        class="theme-btn"
+        data-theme-value="light"
+        aria-label="Light mode"
+        title="Light mode"
+      >
+        <span class="material-icons">light_mode</span>
+      </button>
+      <button
+        class="theme-btn"
+        data-theme-value="dark"
+        aria-label="Dark mode"
+        title="Dark mode"
+      >
+        <span class="material-icons">dark_mode</span>
+      </button>
+      <button
+        class="theme-btn"
+        data-theme-value="system"
+        aria-label="System mode"
+        title="System mode"
+      >
+        <span class="material-icons">desktop_windows</span>
+      </button>
+    </div>
   </div>
 </header>
