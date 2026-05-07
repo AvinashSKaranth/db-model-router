@@ -2,18 +2,41 @@
 
 const express = require("express");
 const createAdapterProxy = require("../adapter-proxy");
-const { parseFilters } = require("../utils/parse-filters");
+const {
+  parseFilterValue,
+  objectToFilter,
+} = require("../../src/commons/validator");
 const { generateCSV } = require("../utils/csv-export");
 const {
   generateExportFilename,
   generateQueryExportFilename,
 } = require("../utils/export-filename");
 
+// Reserved query params that are NOT filter columns
+const RESERVED_PARAMS = ["page", "limit", "sort", "dir"];
+
+/**
+ * Extracts filter params from query string (excludes reserved params).
+ * Uses the library's parseFilterValue to parse operator prefixes.
+ * Returns filter in the library's format: [[col, op, val], ...]
+ */
+function buildFilter(query) {
+  const filterObj = {};
+  for (const key of Object.keys(query)) {
+    if (RESERVED_PARAMS.includes(key)) continue;
+    // Skip Express-parsed nested objects (like filter[0][col])
+    if (typeof query[key] !== "string") continue;
+    filterObj[key] = query[key];
+  }
+  if (Object.keys(filterObj).length === 0) return [];
+  return objectToFilter(filterObj);
+}
+
 /**
  * Creates API routes for the DB Manager App.
  *
  * @param {object} db - The library adapter instance (has list, insert, upsert, remove, query methods)
- * @param {object} metaDb - The metadata database instance (has recordQuery, getConnections, getQueries methods)
+ * @param {object} metaDb - The metadata database instance
  * @param {string} [dbType] - The database type (defaults to process.env.DB_TYPE)
  * @returns {express.Router} Express Router with all API endpoints mounted
  */
@@ -46,7 +69,8 @@ function apiRoutes(db, metaDb, dbType) {
     }
   });
 
-  // GET /api/tables/:name/rows — list rows with pagination and filtering
+  // GET /api/tables/:name/rows — list rows with pagination, filtering, sorting
+  // Filter syntax matches the library: ?name=john&age=>25&status=!inactive
   router.get("/api/tables/:name/rows", async (req, res) => {
     try {
       const page = parseInt(req.query.page, 10) || 0;
@@ -57,14 +81,13 @@ function apiRoutes(db, metaDb, dbType) {
         sort.push(dir === "desc" ? `-${req.query.sort}` : req.query.sort);
       }
 
-      // Parse filter[column]=value query params into adapter-compatible format
-      const filterTuples = parseFilters(req.query);
-      const filters = filterTuples.length > 0 ? [filterTuples] : [];
+      const filter = buildFilter(req.query);
 
-      const result = await proxy.listRows(
+      const result = await db.list(
         req.params.name,
-        filters,
+        filter,
         sort,
+        null,
         page,
         limit,
       );
@@ -81,7 +104,7 @@ function apiRoutes(db, metaDb, dbType) {
     }
   });
 
-  // POST /api/tables/:name/rows — insert row(s), record in query history
+  // POST /api/tables/:name/rows — insert row(s)
   router.post("/api/tables/:name/rows", async (req, res) => {
     try {
       const { data } = req.body;
@@ -92,17 +115,17 @@ function apiRoutes(db, metaDb, dbType) {
       }
 
       const table = req.params.name;
-      const result = await proxy.insertRow(table, data);
+      const result = await db.insert(table, data);
 
       // Record in query history (non-fatal)
       try {
         const connectionId = metaDb._connectionId || 1;
-        const queryText = `INSERT INTO ${table}`;
-        const rowCount = result.rows || 1;
-        metaDb.recordQuery(connectionId, queryText, rowCount);
-      } catch (_) {
-        // Non-fatal: history recording failure should not break the operation
-      }
+        metaDb.recordQuery(
+          connectionId,
+          `INSERT INTO ${table}`,
+          result.rows || 1,
+        );
+      } catch (_) {}
 
       res.json(result);
     } catch (err) {
@@ -112,7 +135,7 @@ function apiRoutes(db, metaDb, dbType) {
     }
   });
 
-  // PUT /api/tables/:name/rows — upsert row, record in query history
+  // PUT /api/tables/:name/rows — upsert row
   router.put("/api/tables/:name/rows", async (req, res) => {
     try {
       const { data, uniqueKeys } = req.body;
@@ -123,17 +146,17 @@ function apiRoutes(db, metaDb, dbType) {
       }
 
       const table = req.params.name;
-      const result = await proxy.upsertRow(table, data, uniqueKeys || []);
+      const result = await db.upsert(table, data, uniqueKeys || []);
 
       // Record in query history (non-fatal)
       try {
         const connectionId = metaDb._connectionId || 1;
-        const queryText = `UPSERT INTO ${table}`;
-        const rowCount = result.rows || 1;
-        metaDb.recordQuery(connectionId, queryText, rowCount);
-      } catch (_) {
-        // Non-fatal
-      }
+        metaDb.recordQuery(
+          connectionId,
+          `UPSERT INTO ${table}`,
+          result.rows || 1,
+        );
+      } catch (_) {}
 
       res.json(result);
     } catch (err) {
@@ -143,7 +166,7 @@ function apiRoutes(db, metaDb, dbType) {
     }
   });
 
-  // DELETE /api/tables/:name/rows — delete rows by PK filter, record in query history
+  // DELETE /api/tables/:name/rows — delete rows by PK filter
   router.delete("/api/tables/:name/rows", async (req, res) => {
     try {
       const { keys, pkColumn } = req.body;
@@ -161,17 +184,17 @@ function apiRoutes(db, metaDb, dbType) {
 
       const table = req.params.name;
       const filter = keys.map((k) => [[pkColumn, "=", k]]);
-      const result = await proxy.removeRows(table, filter);
+      const result = await db.remove(table, filter);
 
       // Record in query history (non-fatal)
       try {
         const connectionId = metaDb._connectionId || 1;
-        const queryText = `DELETE FROM ${table} WHERE ${pkColumn} IN (${keys.join(", ")})`;
-        const rowCount = keys.length;
-        metaDb.recordQuery(connectionId, queryText, rowCount);
-      } catch (_) {
-        // Non-fatal
-      }
+        metaDb.recordQuery(
+          connectionId,
+          `DELETE FROM ${table} WHERE ${pkColumn} IN (${keys.join(", ")})`,
+          keys.length,
+        );
+      } catch (_) {}
 
       res.json(result || { message: `${keys.length} row(s) removed` });
     } catch (err) {
@@ -181,7 +204,7 @@ function apiRoutes(db, metaDb, dbType) {
     }
   });
 
-  // POST /api/tables/:name/export — export selected rows as CSV file download
+  // POST /api/tables/:name/export — export selected rows as CSV
   router.post("/api/tables/:name/export", async (req, res) => {
     try {
       const { keys, pkColumn } = req.body;
@@ -198,19 +221,15 @@ function apiRoutes(db, metaDb, dbType) {
       }
 
       const table = req.params.name;
-      // Fetch all rows and filter by the selected PKs
       const filter = keys.map((k) => [[pkColumn, "=", k]]);
-      const result = await proxy.listRows(table, filter, [], 0, keys.length);
+      const result = await db.get(table, filter);
       const rows = result.data || [];
 
-      // Get schema to determine column names for CSV header
+      // Get schema for column names
       const schema = await proxy.getSchema(table);
       const columns = schema.columns.map((col) => col.name);
 
-      // Generate CSV content
       const csv = generateCSV(columns, rows);
-
-      // Generate timestamped filename
       const filename = generateExportFilename(table);
 
       res.setHeader("Content-Type", "text/csv");
@@ -226,7 +245,7 @@ function apiRoutes(db, metaDb, dbType) {
     }
   });
 
-  // GET /api/history/connections — return connection history from metadata DB
+  // GET /api/history/connections
   router.get("/api/history/connections", (req, res) => {
     try {
       const connections = metaDb.getConnections();
@@ -239,7 +258,7 @@ function apiRoutes(db, metaDb, dbType) {
     }
   });
 
-  // GET /api/history/queries — return query history from metadata DB
+  // GET /api/history/queries
   router.get("/api/history/queries", (req, res) => {
     try {
       const connectionId = req.query.connectionId
@@ -255,7 +274,7 @@ function apiRoutes(db, metaDb, dbType) {
     }
   });
 
-  // POST /api/query — execute custom SQL query
+  // POST /api/query — execute custom SQL
   router.post("/api/query", async (req, res) => {
     try {
       const { query: queryText } = req.body;
@@ -270,13 +289,11 @@ function apiRoutes(db, metaDb, dbType) {
       const columns = data.length > 0 ? Object.keys(data[0]) : [];
       const rowCount = data.length;
 
-      // Record query in metadata DB (non-fatal)
+      // Record in metadata DB (non-fatal)
       try {
         const connectionId = metaDb._connectionId || 1;
         metaDb.recordQuery(connectionId, queryText, rowCount);
-      } catch (_) {
-        // Non-fatal: history recording failure should not break the operation
-      }
+      } catch (_) {}
 
       res.json({ columns, data, rowCount });
     } catch (err) {
@@ -287,7 +304,7 @@ function apiRoutes(db, metaDb, dbType) {
     }
   });
 
-  // POST /api/query/export — export query results as CSV file download
+  // POST /api/query/export — export query results as CSV
   router.post("/api/query/export", async (req, res) => {
     try {
       const { query: queryText } = req.body;
@@ -301,10 +318,7 @@ function apiRoutes(db, metaDb, dbType) {
       const data = Array.isArray(result) ? result : [];
       const columns = data.length > 0 ? Object.keys(data[0]) : [];
 
-      // Generate CSV content
       const csv = generateCSV(columns, data);
-
-      // Generate timestamped filename
       const filename = generateQueryExportFilename();
 
       res.setHeader("Content-Type", "text/csv");
@@ -321,7 +335,7 @@ function apiRoutes(db, metaDb, dbType) {
     }
   });
 
-  // GET /api/dashboard — get table metadata for dashboard
+  // GET /api/dashboard — table metadata
   router.get("/api/dashboard", async (req, res) => {
     try {
       const tableNames = await proxy.getTables();
@@ -329,24 +343,17 @@ function apiRoutes(db, metaDb, dbType) {
         tableNames.map(async (name) => {
           const schema = await proxy.getSchema(name);
           const columnCount = schema.columns.length;
-          const result = await proxy.listRows(name, [], [], 0, 1);
+          const result = await db.list(name, [], [], null, 0, 1);
           const rowCount = result.count || 0;
 
-          // Get index count - try to query for indexes
           let indexCount = 0;
           try {
             const indexes = await db.query(
               `SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='index' AND tbl_name='${name}'`,
             );
-            if (indexes && indexes[0]) {
-              indexCount = indexes[0].cnt || 0;
-            }
-          } catch (_) {
-            // Not all adapters support this query
-          }
+            if (indexes && indexes[0]) indexCount = indexes[0].cnt || 0;
+          } catch (_) {}
 
-          // Estimate size in MB (row count * avg row size estimate)
-          // For SQLite, we can try to get page count
           let sizeMB = 0;
           try {
             const pageInfo = await db.query(
@@ -358,7 +365,6 @@ function apiRoutes(db, metaDb, dbType) {
               );
             }
           } catch (_) {
-            // dbstat may not be available, estimate from row count
             sizeMB = parseFloat(
               ((rowCount * columnCount * 50) / (1024 * 1024)).toFixed(3),
             );

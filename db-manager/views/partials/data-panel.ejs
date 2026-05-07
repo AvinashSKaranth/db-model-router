@@ -1,5 +1,8 @@
 <div class="data-panel-content">
   <div class="data-toolbar">
+    <button class="btn btn-filter" type="button">
+      <span class="material-icons">filter_list</span> Filter
+    </button>
     <button class="btn btn-add" type="button">
       <span class="material-icons">add</span> Add
     </button>
@@ -10,7 +13,7 @@
       <span class="material-icons">file_download</span> Export
     </button>
   </div>
-  <div class="filter-bar"></div>
+  <div class="filter-tags"></div>
   <div class="data-table-wrapper">
     <table class="data-table">
       <thead>
@@ -29,5 +32,43 @@
       <option value="100">100</option>
       <option value="0">No limit</option>
     </select>
+  </div>
+</div>
+
+<!-- Filter Popup Modal -->
+<div class="filter-modal-overlay" style="display: none">
+  <div class="filter-modal">
+    <div class="filter-modal-header">
+      <h3>Add Filter</h3>
+      <button class="filter-modal-close" type="button">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
+    <div class="filter-modal-body">
+      <div class="filter-modal-row">
+        <select class="filter-col-select" aria-label="Column">
+          <option value="">Column...</option>
+        </select>
+        <select class="filter-op-select" aria-label="Operator">
+          <option value="=">=</option>
+          <option value="!=">!=</option>
+          <option value="like">like</option>
+          <option value="not like">not like</option>
+          <option value="<">&lt;</option>
+          <option value=">">&gt;</option>
+          <option value="<=">&lt;=</option>
+          <option value=">=">>=</option>
+        </select>
+        <input
+          type="text"
+          class="filter-val-input"
+          placeholder="Value..."
+          aria-label="Filter value"
+        />
+        <button class="btn-filter-add" type="button">
+          <span class="material-icons">add</span>
+        </button>
+      </div>
+    </div>
   </div>
 </div>

@@ -16,7 +16,7 @@
     pkColumn: null,
     sortColumn: null,
     sortDir: null,
-    filters: {},
+    filters: [],
   };
 
   // === DOM References ===
@@ -28,11 +28,18 @@
   var btnAdd = document.querySelector(".btn-add");
   var btnDelete = document.querySelector(".btn-delete");
   var btnExport = document.querySelector(".btn-export");
+  var btnFilter = document.querySelector(".btn-filter");
   var btnPrev = document.querySelector(".btn-prev");
   var btnNext = document.querySelector(".btn-next");
   var pageInfo = document.querySelector(".page-info");
   var pageSize = document.querySelector(".page-size");
-  var filterBar = document.querySelector(".filter-bar");
+  var filterTagsContainer = document.querySelector(".filter-tags");
+  var filterModalOverlay = document.querySelector(".filter-modal-overlay");
+  var filterColSelect = document.querySelector(".filter-col-select");
+  var filterOpSelect = document.querySelector(".filter-op-select");
+  var filterValInput = document.querySelector(".filter-val-input");
+  var btnFilterAdd = document.querySelector(".btn-filter-add");
+  var filterModalClose = document.querySelector(".filter-modal-close");
 
   // === Utility: Filter tables (same logic as db-manager/utils/filter-tables.js) ===
   function filterTables(tables, search) {
@@ -77,6 +84,34 @@
         fn.apply(context, args);
       }, delay);
     };
+  }
+
+  // === Utility: Encode filter value with operator prefix for library syntax ===
+  function encodeFilterValue(operator, value) {
+    switch (operator) {
+      case "=":
+        return encodeURIComponent(value);
+      case "!=":
+        return encodeURIComponent("!" + value);
+      case ">":
+        return encodeURIComponent(">" + value);
+      case ">=":
+        return encodeURIComponent(">=" + value);
+      case "<":
+        return encodeURIComponent("<" + value);
+      case "<=":
+        return encodeURIComponent("<=" + value);
+      case "like":
+        return encodeURIComponent("%" + value + "%");
+      case "not like":
+        return encodeURIComponent("!%" + value + "%");
+      case "in":
+        return encodeURIComponent("in(" + value + ")");
+      case "not in":
+        return encodeURIComponent("!in(" + value + ")");
+      default:
+        return encodeURIComponent(value);
+    }
   }
 
   // === Utility: Inline nextSortState (matches db-manager/utils/sort-state.js) ===
@@ -243,7 +278,7 @@
     state.selectedKeys = [];
     state.sortColumn = null;
     state.sortDir = null;
-    state.filters = {};
+    state.filters = [];
     updateSelectionButtons();
 
     // Highlight active in sidebar
@@ -261,7 +296,7 @@
         state.schema = schema;
         state.pkColumn = schema.pk || null;
         renderColumnHeaders();
-        renderFilterBar();
+        renderFilterTags();
         fetchRows();
       },
     );
@@ -318,33 +353,78 @@
     columnHeaders.appendChild(thActions);
   }
 
-  // === Render Filter Bar ===
-  function renderFilterBar() {
-    if (!filterBar) return;
-    filterBar.innerHTML = "";
-    if (!state.schema || !state.schema.columns) return;
-
-    var debouncedFilter = debounce(function () {
-      state.page = 0;
-      fetchRows();
-    }, 300);
-
-    state.schema.columns.forEach(function (col) {
-      var input = document.createElement("input");
-      input.type = "text";
-      input.className = "filter-input";
-      input.setAttribute("data-column", col.name);
-      input.placeholder = col.name;
-      input.addEventListener("input", function () {
-        var value = input.value.trim();
-        if (value) {
-          state.filters[col.name] = value;
-        } else {
-          delete state.filters[col.name];
-        }
-        debouncedFilter();
+  // === Filter Popup and Tags ===
+  function openFilterModal() {
+    if (!filterModalOverlay || !filterColSelect) return;
+    // Populate column select with current schema columns
+    filterColSelect.innerHTML = '<option value="">Column...</option>';
+    if (state.schema && state.schema.columns) {
+      state.schema.columns.forEach(function (col) {
+        var opt = document.createElement("option");
+        opt.value = col.name;
+        opt.textContent = col.name;
+        filterColSelect.appendChild(opt);
       });
-      filterBar.appendChild(input);
+    }
+    if (filterValInput) filterValInput.value = "";
+    filterModalOverlay.style.display = "flex";
+  }
+
+  function closeFilterModal() {
+    if (filterModalOverlay) filterModalOverlay.style.display = "none";
+  }
+
+  function addFilter() {
+    if (!filterColSelect || !filterOpSelect || !filterValInput) return;
+    var col = filterColSelect.value;
+    var op = filterOpSelect.value;
+    var val = filterValInput.value.trim();
+    if (!col) {
+      showToast("Select a column", "error");
+      return;
+    }
+    if (!val) {
+      showToast("Enter a value", "error");
+      return;
+    }
+
+    state.filters.push({ column: col, operator: op, value: val });
+    state.page = 0;
+    renderFilterTags();
+    fetchRows();
+    closeFilterModal();
+  }
+
+  function removeFilter(index) {
+    state.filters.splice(index, 1);
+    state.page = 0;
+    renderFilterTags();
+    fetchRows();
+  }
+
+  function renderFilterTags() {
+    if (!filterTagsContainer) return;
+    filterTagsContainer.innerHTML = "";
+    state.filters.forEach(function (f, idx) {
+      var tag = document.createElement("span");
+      tag.className = "filter-tag";
+
+      var text = document.createElement("span");
+      text.className = "filter-tag-text";
+      text.textContent = f.column + " " + f.operator + " " + f.value;
+      text.title = f.column + " " + f.operator + " " + f.value;
+      tag.appendChild(text);
+
+      var removeBtn = document.createElement("button");
+      removeBtn.className = "filter-tag-remove";
+      removeBtn.innerHTML = "&times;";
+      removeBtn.title = "Remove filter";
+      removeBtn.addEventListener("click", function () {
+        removeFilter(idx);
+      });
+      tag.appendChild(removeBtn);
+
+      filterTagsContainer.appendChild(tag);
     });
   }
 
@@ -367,15 +447,11 @@
         encodeURIComponent(state.sortDir);
     }
 
-    // Append filter params
-    var filterKeys = Object.keys(state.filters);
-    for (var i = 0; i < filterKeys.length; i++) {
-      var col = filterKeys[i];
-      url +=
-        "&filter[" +
-        encodeURIComponent(col) +
-        "]=" +
-        encodeURIComponent(state.filters[col]);
+    // Append filter params using library syntax: ?column=prefixValue
+    for (var i = 0; i < state.filters.length; i++) {
+      var f = state.filters[i];
+      var encodedValue = encodeFilterValue(f.operator, f.value);
+      url += "&" + encodeURIComponent(f.column) + "=" + encodedValue;
     }
 
     apiGet(url).then(function (result) {
@@ -1166,6 +1242,20 @@
     if (btnAdd) btnAdd.addEventListener("click", showAddForm);
     if (btnDelete) btnDelete.addEventListener("click", deleteSelectedRows);
     if (btnExport) btnExport.addEventListener("click", exportSelectedRows);
+    if (btnFilter) btnFilter.addEventListener("click", openFilterModal);
+    if (btnFilterAdd) btnFilterAdd.addEventListener("click", addFilter);
+    if (filterModalClose)
+      filterModalClose.addEventListener("click", closeFilterModal);
+    if (filterModalOverlay) {
+      filterModalOverlay.addEventListener("click", function (e) {
+        if (e.target === filterModalOverlay) closeFilterModal();
+      });
+    }
+    if (filterValInput) {
+      filterValInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") addFilter();
+      });
+    }
     if (btnPrev) btnPrev.addEventListener("click", goToPrevPage);
     if (btnNext) btnNext.addEventListener("click", goToNextPage);
     if (pageSize) pageSize.addEventListener("change", onPageSizeChange);

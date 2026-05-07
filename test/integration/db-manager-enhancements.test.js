@@ -75,9 +75,10 @@ describe("DB Manager Enhancements - Integration", function () {
   // Validates: Requirements 5.3, 5.4, 10.1, 10.4
   // =========================================================================
   describe("Filter + Pagination", function () {
-    it("should return filtered results when filter[name] is applied", async function () {
+    it("should return filtered results with like syntax", async function () {
+      // Using library filter syntax: %value% for LIKE matching
       const res = await request
-        .get("/api/tables/users/rows?filter[name]=Ali")
+        .get("/api/tables/users/rows?name=%25Ali%25")
         .expect(200);
 
       assert.ok(Array.isArray(res.body.data), "data should be an array");
@@ -93,7 +94,7 @@ describe("DB Manager Enhancements - Integration", function () {
 
     it("should return paginated filtered results", async function () {
       const res = await request
-        .get("/api/tables/users/rows?filter[name]=Ali&page=0&limit=1")
+        .get("/api/tables/users/rows?name=%25Ali%25&page=0&limit=1")
         .expect(200);
 
       assert.ok(Array.isArray(res.body.data), "data should be an array");
@@ -110,7 +111,7 @@ describe("DB Manager Enhancements - Integration", function () {
     it("should apply multiple filters with AND logic", async function () {
       // Filter for name containing 'a' AND email containing 'example'
       const res = await request
-        .get("/api/tables/users/rows?filter[name]=a&filter[email]=example")
+        .get("/api/tables/users/rows?name=%25a%25&email=%25example%25")
         .expect(200);
 
       assert.ok(Array.isArray(res.body.data), "data should be an array");
@@ -135,9 +136,9 @@ describe("DB Manager Enhancements - Integration", function () {
     });
 
     it("should return correct filtered count for pagination", async function () {
-      // First get the full filtered count
+      // First get the full filtered count using like syntax
       const fullRes = await request
-        .get("/api/tables/users/rows?filter[name]=e")
+        .get("/api/tables/users/rows?name=%25e%25")
         .expect(200);
 
       const totalFiltered = fullRes.body.count;
@@ -145,7 +146,7 @@ describe("DB Manager Enhancements - Integration", function () {
 
       // Now paginate with limit=1 and verify count is still the total
       const pageRes = await request
-        .get("/api/tables/users/rows?filter[name]=e&page=0&limit=1")
+        .get("/api/tables/users/rows?name=%25e%25&page=0&limit=1")
         .expect(200);
 
       assert.strictEqual(
