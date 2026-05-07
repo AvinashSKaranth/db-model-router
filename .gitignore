@@ -116,6 +116,10 @@ dist
 # FuseBox cache
 .fusebox/
 
+# DB Manager internal metadata database
+db-manager/.dbmanager.sqlite
+db-manager/demo/demo.sqlite
+
 # DynamoDB Local files
 .dynamodb/
 

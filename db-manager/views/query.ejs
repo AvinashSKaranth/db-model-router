@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>DB Manager - Query</title>
+    <link rel="stylesheet" href="/css/style.css" />
+    <link
+      href="https://fonts.googleapis.com/icon?family=Material+Icons"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <%- include('partials/header') %>
+    <main class="app-container">
+      <aside class="sidebar"><%- include('partials/sidebar') %></aside>
+      <section class="data-panel">
+        <div class="query-content">
+          <textarea
+            class="query-editor"
+            placeholder="Enter SQL query..."
+            aria-label="SQL query editor"
+          ></textarea>
+          <div class="query-actions">
+            <button class="btn btn-run" type="button">
+              <span class="material-icons">play_arrow</span> Run
+            </button>
+            <button class="btn btn-export-query" type="button" disabled>
+              <span class="material-icons">file_download</span> Export
+            </button>
+          </div>
+          <div class="query-error" style="display: none"></div>
+          <div class="query-results-wrapper">
+            <table class="query-results-table">
+              <thead>
+                <tr class="query-column-headers"></tr>
+              </thead>
+              <tbody class="query-data-rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="/js/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>DB Manager - History</title>
+    <link rel="stylesheet" href="/css/style.css" />
+    <link
+      href="https://fonts.googleapis.com/icon?family=Material+Icons"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <%- include('partials/header') %>
+    <main class="app-container">
+      <aside class="sidebar"><%- include('partials/sidebar') %></aside>
+      <section class="data-panel">
+        <div class="history-content">
+          <h2 class="history-title">Query History</h2>
+          <div class="history-table-wrapper">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Query</th>
+                  <th>Rows</th>
+                  <th>Executed At</th>
+                </tr>
+              </thead>
+              <tbody class="history-table-body">
+                <!-- Populated by client-side JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="/js/app.js"></script>
+  </body>
+</html>

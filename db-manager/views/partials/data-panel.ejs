@@ -1,0 +1,33 @@
+<div class="data-panel-content">
+  <div class="data-toolbar">
+    <button class="btn btn-add" type="button">
+      <span class="material-icons">add</span> Add
+    </button>
+    <button class="btn btn-delete" type="button" disabled>
+      <span class="material-icons">delete</span> Delete
+    </button>
+    <button class="btn btn-export" type="button" disabled>
+      <span class="material-icons">file_download</span> Export
+    </button>
+  </div>
+  <div class="filter-bar"></div>
+  <div class="data-table-wrapper">
+    <table class="data-table">
+      <thead>
+        <tr class="column-headers"></tr>
+      </thead>
+      <tbody class="data-rows"></tbody>
+    </table>
+  </div>
+  <div class="pagination-controls">
+    <button class="btn btn-prev" type="button" disabled>&laquo; Prev</button>
+    <span class="page-info"></span>
+    <button class="btn btn-next" type="button" disabled>Next &raquo;</button>
+    <select class="page-size" aria-label="Page size">
+      <option value="30">30</option>
+      <option value="50">50</option>
+      <option value="100">100</option>
+      <option value="0">No limit</option>
+    </select>
+  </div>
+</div>

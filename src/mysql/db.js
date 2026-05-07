@@ -4,6 +4,9 @@ let pool = null;
 const WHERE_INVALID = "Invalid filter object";
 
 function connect(credentails) {
+  // Force UTC timezone so timestamps are consistent
+  // dateStrings: true returns raw strings without JS Date conversion
+  credentails.timezone = "+00:00";
   pool = mysql.createPool(credentails);
   return pool;
 }

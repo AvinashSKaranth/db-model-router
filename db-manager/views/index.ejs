@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>DB Manager</title>
+    <link rel="stylesheet" href="/css/style.css" />
+    <link
+      href="https://fonts.googleapis.com/icon?family=Material+Icons"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <%- include('partials/header') %>
+    <main class="app-container">
+      <aside class="sidebar"><%- include('partials/sidebar') %></aside>
+      <section class="data-panel">
+        <%- include('partials/data-panel') %>
+      </section>
+    </main>
+    <script src="/js/app.js"></script>
+  </body>
+</html>

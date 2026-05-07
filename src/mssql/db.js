@@ -2,7 +2,38 @@ const sql = require("mssql");
 const { jsonSafeParse } = require("../commons/function");
 
 let pool = null;
+let dateStringsMode = false;
 const WHERE_INVALID = "Invalid filter object";
+
+/**
+ * Formats a Date object to YYYY-MM-DD HH:mm:ss string in UTC.
+ */
+function formatDate(d) {
+  var y = d.getUTCFullYear();
+  var m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  var day = String(d.getUTCDate()).padStart(2, "0");
+  var h = String(d.getUTCHours()).padStart(2, "0");
+  var min = String(d.getUTCMinutes()).padStart(2, "0");
+  var s = String(d.getUTCSeconds()).padStart(2, "0");
+  return y + "-" + m + "-" + day + " " + h + ":" + min + ":" + s;
+}
+
+/**
+ * Maps recordset rows, converting Date objects to formatted strings if dateStringsMode is enabled.
+ */
+function mapRecordset(rows) {
+  if (!dateStringsMode || !Array.isArray(rows)) return rows;
+  return rows.map(function (row) {
+    var mapped = {};
+    for (var key in row) {
+      if (Object.prototype.hasOwnProperty.call(row, key)) {
+        mapped[key] =
+          row[key] instanceof Date ? formatDate(row[key]) : row[key];
+      }
+    }
+    return mapped;
+  });
+}
 
 const RETRYABLE_ERRORS = [
   "ECONNREFUSED",
@@ -34,6 +65,9 @@ function isRetryable(err) {
 }
 
 async function connect(config) {
+  dateStringsMode =
+    config.dateStrings === true || process.env.DB_DATE_STRINGS === "true";
+
   const mssqlConfig = {
     server: config.server || config.host || process.env.DB_HOST || "localhost",
     port: parseInt(config.port || process.env.DB_PORT || 1433),
@@ -75,7 +109,11 @@ async function query(sqlStr, parameter = []) {
     }
     // Replace positional @paramN placeholders if not already present
     const result = await request.query(sqlStr);
-    return result.recordset || { affectedRows: result.rowsAffected?.[0] || 0 };
+    return (
+      mapRecordset(result.recordset) || {
+        affectedRows: result.rowsAffected?.[0] || 0,
+      }
+    );
   });
 }
 
@@ -189,7 +227,7 @@ async function get(table, filter = [], sort = [], safeDelete = null) {
     request.input("param" + i, whereData.value[i]);
   }
   const result = await request.query(sqlStr);
-  const rows = jsonSafeParse(result.recordset || []);
+  const rows = jsonSafeParse(mapRecordset(result.recordset || []));
   const count = await qcount(table, filter, safeDelete);
   return { data: rows, count };
 }
@@ -216,7 +254,7 @@ async function list(
     request.input("param" + i, whereData.value[i]);
   }
   const result = await request.query(sqlStr);
-  const rows = jsonSafeParse(result.recordset || []);
+  const rows = jsonSafeParse(mapRecordset(result.recordset || []));
   const count = await qcount(table, filter, safeDelete);
   return { data: rows, count };
 }

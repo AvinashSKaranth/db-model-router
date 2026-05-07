@@ -93,8 +93,7 @@ async function generate(args, flags, ctx) {
   const genOpenapi = !hasArtifactFlag || args.openapi === true;
   const genTests = !hasArtifactFlag || args.tests === true;
   const genMigrations = !hasArtifactFlag || args.migrations === true;
-  //const genDbManager = !hasArtifactFlag || args["db-manager"] === true;
-  const genDbManager = false;
+  const genDbManager = args["db-manager"] === true;
 
   const modelsRelPath = "../models";
   const baseDir = process.cwd();

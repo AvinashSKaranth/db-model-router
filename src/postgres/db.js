@@ -13,6 +13,7 @@ function sanitizeValue(v) {
     return v
       .replace("T", " ")
       .replace(/[+-]\d{2}:\d{2}$/, "")
+      .replace(/Z$/, "")
       .slice(0, 19);
   }
   return v;
@@ -74,6 +75,11 @@ function connect(config) {
   };
 
   pool = new Pool(poolConfig);
+
+  // Set session timezone to UTC for consistent timestamp handling
+  pool.on("connect", (client) => {
+    client.query("SET timezone = 'UTC'");
+  });
 
   pool.on("error", (err) => {
     console.error("Unexpected PG pool error:", err.message);

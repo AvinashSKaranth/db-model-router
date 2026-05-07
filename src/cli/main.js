@@ -9,6 +9,7 @@ const generateCmd = require("./commands/generate");
 const doctorCmd = require("./commands/doctor");
 const diffCmd = require("./commands/diff");
 const helpCmd = require("./commands/help");
+const dbManagerCmd = require("./commands/db-manager");
 
 /**
  * Map of subcommand names to their handler functions.
@@ -19,6 +20,7 @@ const COMMANDS = {
   generate: generateCmd,
   doctor: doctorCmd,
   diff: diffCmd,
+  "db-manager": dbManagerCmd,
   help: helpCmd,
 };
 
@@ -31,6 +33,7 @@ const COMMAND_DESCRIPTIONS = {
   generate: "Generate models, routes, tests, and OpenAPI spec from a schema",
   doctor: "Validate schema, check dependencies, and verify file sync",
   diff: "Preview changes between current files and what the schema would produce",
+  "db-manager": "Start a live database management UI",
   help: "Show help for a command",
 };
 
@@ -68,6 +71,10 @@ const COMMAND_FLAGS = {
   ],
   doctor: [["--from <path>", "Schema file (default: dbmr.schema.json)"]],
   diff: [["--from <path>", "Schema file (default: dbmr.schema.json)"]],
+  "db-manager": [
+    ["--env <path>", "Path to .env file (default: .env)"],
+    ["--port <number>", "Server port (default: 4000)"],
+  ],
 };
 
 /**
