@@ -82,7 +82,6 @@ Options:
   --openapi              Generate only OpenAPI spec + Swagger UI docs route
   --tests                Generate only test files
   --migrations           Generate only database migration files
-  --db-manager           Generate DB Manager UI (SQL adapters only)
   --yes                  Accept all defaults without prompting
   --json                 Output machine-readable JSON
   --dry-run              Report planned files without writing

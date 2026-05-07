@@ -286,6 +286,23 @@ db-model-router diff [--from dbmr.schema.json] [--json]
 
 Universal flags (all commands): `--yes`, `--json`, `--dry-run`, `--no-install`, `--help`
 
+### `db-manager` — Launch database management UI
+
+```bash
+db-model-router db-manager [--env .env] [--port 4000]
+```
+
+Starts a built-in web dashboard for browsing and managing your database. Features:
+
+- Table browser with filtering, sorting, pagination, inline editing
+- Raw SQL query editor with CSV export
+- Query history tracking
+- Dashboard overview (table stats: columns, indexes, rows, size)
+- Light / Dark / System theme modes (persisted via localStorage)
+- Typography: Fira Sans (UI) + Fira Code (data/code)
+
+Requires a `.env` file with `DB_TYPE` and connection variables.
+
 ---
 
 ## Schema-Driven Workflow (dbmr.schema.json)

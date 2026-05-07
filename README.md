@@ -429,6 +429,32 @@ db-model-router help init         # detailed help for init
 db-model-router init --help       # same as above
 ```
 
+## DB Manager
+
+A built-in database management dashboard accessible via the CLI. Connects to any supported SQL database and provides a visual interface for browsing tables, editing data, running queries, and viewing history.
+
+### Launch
+
+```bash
+db-model-router db-manager [--env .env] [--port 4000]
+```
+
+| Flag / Arg     | Description                             |
+| -------------- | --------------------------------------- |
+| `--env <path>` | Path to `.env` file with DB credentials |
+| `--port <n>`   | Server port (default: 4000)             |
+
+### Features
+
+- **Dashboard** — Overview of all tables with column count, index count, row count, and size
+- **Table Browser** — Browse, filter, sort, add, edit, and delete rows with pagination
+- **Query Editor** — Execute raw SQL queries with results table and CSV export
+- **Query History** — View previously executed queries with timestamps
+- **Theme Support** — Light, Dark, and System (auto-detect) modes with persistent preference
+- **Filter System** — Column-level filters with operators (=, !=, like, not like, <, >, <=, >=)
+- **Inline Editing** — Edit rows directly in the table without a separate form
+- **CSV Export** — Export selected rows or query results to CSV
+
 ## MySQL Example
 
 ### 1. Connect
