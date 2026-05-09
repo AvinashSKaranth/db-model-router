@@ -169,6 +169,7 @@ function buildEnvContent(answers, mode, secrets) {
   const lines = [];
   lines.push("# Server");
   lines.push("PORT=3000");
+  lines.push("API_BASE_PATH=/api");
   lines.push("");
   lines.push("# Database");
 
@@ -410,6 +411,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 ${helmetBlock ? helmetBlock + "\n" : ""}${rateLimitBlock ? rateLimitBlock + "\n" : ""}${sessionBlock(answers)}
 app.use(logger);
+
+// Routes
+import routes from "#routes/index.js";
+app.use(process.env.API_BASE_PATH || "/api", routes);
 
 // Health check
 app.get("/health", (req, res) => {

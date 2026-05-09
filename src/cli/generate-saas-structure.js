@@ -68,8 +68,8 @@ function generateSaasStructure(adapter, options) {
     planned.push(entry);
   }
 
-  // 2. Models
-  const models = generateSaasModels(adapter);
+  // 2. Models (includes models/index.js barrel with both SaaS + dbmr tables)
+  const models = generateSaasModels(adapter, opts.tableNames || []);
   for (const entry of models) {
     planned.push(entry);
   }

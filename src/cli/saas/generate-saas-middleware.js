@@ -67,7 +67,7 @@ export default tenantIsolation;
  */
 function generateHasPermissionMiddleware() {
   const relPath = "middleware/hasPermission.js";
-  const content = `import { isValidModule } from "../commons/modules.js";
+  const content = `import { isValidModule } from "#commons/modules.js";
 
 /**
  * Permission validation middleware factory.

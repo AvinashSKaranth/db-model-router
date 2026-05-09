@@ -6,6 +6,7 @@ const {
   RemoveUnknownData,
 } = require("./validator");
 const { getType, jsonStringify, jsonSafeParse } = require("./function");
+const { produce } = require("./kafka");
 
 /**
  * Extract and remove reserved params from a data/payload object.
@@ -215,9 +216,12 @@ module.exports = function model(
         const getResult = await db.get(table, [
           [[primary_key, "=", insertResult.id]],
         ]);
-        return getResult.count > 0 ? getResult["data"][0] : null;
+        const record = getResult.count > 0 ? getResult["data"][0] : null;
+        if (record) produce(table, "insert", record);
+        return record;
       }
       //TODO: Bulk Insert -> Return inserted objects
+      produce(table, "insert", data);
       return insertResult;
     },
     update: async (data) => {
@@ -233,6 +237,7 @@ module.exports = function model(
         data = jsonStringify(data);
         updateResult = await db.upsert(table, data, unique);
         //TODO: Bulk Update -> Return updated objects
+        produce(table, "update", data);
       } else {
         stripTimestampFields(data, allTimestampKeys);
         await validateInput(
@@ -246,7 +251,9 @@ module.exports = function model(
           const getResult = await db.get(table, [
             [[primary_key, "=", updateResult.id]],
           ]);
-          return getResult.count > 0 ? getResult["data"][0] : null;
+          const record = getResult.count > 0 ? getResult["data"][0] : null;
+          if (record) produce(table, "update", record);
+          return record;
         } else if (data[0].hasOwnProperty(primary_key)) {
           const result = await db.get(
             table,
@@ -254,8 +261,10 @@ module.exports = function model(
             [],
             option.safeDelete,
           );
-          if (result.count > 0) return result["data"][0];
-          else return null;
+          if (result.count > 0) {
+            produce(table, "update", result["data"][0]);
+            return result["data"][0];
+          } else return null;
         }
       }
       return updateResult;
@@ -274,6 +283,7 @@ module.exports = function model(
         data = jsonStringify(data);
         updateResult = await db.upsert(table, data, unique);
         //TODO: Bulk Upsert -> Return Inserted/Updated objects
+        produce(table, "upsert", data);
       } else {
         stripTimestampFields(data, allTimestampKeys);
         await validateInput(
@@ -288,20 +298,27 @@ module.exports = function model(
           const getResult = await db.get(table, [
             [[primary_key, "=", updateResult.id]],
           ]);
-          return getResult.count > 0 ? getResult["data"][0] : null;
+          const record = getResult.count > 0 ? getResult["data"][0] : null;
+          if (record) produce(table, "upsert", record);
+          return record;
         } else if (originalData.hasOwnProperty(primary_key)) {
           const result = await db.get(table, [
             [[primary_key, "=", originalData[primary_key]]],
           ]);
-          if (result.count > 0) return result["data"][0];
-          else return null;
+          if (result.count > 0) {
+            produce(table, "upsert", result["data"][0]);
+            return result["data"][0];
+          } else return null;
         }
       }
       return updateResult;
     },
     remove: async (data) => {
+      const originalData = Array.isArray(data) ? [...data] : { ...data };
       let filter = dataToFilter(jsonSafeParse(data), primary_key);
-      return await db.remove(table, filter, option.safeDelete);
+      const removeResult = await db.remove(table, filter, option.safeDelete);
+      produce(table, "delete", originalData);
+      return removeResult;
     },
     byId: async (id, options = {}) => {
       let type = getType(id);
@@ -427,7 +444,10 @@ module.exports = function model(
         [],
         option.safeDelete,
       );
-      if (result.count > 0) return result["data"][0];
+      if (result.count > 0) {
+        produce(table, "update", result["data"][0]);
+        return result["data"][0];
+      }
       return null;
     },
     pk: primary_key,

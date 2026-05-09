@@ -13,7 +13,12 @@ const db = require("../../src/dynamodb/db.js");
 const model = require("../../src/commons/model.js");
 const route = require("../../src/commons/route.js");
 
-const tableName = "test_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+const tableName =
+  "test_" +
+  new Date()
+    .toISOString()
+    .replace(/[-T:.Z]/g, "")
+    .slice(0, 14);
 const modelStructure = {
   id: "string",
   name: "required|string",

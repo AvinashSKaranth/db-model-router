@@ -28,7 +28,11 @@ const primaryKey = "id";
 
 describe("Feature: database-adapter-standardization, Property 2: Get and find always return data array and count number", function () {
   const tableName =
-    "test_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+    "test_" +
+    new Date()
+      .toISOString()
+      .replace(/[-T:.Z]/g, "")
+      .slice(0, 14);
   let testModel;
   let seededNames = [];
 
@@ -149,7 +153,11 @@ describe("Feature: database-adapter-standardization, Property 2: Get and find al
 
 describe("Feature: database-adapter-standardization, Property 3: List pagination respects page and limit bounds", function () {
   const tableName2 =
-    "test_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+    "test_" +
+    new Date()
+      .toISOString()
+      .replace(/[-T:.Z]/g, "")
+      .slice(0, 14);
   let testModel2;
 
   before(function () {

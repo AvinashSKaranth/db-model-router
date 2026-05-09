@@ -1,5 +1,6 @@
 const model = require("./commons/model.js");
 const route = require("./commons/route.js");
+const kafka = require("./commons/kafka.js");
 const routers = {
   mysql: "./mysql/db.js",
   mariadb: "./mysql/db.js",
@@ -56,4 +57,5 @@ module.exports = {
   },
   model,
   route,
+  kafka,
 };

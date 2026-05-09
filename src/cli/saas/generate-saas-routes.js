@@ -5,6 +5,8 @@
  *
  * Generates CRUD routes, auth routes, and the routes index file
  * for the SaaS structure generator. All generated code uses ES6 module syntax.
+ * Routes use folder-based structure: routes/<module>/index.js
+ * Imports use package.json #imports aliases: #models, #middleware, #commons
  */
 
 /**
@@ -15,11 +17,20 @@
 function generateCrudRoutes() {
   const files = [];
 
-  files.push({ relPath: "routes/users.js", content: generateUsersRoute() });
-  files.push({ relPath: "routes/tenants.js", content: generateTenantsRoute() });
-  files.push({ relPath: "routes/roles.js", content: generateRolesRoute() });
   files.push({
-    relPath: "routes/roles/permissions.js",
+    relPath: "routes/users/index.js",
+    content: generateUsersRoute(),
+  });
+  files.push({
+    relPath: "routes/tenants/index.js",
+    content: generateTenantsRoute(),
+  });
+  files.push({
+    relPath: "routes/roles/index.js",
+    content: generateRolesRoute(),
+  });
+  files.push({
+    relPath: "routes/roles/permissions/index.js",
     content: generatePermissionsRoute(),
   });
 
@@ -28,12 +39,12 @@ function generateCrudRoutes() {
 
 function generateUsersRoute() {
   return `import express from "express";
-import authenticate from "../middleware/authenticate.js";
-import tenantIsolation from "../middleware/tenantIsolation.js";
-import hasPermission from "../middleware/hasPermission.js";
-import users from "../models/users.js";
+import authenticate from "#middleware/authenticate.js";
+import tenantIsolation from "#middleware/tenantIsolation.js";
+import hasPermission from "#middleware/hasPermission.js";
+import { users } from "#models";
 
-const router = express.Router();
+const router = express.Router({ mergeParams: true });
 
 router.get("/", authenticate, tenantIsolation, hasPermission("users", "read"), async (req, res) => {
   try {
@@ -77,12 +88,12 @@ export default router;
 
 function generateTenantsRoute() {
   return `import express from "express";
-import authenticate from "../middleware/authenticate.js";
-import tenantIsolation from "../middleware/tenantIsolation.js";
-import hasPermission from "../middleware/hasPermission.js";
-import tenants from "../models/tenants.js";
+import authenticate from "#middleware/authenticate.js";
+import tenantIsolation from "#middleware/tenantIsolation.js";
+import hasPermission from "#middleware/hasPermission.js";
+import { tenants } from "#models";
 
-const router = express.Router();
+const router = express.Router({ mergeParams: true });
 
 router.get("/", authenticate, tenantIsolation, hasPermission("tenants", "read"), async (req, res) => {
   try {
@@ -126,12 +137,12 @@ export default router;
 
 function generateRolesRoute() {
   return `import express from "express";
-import authenticate from "../middleware/authenticate.js";
-import tenantIsolation from "../middleware/tenantIsolation.js";
-import hasPermission from "../middleware/hasPermission.js";
-import roles from "../models/roles.js";
+import authenticate from "#middleware/authenticate.js";
+import tenantIsolation from "#middleware/tenantIsolation.js";
+import hasPermission from "#middleware/hasPermission.js";
+import { roles } from "#models";
 
-const router = express.Router();
+const router = express.Router({ mergeParams: true });
 
 function userHasGlobalPermission(req) {
   return req.session.permission.some((p) => p.scope === "global");
@@ -205,10 +216,10 @@ export default router;
 
 function generatePermissionsRoute() {
   return `import express from "express";
-import authenticate from "../../middleware/authenticate.js";
-import tenantIsolation from "../../middleware/tenantIsolation.js";
-import hasPermission from "../../middleware/hasPermission.js";
-import role_permissions from "../../models/role_permissions.js";
+import authenticate from "#middleware/authenticate.js";
+import tenantIsolation from "#middleware/tenantIsolation.js";
+import hasPermission from "#middleware/hasPermission.js";
+import { role_permissions } from "#models";
 
 const router = express.Router({ mergeParams: true });
 
@@ -260,15 +271,13 @@ export default router;
  * @returns {{ relPath: string, content: string }}
  */
 function generateAuthRoutes() {
-  const relPath = "routes/auth.js";
+  const relPath = "routes/auth/index.js";
   const content = `import express from "express";
-import authenticate from "../middleware/authenticate.js";
-import { verifyPassword } from "../commons/password.js";
-import users from "../models/users.js";
-import roles from "../models/roles.js";
-import role_permissions from "../models/role_permissions.js";
+import authenticate from "#middleware/authenticate.js";
+import { verifyPassword } from "#commons/password.js";
+import { users, roles, role_permissions } from "#models";
 
-const router = express.Router();
+const router = express.Router({ mergeParams: true });
 
 // POST /api/auth/login - Authenticate user and create session
 router.post("/login", async (req, res) => {
@@ -324,9 +333,7 @@ export default router;
 
 /**
  * Generate the routes index file that wires both SaaS routes and dbmr-generated routes.
- *
- * This function accepts tableNames and relationships from the schema so it can
- * mount both the SaaS auth/CRUD routes AND the dbmr schema-generated routes.
+ * Uses folder-based imports with #imports aliases.
  *
  * @param {string[]} [tableNames] - Schema-generated table names (from dbmr)
  * @param {Array<{parent, child, foreignKey}>} [relationships] - Schema relationships
@@ -338,7 +345,7 @@ function generateRoutesIndex(tableNames, relationships, options) {
   relationships = relationships || [];
   options = options || {};
 
-  // SaaS tables that have their own dedicated route files
+  // SaaS tables that have their own dedicated route folders
   const saasRouteModules = new Set([
     "users",
     "tenants",
@@ -352,17 +359,17 @@ function generateRoutesIndex(tableNames, relationships, options) {
     nestedChildren.add(rel.child);
   }
 
-  let code = `import express from "express";\n\nconst router = express.Router();\n\n`;
+  let code = `import express from "express";\n\nconst router = express.Router({ mergeParams: true });\n\n`;
 
-  // --- SaaS route imports ---
+  // --- SaaS route imports (folder-based with #routes alias) ---
   code += `// SaaS auth & CRUD routes\n`;
-  code += `import authRoute from "./auth.js";\n`;
-  code += `import saasUsersRoute from "./users.js";\n`;
-  code += `import saasTenantsRoute from "./tenants.js";\n`;
-  code += `import saasRolesRoute from "./roles.js";\n`;
-  code += `import saasPermissionsRoute from "./roles/permissions.js";\n\n`;
+  code += `import authRoute from "#routes/auth/index.js";\n`;
+  code += `import saasUsersRoute from "#routes/users/index.js";\n`;
+  code += `import saasTenantsRoute from "#routes/tenants/index.js";\n`;
+  code += `import saasRolesRoute from "#routes/roles/index.js";\n`;
+  code += `import saasPermissionsRoute from "#routes/roles/permissions/index.js";\n\n`;
 
-  // --- dbmr schema-generated route imports (skip SaaS-owned tables) ---
+  // --- dbmr schema-generated route imports (folder-based, skip SaaS-owned tables) ---
   const dbmrTables = tableNames.filter(
     (t) => !saasRouteModules.has(t) && !nestedChildren.has(t),
   );
@@ -370,26 +377,26 @@ function generateRoutesIndex(tableNames, relationships, options) {
     code += `// Schema-generated routes\n`;
   }
   for (const table of dbmrTables) {
-    code += `import ${safeVarName(table)}Route from "./${table}.js";\n`;
+    code += `import ${safeVarName(table)}Route from "#routes/${table}/index.js";\n`;
   }
   for (const rel of relationships) {
     if (saasRouteModules.has(rel.child)) continue;
-    code += `import ${safeVarName(rel.child)}ChildRoute from "./${rel.parent}/${rel.child}.js";\n`;
+    code += `import ${safeVarName(rel.child)}ChildRoute from "#routes/${rel.parent}/${rel.child}/index.js";\n`;
   }
 
   if (options.includeDocs) {
-    code += `import docsRoute from "./docs.js";\n`;
+    code += `import docsRoute from "#routes/docs.js";\n`;
   }
 
   code += `\n`;
 
   // --- Mount SaaS routes ---
   code += `// SaaS routes\n`;
-  code += `router.use("/api/auth", authRoute);\n`;
-  code += `router.use("/api/users", saasUsersRoute);\n`;
-  code += `router.use("/api/tenants", saasTenantsRoute);\n`;
-  code += `router.use("/api/roles", saasRolesRoute);\n`;
-  code += `router.use("/api/roles/:role_id/permissions", saasPermissionsRoute);\n\n`;
+  code += `router.use("/auth", authRoute);\n`;
+  code += `router.use("/users", saasUsersRoute);\n`;
+  code += `router.use("/tenants", saasTenantsRoute);\n`;
+  code += `router.use("/roles", saasRolesRoute);\n`;
+  code += `router.use("/roles/:role_id/permissions", saasPermissionsRoute);\n\n`;
 
   // --- Mount docs route ---
   if (options.includeDocs) {

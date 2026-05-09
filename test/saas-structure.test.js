@@ -197,13 +197,13 @@ describe("SaaS Structure Generator", function () {
       );
     });
 
-    it("nested relPaths like routes/roles/permissions.js exist", function () {
+    it("nested relPaths like routes/roles/permissions/index.js exist", function () {
       const relPaths = planned.map(function (p) {
         return p.relPath;
       });
       assert.ok(
-        relPaths.includes("routes/roles/permissions.js"),
-        "should have nested route routes/roles/permissions.js",
+        relPaths.includes("routes/roles/permissions/index.js"),
+        "should have nested route routes/roles/permissions/index.js",
       );
     });
   });

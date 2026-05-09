@@ -8,7 +8,11 @@ const model = require("../../src/commons/model.js");
 const route = require("../../src/commons/route.js");
 
 const collectionName =
-  "test_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+  "test_" +
+  new Date()
+    .toISOString()
+    .replace(/[-T:.Z]/g, "")
+    .slice(0, 14);
 const modelStructure = {
   _id: "string",
   name: "required|string",

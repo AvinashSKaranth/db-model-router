@@ -61,7 +61,13 @@ const arbRecordArray = fc.array(arbRecord, { minLength: 1, maxLength: 10 });
 // --- Helpers ---
 
 function makeTable() {
-  return "test_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+  return (
+    "test_" +
+    new Date()
+      .toISOString()
+      .replace(/[-T:.Z]/g, "")
+      .slice(0, 14)
+  );
 }
 
 function createTable(tableName) {

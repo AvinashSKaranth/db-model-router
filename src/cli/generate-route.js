@@ -26,17 +26,63 @@ function safeVarName(name) {
 function generateRouteFile(tableName, modelsRelPath) {
   const varName = safeVarName(tableName);
   return `import dbModelRouter from "db-model-router";
-import ${varName} from "${modelsRelPath}/${tableName}.js";
+import express from "express";
+import { ${varName} } from "#models";
 
+const router = express.Router({ mergeParams: true });
 const { route } = dbModelRouter;
 
-export default route(${varName});
+router.use("/", route(${varName}));
+
+export default router;
 `;
 }
 
 /**
+ * Generate a parent route file that includes its own CRUD and mounts child routes.
+ * e.g., routes/orders/index.js mounts order_items under /:order_id/items
+ *
+ * @param {string} tableName - Parent table name
+ * @param {Array<{child, foreignKey}>} children - Child relationships for this parent
+ * @returns {string}
+ */
+function generateParentRouteFile(tableName, children) {
+  const varName = safeVarName(tableName);
+  let code = `import dbModelRouter from "db-model-router";
+import express from "express";
+import { ${varName} } from "#models";
+`;
+
+  // Import child routes
+  for (const child of children) {
+    const childVar = safeVarName(child.child);
+    code += `import ${childVar}Route from "./${child.child}/index.js";\n`;
+  }
+
+  code += `
+const router = express.Router({ mergeParams: true });
+const { route } = dbModelRouter;
+
+`;
+
+  // Mount child routes BEFORE own CRUD to prevent path clashing
+  for (const child of children) {
+    const childVar = safeVarName(child.child);
+    code += `router.use("/:${child.foreignKey}/${child.child}", ${childVar}Route);\n`;
+  }
+
+  code += `
+// CRUD routes for ${tableName}
+router.use("/", route(${varName}));
+
+export default router;
+`;
+  return code;
+}
+
+/**
  * Generate a child route file that scopes queries by parent FK.
- * e.g., posts/:post_id/comments — filters comments where post_id = :post_id
+ * e.g., routes/orders/items/index.js — filters items where order_id = :order_id
  */
 function generateChildRouteFile(
   childTable,
@@ -46,12 +92,16 @@ function generateChildRouteFile(
 ) {
   const varName = safeVarName(childTable);
   return `import dbModelRouter from "db-model-router";
-import ${varName} from "${modelsRelPath}/${childTable}.js";
+import express from "express";
+import { ${varName} } from "#models";
 
+const router = express.Router({ mergeParams: true });
 const { route } = dbModelRouter;
 
 // Child route: scoped by parent ${parentTable} via ${fkColumn}
-export default route(${varName}, { ${fkColumn}: "params.${fkColumn}" });
+router.use("/", route(${varName}, { ${fkColumn}: "params.${fkColumn}" }));
+
+export default router;
 `;
 }
 
@@ -67,7 +117,7 @@ export default route(${varName}, { ${fkColumn}: "params.${fkColumn}" });
  * @param {{ includeDocs?: boolean }} [options]
  */
 function generateRoutesIndexFile(tableNames, relationships = [], options = {}) {
-  let imports = `import express from "express";\n\nconst router = express.Router();\n\n`;
+  let imports = `import express from "express";\n\nconst router = express.Router({ mergeParams: true });\n\n`;
 
   // Collect child tables that are nested under parents
   const nestedChildren = new Set();
@@ -75,17 +125,11 @@ function generateRoutesIndexFile(tableNames, relationships = [], options = {}) {
     nestedChildren.add(rel.child);
   }
 
-  // Import top-level routes only (not children)
+  // Import top-level routes only (children are mounted inside parent folders)
   for (const table of tableNames) {
     if (nestedChildren.has(table)) continue;
     const varName = safeVarName(table);
-    imports += `import ${varName}Route from "./${table}.js";\n`;
-  }
-
-  // Import child routes from subfolders
-  for (const rel of relationships) {
-    const varName = safeVarName(rel.child);
-    imports += `import ${varName}ChildRoute from "./${rel.parent}/${rel.child}.js";\n`;
+    imports += `import ${varName}Route from "./${table}/index.js";\n`;
   }
 
   // Import docs route if openapi is generated
@@ -100,13 +144,7 @@ function generateRoutesIndexFile(tableNames, relationships = [], options = {}) {
     imports += `router.use("/docs", docsRoute);\n`;
   }
 
-  // Mount child routes BEFORE parent routes to prevent path clashing
-  for (const rel of relationships) {
-    const childVar = safeVarName(rel.child);
-    imports += `router.use("/${rel.parent}/:${rel.foreignKey}/${rel.child}", ${childVar}ChildRoute);\n`;
-  }
-
-  // Mount top-level routes
+  // Mount top-level routes (children are already mounted inside their parent's index.js)
   for (const table of tableNames) {
     if (nestedChildren.has(table)) continue;
     const varName = safeVarName(table);
@@ -606,6 +644,7 @@ if (require.main === module) {
 
 module.exports = {
   generateRouteFile,
+  generateParentRouteFile,
   generateChildRouteFile,
   generateRoutesIndexFile,
   generateTestFile,

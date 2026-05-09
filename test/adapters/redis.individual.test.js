@@ -5,7 +5,11 @@ const db = require("../../src/redis/db.js");
 const model = require("../../src/commons/model.js");
 
 const tablePrefix =
-  "test_" + crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+  "test_" +
+  new Date()
+    .toISOString()
+    .replace(/[-T:.Z]/g, "")
+    .slice(0, 14);
 const tableName = tablePrefix;
 const modelStructure = {
   id: "string",

@@ -7,6 +7,7 @@ const { schemaToModelMeta } = require("../../schema/schema-to-meta");
 const { generateModelFile } = require("../generate-model");
 const {
   generateRouteFile,
+  generateParentRouteFile,
   generateChildRouteFile,
   generateRoutesIndexFile,
   generateTestFile,
@@ -105,7 +106,6 @@ async function generate(args, flags, ctx) {
   const genMigrations = args.migrations !== false;
   const genSaas = args["saas-structure"] !== false;
 
-  const modelsRelPath = "../models";
   const baseDir = process.cwd();
 
   // Collect all planned files: { relPath, content }
@@ -123,31 +123,40 @@ async function generate(args, flags, ctx) {
 
   // --- Route files ---
   if (genRoutes) {
-    // Collect child tables to skip generating top-level route files for them
+    // Collect child tables and group by parent
     const nestedChildren = new Set();
+    const childrenByParent = {};
     for (const rel of relationships) {
       nestedChildren.add(rel.child);
+      if (!childrenByParent[rel.parent]) childrenByParent[rel.parent] = [];
+      childrenByParent[rel.parent].push(rel);
     }
 
-    // One route per top-level table (skip children)
+    // Generate route files for each table
     for (const m of meta) {
       if (nestedChildren.has(m.table)) continue;
-      planned.push({
-        relPath: `routes/${m.table}.js`,
-        content: generateRouteFile(m.table, modelsRelPath),
-      });
+
+      const children = childrenByParent[m.table] || [];
+      if (children.length > 0) {
+        // Parent with children: generates index.js that mounts child routes
+        planned.push({
+          relPath: `routes/${m.table}/index.js`,
+          content: generateParentRouteFile(m.table, children),
+        });
+      } else {
+        // Simple table: just CRUD
+        planned.push({
+          relPath: `routes/${m.table}/index.js`,
+          content: generateRouteFile(m.table),
+        });
+      }
     }
 
-    // Child route files in subfolders: routes/<parent>/<child>.js
+    // Child route files inside parent folders: routes/<parent>/<child>/index.js
     for (const rel of relationships) {
       planned.push({
-        relPath: `routes/${rel.parent}/${rel.child}.js`,
-        content: generateChildRouteFile(
-          rel.child,
-          rel.parent,
-          rel.foreignKey,
-          `../../models`,
-        ),
+        relPath: `routes/${rel.parent}/${rel.child}/index.js`,
+        content: generateChildRouteFile(rel.child, rel.parent, rel.foreignKey),
       });
     }
 

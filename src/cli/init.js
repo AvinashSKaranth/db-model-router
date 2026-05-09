@@ -254,6 +254,14 @@ function updatePackageJson(answers, outputDir) {
   const scripts = getScripts(outputDir);
 
   pkg.type = "module";
+  pkg.imports = {
+    "#root/*.js": "./*.js",
+    "#models": "./models/index.js",
+    "#models/*.js": "./models/*.js",
+    "#routes/*.js": "./routes/*.js",
+    "#commons/*.js": "./commons/*.js",
+    "#middleware/*.js": "./middleware/*.js",
+  };
   pkg.scripts = Object.assign({}, pkg.scripts || {}, scripts);
   pkg.dependencies = Object.assign({}, pkg.dependencies || {}, dependencies);
   pkg.devDependencies = Object.assign(

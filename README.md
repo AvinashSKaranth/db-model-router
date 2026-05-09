@@ -688,6 +688,102 @@ When using `GET /` (list endpoint), query parameters are automatically parsed in
 - `IN` and `NOT IN` values are comma-separated inside parentheses.
   Operators are detected in order of specificity: `!in(...)` → `in(...)` → `!%...%` → `%...%` → `>=` → `<=` → `>` → `<` → `!value` → `=` (default).
 
+## Kafka Event Production
+
+db-model-router has built-in Kafka support. When enabled, every write operation (insert, update, upsert, delete) automatically produces a Kafka event — one event per row affected.
+
+### Setup
+
+Install the Kafka driver:
+
+```bash
+npm install kafkajs
+```
+
+Set the `KAFKA_BROKER` environment variable in your `.env`:
+
+```env
+KAFKA_BROKER=localhost:9092
+KAFKA_CLIENT_ID=my-app
+KAFKA_TOPIC_PREFIX=dbmr
+```
+
+### Initialize
+
+```js
+const { init, db, kafka } = require("db-model-router");
+
+init("postgres");
+db.connect({ host: "localhost", database: "my_app" });
+
+// Connect Kafka producer (only if KAFKA_BROKER is set)
+await kafka.init();
+```
+
+Or with explicit options:
+
+```js
+await kafka.init({
+  broker: "localhost:9092",
+  clientId: "my-app",
+  topicPrefix: "dbmr",
+});
+```
+
+### API
+
+| Method                                  | Description                                  |
+| --------------------------------------- | -------------------------------------------- |
+| `kafka.init(opts)`                      | Connect producer. Returns `true` on success. |
+| `kafka.disconnect()`                    | Graceful shutdown.                           |
+| `kafka.produce(table, operation, data)` | Manually produce an event.                   |
+| `kafka.status()`                        | Returns `true` if connected.                 |
+
+### Event Format
+
+Each affected row produces its own event to topic `{prefix}.{table_name}`:
+
+```json
+{
+  "table_name": "users",
+  "operation_type": "insert",
+  "data": { "id": 1, "name": "Alice", "email": "alice@example.com" },
+  "timestamp": "2026-05-09T12:00:00.000Z"
+}
+```
+
+- `operation_type`: `"insert"`, `"update"`, `"upsert"`, or `"delete"`
+- `data`: The affected row as an object (not an array)
+- Bulk operations (e.g. inserting 100 rows) produce 100 individual events, batched efficiently
+
+### Behavior
+
+- If `KAFKA_BROKER` is not set, Kafka is completely disabled with zero overhead
+- Events are produced after successful DB operations only
+- Read operations (`find`, `list`, `byId`) never produce events
+- Large batches are automatically chunked (500 messages per send) to stay within Kafka's message size limits
+- Failed event production logs a warning but does not throw or affect the API response
+
+### Docker
+
+The included `docker-compose.yml` provides Zookeeper, Kafka, and Kafka UI:
+
+```bash
+docker compose up -d zookeeper kafka kafka-ui
+```
+
+| Service   | Port | Description                       |
+| --------- | ---- | --------------------------------- |
+| Zookeeper | 2181 | Kafka coordination                |
+| Kafka     | 9092 | Broker (host) / 29092 (internal)  |
+| Kafka UI  | 8090 | Web dashboard for topics/messages |
+
+### Testing
+
+```bash
+npm run test:kafka   # uses env/.env.kafka (SQLite3 + Kafka broker)
+```
+
 ## Switching Adapters
 
 To use a different database, call `init()` before `db.connect()`:

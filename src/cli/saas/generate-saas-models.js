@@ -141,9 +141,10 @@ export default ${varName};
  * Generate model files for all SaaS tables.
  *
  * @param {string} adapter - Database adapter name (accepted for API consistency, not used for model content)
+ * @param {string[]} [additionalTables] - Additional table names from dbmr schema to include in models/index.js
  * @returns {Array<{ relPath: string, content: string }>}
  */
-function generateSaasModels(adapter) {
+function generateSaasModels(adapter, additionalTables) {
   const results = [];
 
   for (const def of MODEL_DEFINITIONS) {
@@ -153,7 +154,54 @@ function generateSaasModels(adapter) {
     });
   }
 
+  // Generate models/index.js that re-exports all models (SaaS + dbmr) as named exports
+  results.push({
+    relPath: "models/index.js",
+    content: generateModelsIndex(additionalTables || []),
+  });
+
   return results;
+}
+
+/**
+ * Generate the models/index.js barrel file.
+ * Imports all SaaS models and any additional dbmr schema models,
+ * then re-exports them all as named exports.
+ *
+ * @param {string[]} additionalTables - Additional table names from dbmr schema
+ * @returns {string}
+ */
+function generateModelsIndex(additionalTables) {
+  const saasTableNames = MODEL_DEFINITIONS.map((def) => def.table);
+  // Filter out dbmr tables that overlap with SaaS tables
+  const dbmrTables = (additionalTables || []).filter(
+    (t) => !saasTableNames.includes(t),
+  );
+
+  let code = "";
+  // SaaS model imports
+  for (const def of MODEL_DEFINITIONS) {
+    code += `import ${def.table} from "./${def.table}.js";\n`;
+  }
+  // dbmr schema model imports
+  for (const table of dbmrTables) {
+    code += `import ${safeVarName(table)} from "./${table}.js";\n`;
+  }
+
+  code += "\nexport {\n";
+  for (const def of MODEL_DEFINITIONS) {
+    code += `  ${def.table},\n`;
+  }
+  for (const table of dbmrTables) {
+    code += `  ${safeVarName(table)},\n`;
+  }
+  code += "};\n";
+  return code;
+}
+
+function safeVarName(name) {
+  if (/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(name)) return name;
+  return name.replace(/[^a-zA-Z0-9_$]/g, "_");
 }
 
 module.exports = {

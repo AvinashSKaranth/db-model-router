@@ -481,6 +481,85 @@ When `logger=true`: adds `APP_NAME LOG_LEVEL LOKI_HOST`.
 
 ---
 
+## Kafka Event Production
+
+Built-in Kafka support. When `KAFKA_BROKER` env var is set, every write operation automatically produces a Kafka event per affected row.
+
+### Install & Configure
+
+```bash
+npm install kafkajs
+```
+
+```env
+KAFKA_BROKER=localhost:9092
+KAFKA_CLIENT_ID=my-app
+KAFKA_TOPIC_PREFIX=dbmr
+```
+
+### Initialize
+
+```js
+import dbModelRouter from "db-model-router";
+const { init, db, kafka } = dbModelRouter;
+
+init("postgres");
+db.connect({ host: "localhost", database: "my_app" });
+
+// Connect Kafka producer
+await kafka.init();
+// Or with explicit options:
+await kafka.init({
+  broker: "localhost:9092",
+  clientId: "my-app",
+  topicPrefix: "dbmr",
+});
+```
+
+### kafka API
+
+| Method                                  | Description                                  |
+| --------------------------------------- | -------------------------------------------- |
+| `kafka.init(opts?)`                     | Connect producer. Returns `true` on success. |
+| `kafka.disconnect()`                    | Graceful shutdown.                           |
+| `kafka.produce(table, operation, data)` | Manually produce event(s).                   |
+| `kafka.status()`                        | Returns `true` if connected.                 |
+
+### Event Format
+
+Topic: `{KAFKA_TOPIC_PREFIX}.{table_name}` (e.g. `dbmr.users`)
+
+```json
+{
+  "table_name": "users",
+  "operation_type": "insert",
+  "data": { "id": 1, "name": "Alice", "email": "alice@example.com" },
+  "timestamp": "2026-05-09T12:00:00.000Z"
+}
+```
+
+- `operation_type`: `"insert"` | `"update"` | `"upsert"` | `"delete"`
+- `data`: Single object (one event per affected row)
+- Bulk ops (e.g. 1000 inserts) → 1000 events, batched in chunks of 500
+
+### Rules
+
+- No `KAFKA_BROKER` → Kafka fully disabled, zero overhead
+- Events fire after successful DB write only
+- Read ops (`find`, `list`, `byId`, `findOne`) never produce events
+- Failed produce logs warning, does not throw or affect API response
+- `kafkajs` is an optional peer dependency — only required when `KAFKA_BROKER` is set
+
+### Environment Variables
+
+| Variable             | Default              | Description                 |
+| -------------------- | -------------------- | --------------------------- |
+| `KAFKA_BROKER`       | _(unset = disabled)_ | Comma-separated broker URLs |
+| `KAFKA_CLIENT_ID`    | `db-model-router`    | Kafka client identifier     |
+| `KAFKA_TOPIC_PREFIX` | `dbmr`               | Topic prefix                |
+
+---
+
 ## Rules
 
 1. `init()` before `db.connect()`. Don't destructure `db` before `init()` — it's a getter.
@@ -498,3 +577,4 @@ When `logger=true`: adds `APP_NAME LOG_LEVEL LOKI_HOST`.
 13. PK convention: `<table>_id` (e.g. `user_id`, `post_id`). Include ALL columns in schema.
 14. Use `parent` only for domain hierarchies (e.g. `posts → comments`), not system tables.
 15. When `--saas-structure` is active, do NOT define `users`, `tenants`, `roles`, or `role_permissions` in `dbmr.schema.json` — they are already generated with models, routes, middleware, and migrations. Only add your product-specific tables to the schema.
+16. Kafka is opt-in via `KAFKA_BROKER` env var. Call `kafka.init()` after `db.connect()`. Each write op produces one event per row to `{prefix}.{table}` topic.

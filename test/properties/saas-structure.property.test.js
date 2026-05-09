@@ -897,19 +897,19 @@ describe("Feature: saas-structure-generator, Property 10: Generated CRUD routes 
 
   // Expected module/action mappings per route file
   const expectedMappings = {
-    "routes/users.js": {
+    "routes/users/index.js": {
       module: "users",
       actions: ["read", "write", "update", "delete"],
     },
-    "routes/tenants.js": {
+    "routes/tenants/index.js": {
       module: "tenants",
       actions: ["read", "write", "update", "delete"],
     },
-    "routes/roles.js": {
+    "routes/roles/index.js": {
       module: "roles",
       actions: ["read", "write", "update", "delete"],
     },
-    "routes/roles/permissions.js": {
+    "routes/roles/permissions/index.js": {
       module: "permissions",
       actions: ["read", "write", "update", "delete"],
     },
@@ -928,22 +928,22 @@ describe("Feature: saas-structure-generator, Property 10: Generated CRUD routes 
 
         // Check authenticate middleware is imported
         assert.ok(
-          content.includes('from "../middleware/authenticate.js"') ||
-            content.includes('from "../../middleware/authenticate.js"'),
+          content.includes('middleware/authenticate.js"') ||
+            content.includes('#middleware/authenticate.js"'),
           `${routeFile.relPath} should import authenticate middleware`,
         );
 
         // Check tenantIsolation middleware is imported
         assert.ok(
-          content.includes('from "../middleware/tenantIsolation.js"') ||
-            content.includes('from "../../middleware/tenantIsolation.js"'),
+          content.includes('middleware/tenantIsolation.js"') ||
+            content.includes('#middleware/tenantIsolation.js"'),
           `${routeFile.relPath} should import tenantIsolation middleware`,
         );
 
         // Check hasPermission middleware is imported
         assert.ok(
-          content.includes('from "../middleware/hasPermission.js"') ||
-            content.includes('from "../../middleware/hasPermission.js"'),
+          content.includes('middleware/hasPermission.js"') ||
+            content.includes('#middleware/hasPermission.js"'),
           `${routeFile.relPath} should import hasPermission middleware`,
         );
 
@@ -979,7 +979,9 @@ describe("Feature: saas-structure-generator, Property 9: Global permission escal
   } = require("../../src/cli/saas/generate-saas-routes");
 
   const routeFiles = generateCrudRoutes();
-  const rolesRoute = routeFiles.find((f) => f.relPath === "routes/roles.js");
+  const rolesRoute = routeFiles.find(
+    (f) => f.relPath === "routes/roles/index.js",
+  );
 
   /**
    * **Validates: Requirements 17.1, 17.2, 17.3**
@@ -1188,7 +1190,7 @@ describe("Feature: saas-structure-generator, Property 1: Complete file generatio
    * For any valid adapter, the generator produces the complete set of expected
    * files (models, migrations, middleware, routes, seeds, utilities).
    */
-  it("produces at least 22 files with all expected paths and non-empty content for any adapter", function () {
+  it("produces at least 23 files with all expected paths and non-empty content for any adapter", function () {
     fc.assert(
       fc.property(
         fc.constantFrom(
@@ -1207,10 +1209,10 @@ describe("Feature: saas-structure-generator, Property 1: Complete file generatio
             timestamp: FIXED_TIMESTAMP,
           });
 
-          // 1. Total file count is at least 22 (1 migration + 6 models + 3 middleware + 6 routes + 2 seeds + 3 utils + 1 gitignore)
+          // 1. Total file count is at least 23 (1 migration + 7 models + 3 middleware + 6 routes + 2 seeds + 3 utils + 1 gitignore)
           assert.ok(
-            planned.length >= 22,
-            `Expected at least 22 files for adapter "${adapter}", got ${planned.length}`,
+            planned.length >= 23,
+            `Expected at least 23 files for adapter "${adapter}", got ${planned.length}`,
           );
 
           const paths = planned.map((f) => f.relPath);
@@ -1227,7 +1229,7 @@ describe("Feature: saas-structure-generator, Property 1: Complete file generatio
             `Expected 1 migration file for adapter "${adapter}", got ${migrationFiles.length}`,
           );
 
-          // 6 model files
+          // 7 model files (6 models + index.js barrel)
           const expectedModels = [
             "models/users.js",
             "models/tenants.js",
@@ -1235,6 +1237,7 @@ describe("Feature: saas-structure-generator, Property 1: Complete file generatio
             "models/role_permissions.js",
             "models/webhooks.js",
             "models/webhook_logs.js",
+            "models/index.js",
           ];
           for (const modelPath of expectedModels) {
             assert.ok(
@@ -1258,11 +1261,11 @@ describe("Feature: saas-structure-generator, Property 1: Complete file generatio
 
           // 6 route files
           const expectedRoutes = [
-            "routes/users.js",
-            "routes/tenants.js",
-            "routes/roles.js",
-            "routes/roles/permissions.js",
-            "routes/auth.js",
+            "routes/users/index.js",
+            "routes/tenants/index.js",
+            "routes/roles/index.js",
+            "routes/roles/permissions/index.js",
+            "routes/auth/index.js",
             "routes/index.js",
           ];
           for (const routePath of expectedRoutes) {
