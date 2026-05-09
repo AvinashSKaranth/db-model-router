@@ -1732,6 +1732,7 @@ import applySecurity from "${commonsPrefix}/security.js";
 import logger from "${middlewarePrefix}/logger.js";
 import route from "${routePrefix}/index.js";
 import { fileURLToPath } from 'node:url';
+import path from "path";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;

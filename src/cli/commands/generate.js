@@ -16,6 +16,24 @@ const { generateOpenAPISpec } = require("../generate-openapi");
 const { generateMigrationFiles } = require("../generate-migration");
 const { generateDocsRoute } = require("../generate-docs-route");
 const { migrationTimestamp } = require("../init/generators");
+const { generateSaasStructure } = require("../generate-saas-structure");
+const { generateSaasOpenAPIPaths } = require("../saas/generate-saas-openapi");
+
+/**
+ * Supported database adapters for the SaaS structure generator.
+ * @type {string[]}
+ */
+const SUPPORTED_ADAPTERS = [
+  "postgres",
+  "mysql",
+  "sqlite3",
+  "mssql",
+  "oracle",
+  "cockroachdb",
+  "mongodb",
+  "dynamodb",
+  "redis",
+];
 
 /**
  * Generate command handler for the unified CLI.
@@ -40,6 +58,7 @@ const { migrationTimestamp } = require("../init/generators");
  * @param {import('../flags').OutputContext} ctx - Output context
  */
 async function generate(args, flags, ctx) {
+  // --- Standard schema-based generation ---
   const schemaPath = path.resolve(args.from || "dbmr.schema.json");
 
   if (!fs.existsSync(schemaPath)) {
@@ -78,18 +97,13 @@ async function generate(args, flags, ctx) {
   const tableNames = meta.map((m) => m.table).sort();
 
   // Determine which artifact types to generate
-  const hasArtifactFlag =
-    args.models === true ||
-    args.routes === true ||
-    args.openapi === true ||
-    args.tests === true ||
-    args.migrations === true;
-
-  const genModels = !hasArtifactFlag || args.models === true;
-  const genRoutes = !hasArtifactFlag || args.routes === true;
-  const genOpenapi = !hasArtifactFlag || args.openapi === true;
-  const genTests = !hasArtifactFlag || args.tests === true;
-  const genMigrations = !hasArtifactFlag || args.migrations === true;
+  // All flags default to true — use --flag=false to disable
+  const genModels = args.models !== false;
+  const genRoutes = args.routes !== false;
+  const genOpenapi = args.openapi !== false;
+  const genTests = args.tests !== false;
+  const genMigrations = args.migrations !== false;
+  const genSaas = args["saas-structure"] !== false;
 
   const modelsRelPath = "../models";
   const baseDir = process.cwd();
@@ -148,11 +162,30 @@ async function generate(args, flags, ctx) {
 
   // --- OpenAPI spec + docs route ---
   if (genOpenapi) {
+    const spec = generateOpenAPISpec(meta, { relationships });
+
+    // Merge SaaS routes into the OpenAPI spec when saas-structure is active
+    // SaaS routes appear BEFORE product routes in the docs
+    if (genSaas) {
+      const saasApi = generateSaasOpenAPIPaths();
+
+      // Prepend SaaS paths before product paths
+      const productPaths = spec.paths;
+      spec.paths = { ...saasApi.paths, ...productPaths };
+
+      // Prepend SaaS schemas before product schemas
+      const productSchemas = spec.components.schemas;
+      spec.components.schemas = { ...saasApi.schemas, ...productSchemas };
+
+      if (!spec.components.securitySchemes) {
+        spec.components.securitySchemes = {};
+      }
+      Object.assign(spec.components.securitySchemes, saasApi.securitySchemes);
+    }
+
     planned.push({
       relPath: "openapi.json",
-      content:
-        JSON.stringify(generateOpenAPISpec(meta, { relationships }), null, 2) +
-        "\n",
+      content: JSON.stringify(spec, null, 2) + "\n",
     });
 
     // Generate Swagger UI docs route
@@ -206,6 +239,48 @@ async function generate(args, flags, ctx) {
     }
   }
 
+  // --- SaaS structure files (additive, on top of schema-based generation) ---
+  if (genSaas) {
+    // Determine adapter: from --adapter flag, or from the schema's adapter field
+    const adapter = args.adapter || schema.adapter;
+
+    if (!adapter || !SUPPORTED_ADAPTERS.includes(adapter)) {
+      const msg = adapter
+        ? `Invalid adapter: ${adapter}. Supported: ${SUPPORTED_ADAPTERS.join(", ")}`
+        : `Adapter is required for saas-structure generation. Provide --adapter or set adapter in schema.`;
+      if (flags.json) {
+        ctx.result({ error: true, code: "INVALID_ADAPTER", message: msg });
+      } else {
+        ctx.log(`Error: ${msg}`);
+      }
+      process.exitCode = 1;
+      return;
+    }
+
+    const saasFiles = generateSaasStructure(adapter, {
+      dryRun: flags.dryRun,
+      json: flags.json,
+      timestamp: new Date(),
+      tableNames,
+      relationships,
+      routeOptions: { includeDocs: genOpenapi },
+    });
+
+    // The SaaS generator produces a combined routes/index.js that includes
+    // both SaaS routes and dbmr schema-generated routes. Remove any
+    // previously-planned routes/index.js from the schema generator.
+    const existingIndexIdx = planned.findIndex(
+      (p) => p.relPath === "routes/index.js",
+    );
+    if (existingIndexIdx !== -1) {
+      planned.splice(existingIndexIdx, 1);
+    }
+
+    for (const entry of saasFiles) {
+      planned.push(entry);
+    }
+  }
+
   // --- Process planned files ---
   const results = [];
 
@@ -238,7 +313,6 @@ async function generate(args, flags, ctx) {
       ctx.log(`  created ${relPath}`);
     }
   }
-
   // --- Output ---
   if (flags.dryRun) {
     if (flags.json) {

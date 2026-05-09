@@ -33,7 +33,10 @@ MySQL/MariaDB use `mysql2` — no separate reference file needed (see Connection
 3. **Migrations**: Write SQL/JS files into `migrations/`, then `npm run migrate`
 4. **Generate models**: `db-model-router generate --from dbmr.schema.json --models`
 5. **Generate routes + tests**: `db-model-router generate --from dbmr.schema.json --routes --tests`
-6. **Run**: `npm run dev`
+6. **Generate SaaS structure** (if multi-tenant): `db-model-router generate --from dbmr.schema.json --saas-structure`
+7. **Run**: `npm run dev`
+
+> When using `--saas-structure`, skip defining `users`, `tenants`, `roles`, `role_permissions` in your schema — they're auto-generated with auth middleware, permission system, and tenant isolation.
 
 For existing databases, use `inspect` first:
 
@@ -267,10 +270,25 @@ db-model-router inspect --type postgres --env .env [--out schema.json] [--tables
 ### `generate` — Generate code from schema
 
 ```bash
-db-model-router generate --from dbmr.schema.json [--models] [--routes] [--openapi] [--tests] [--llm-docs]
+db-model-router generate --from dbmr.schema.json [--models=false] [--routes=false] [--openapi=false] [--tests=false] [--migrations=false] [--saas-structure=false]
 ```
 
-No flags = generate all.
+All artifact types are **enabled by default**. Use `--flag=false` to disable specific ones.
+
+#### `--saas-structure` (default: enabled)
+
+SaaS structure is always generated unless explicitly disabled with `--saas-structure=false`. It produces a complete multi-tenant SaaS backend on top of schema-generated code:
+
+- **Tables**: `tenants`, `users`, `roles`, `role_permissions`, `webhooks`, `webhook_logs`
+- **Middleware**: `authenticate.js`, `tenantIsolation.js`, `hasPermission.js`
+- **Routes**: CRUD for users/tenants/roles/permissions + auth (login/logout)
+- **Utilities**: `commons/password.js` (scrypt), `commons/modules.js`, `commons/webhook.js`
+- **Seeds**: Super Admin (all permissions, global scope) + Tenant Admin role template
+- **Migrations**: Single consolidated `.sql` file with all SaaS tables
+
+> **Critical**: Since `--saas-structure` is on by default, `users`, `tenants`, `roles`, and `role_permissions` are already generated. **Do NOT add these tables to `dbmr.schema.json`** — only define your product/domain tables (e.g., `products`, `orders`, `invoices`).
+
+The generated `routes/index.js` combines SaaS routes (`/api/auth`, `/api/users`, `/api/tenants`, `/api/roles`, `/api/roles/:role_id/permissions`) with schema-generated product routes. Swagger docs include all SaaS endpoints first, then product endpoints.
 
 ### `doctor` — Validate schema + check file sync
 
@@ -479,3 +497,4 @@ When `logger=true`: adds `APP_NAME LOG_LEVEL LOKI_HOST`.
 12. Docker passwords are randomly generated and shared between `.env` and `docker-compose.yml`.
 13. PK convention: `<table>_id` (e.g. `user_id`, `post_id`). Include ALL columns in schema.
 14. Use `parent` only for domain hierarchies (e.g. `posts → comments`), not system tables.
+15. When `--saas-structure` is active, do NOT define `users`, `tenants`, `roles`, or `role_permissions` in `dbmr.schema.json` — they are already generated with models, routes, middleware, and migrations. Only add your product-specific tables to the schema.

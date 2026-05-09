@@ -9,28 +9,6 @@
     "loki": false
   },
   "tables": {
-    "users": {
-      "columns": {
-        "user_id": "auto_increment",
-        "name": "required|string",
-        "email": "required|string",
-        "password_hash": "required|string",
-        "phone": "string",
-        "avatar_url": "string",
-        "role": "required|string",
-        "is_deleted": "boolean",
-        "created_at": "datetime",
-        "updated_at": "datetime"
-      },
-      "pk": "user_id",
-      "unique": ["email"],
-      "softDelete": "is_deleted",
-      "timestamps": {
-        "created_at": "created_at",
-        "modified_at": "updated_at"
-      },
-      "parent": null
-    },
     "addresses": {
       "columns": {
         "address_id": "auto_increment",
@@ -44,13 +22,13 @@
         "country": "required|string",
         "is_default": "boolean",
         "created_at": "datetime",
-        "updated_at": "datetime"
+        "modified_at": "datetime"
       },
       "pk": "address_id",
       "unique": ["address_id"],
       "timestamps": {
         "created_at": "created_at",
-        "modified_at": "updated_at"
+        "modified_at": "modified_at"
       },
       "parent": null
     },
@@ -65,13 +43,13 @@
         "sort_order": "integer",
         "is_active": "boolean",
         "created_at": "datetime",
-        "updated_at": "datetime"
+        "modified_at": "datetime"
       },
       "pk": "category_id",
       "unique": ["slug"],
       "timestamps": {
         "created_at": "created_at",
-        "modified_at": "updated_at"
+        "modified_at": "modified_at"
       },
       "parent": null
     },
@@ -97,14 +75,14 @@
         "is_deleted": "boolean",
         "meta": "object",
         "created_at": "datetime",
-        "updated_at": "datetime"
+        "modified_at": "datetime"
       },
       "pk": "product_id",
       "unique": ["sku", "slug"],
       "softDelete": "is_deleted",
       "timestamps": {
         "created_at": "created_at",
-        "modified_at": "updated_at"
+        "modified_at": "modified_at"
       },
       "parent": null
     },
@@ -136,13 +114,13 @@
         "attributes": "object",
         "is_active": "boolean",
         "created_at": "datetime",
-        "updated_at": "datetime"
+        "modified_at": "datetime"
       },
       "pk": "variant_id",
       "unique": ["sku"],
       "timestamps": {
         "created_at": "created_at",
-        "modified_at": "updated_at"
+        "modified_at": "modified_at"
       },
       "parent": "products"
     },
@@ -157,13 +135,13 @@
         "is_verified": "boolean",
         "is_approved": "boolean",
         "created_at": "datetime",
-        "updated_at": "datetime"
+        "modified_at": "datetime"
       },
       "pk": "review_id",
       "unique": ["review_id"],
       "timestamps": {
         "created_at": "created_at",
-        "modified_at": "updated_at"
+        "modified_at": "modified_at"
       },
       "parent": "products"
     },
@@ -174,13 +152,13 @@
         "session_id": "string",
         "currency": "required|string",
         "created_at": "datetime",
-        "updated_at": "datetime"
+        "modified_at": "datetime"
       },
       "pk": "cart_id",
       "unique": ["cart_id"],
       "timestamps": {
         "created_at": "created_at",
-        "modified_at": "updated_at"
+        "modified_at": "modified_at"
       },
       "parent": null
     },
@@ -193,13 +171,13 @@
         "quantity": "required|integer",
         "unit_price": "required|numeric",
         "created_at": "datetime",
-        "updated_at": "datetime"
+        "modified_at": "datetime"
       },
       "pk": "cart_item_id",
       "unique": ["cart_item_id"],
       "timestamps": {
         "created_at": "created_at",
-        "modified_at": "updated_at"
+        "modified_at": "modified_at"
       },
       "parent": "carts"
     },
@@ -219,13 +197,13 @@
         "billing_address_id": "integer",
         "notes": "string",
         "created_at": "datetime",
-        "updated_at": "datetime"
+        "modified_at": "datetime"
       },
       "pk": "order_id",
       "unique": ["order_number"],
       "timestamps": {
         "created_at": "created_at",
-        "modified_at": "updated_at"
+        "modified_at": "modified_at"
       },
       "parent": null
     },
@@ -261,13 +239,13 @@
         "status": "required|string",
         "paid_at": "datetime",
         "created_at": "datetime",
-        "updated_at": "datetime"
+        "modified_at": "datetime"
       },
       "pk": "payment_id",
       "unique": ["payment_id"],
       "timestamps": {
         "created_at": "created_at",
-        "modified_at": "updated_at"
+        "modified_at": "modified_at"
       },
       "parent": "orders"
     },
@@ -281,13 +259,13 @@
         "shipped_at": "datetime",
         "delivered_at": "datetime",
         "created_at": "datetime",
-        "updated_at": "datetime"
+        "modified_at": "datetime"
       },
       "pk": "shipment_id",
       "unique": ["shipment_id"],
       "timestamps": {
         "created_at": "created_at",
-        "modified_at": "updated_at"
+        "modified_at": "modified_at"
       },
       "parent": "orders"
     },
@@ -305,13 +283,13 @@
         "expires_at": "datetime",
         "is_active": "boolean",
         "created_at": "datetime",
-        "updated_at": "datetime"
+        "modified_at": "datetime"
       },
       "pk": "coupon_id",
       "unique": ["code"],
       "timestamps": {
         "created_at": "created_at",
-        "modified_at": "updated_at"
+        "modified_at": "modified_at"
       },
       "parent": null
     },

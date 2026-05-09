@@ -44,4 +44,4 @@ run("node ../src/cli/main.js generate --from dbmr.schema.json", DEMO);
 run("npm install", DEMO);
 
 console.log("\n✔ Demo project ready in ./demo");
-console.log("  cd demo && npm run dev\n");
+console.log("cd demo && npm run migrate && npm run dev\n");

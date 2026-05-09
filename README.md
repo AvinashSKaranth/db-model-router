@@ -373,21 +373,38 @@ db-model-router inspect --type mysql --json
 
 Generate models, routes, tests, OpenAPI spec, and LLM docs from a schema file. All generated code is ESM (`import`/`export`).
 
-| Flag / Arg      | Description                                                  |
-| --------------- | ------------------------------------------------------------ |
-| `--from <path>` | Path to schema file (default: `dbmr.schema.json`)            |
-| `--models`      | Generate only model files                                    |
-| `--routes`      | Generate only route files (including child routes and index) |
-| `--openapi`     | Generate only OpenAPI spec                                   |
-| `--tests`       | Generate only test files                                     |
-| `--llm-docs`    | Generate only LLM documentation (`llms.txt` + `docs/llm.md`) |
+| Flag / Arg               | Description                                       |
+| ------------------------ | ------------------------------------------------- |
+| `--from <path>`          | Path to schema file (default: `dbmr.schema.json`) |
+| `--models=false`         | Disable model file generation                     |
+| `--routes=false`         | Disable route file generation                     |
+| `--openapi=false`        | Disable OpenAPI spec generation                   |
+| `--tests=false`          | Disable test file generation                      |
+| `--migrations=false`     | Disable migration file generation                 |
+| `--saas-structure=false` | Disable SaaS multi-tenant generation              |
 
-When no artifact flags are provided, all artifact types are generated.
+All artifact types are **enabled by default**. Use `--flag=false` to disable specific ones.
+
+##### `--saas-structure` — SaaS Multi-Tenant Architecture (default: enabled)
+
+The SaaS structure is always generated unless explicitly disabled with `--saas-structure=false`. It scaffolds a complete multi-tenant SaaS backend on top of your schema-generated code:
+
+- **Tables**: `tenants`, `users`, `roles`, `role_permissions`, `webhooks`, `webhook_logs`
+- **Middleware**: `authenticate`, `tenantIsolation`, `hasPermission`
+- **Routes**: CRUD for users/tenants/roles/permissions + auth (login/logout)
+- **Utilities**: password hashing (crypto.scrypt), modules registry, webhook delivery with retry
+- **Seeds**: Super Admin user + Tenant Admin role template
+- **Migrations**: Single consolidated migration file for all SaaS tables
+
+> **Important**: Since `--saas-structure` is on by default, the tables `users`, `tenants`, `roles`, and `role_permissions` are already generated with their models, routes, and migrations. **Do not add these tables to your `dbmr.schema.json`** — they will be duplicated. Only define your product/domain-specific tables in the schema (e.g., `products`, `orders`, `invoices`).
+
+The generated `routes/index.js` automatically combines both SaaS routes (under `/api/auth`, `/api/users`, `/api/tenants`, `/api/roles`) and your schema-generated product routes. The OpenAPI/Swagger docs include all SaaS endpoints with security annotations.
 
 ```bash
 db-model-router generate --from dbmr.schema.json
-db-model-router generate --models --dry-run
-db-model-router generate --routes --tests
+db-model-router generate --tests=false --dry-run       # skip tests
+db-model-router generate --saas-structure=false        # skip SaaS generation
+db-model-router generate --openapi=false --tests=false # skip OpenAPI and tests
 db-model-router generate --from dbmr.schema.json --json
 ```
 
