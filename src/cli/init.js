@@ -7,7 +7,6 @@ const { execSync } = require("child_process");
 
 const {
   generateAppJs,
-  generateAppJsV2,
   generateEnvFile,
   generateEnvExample,
   generateLoggerMiddleware,
@@ -109,7 +108,7 @@ function generateFiles(answers, outputDir) {
 
   // Root-level files (always in cwd, not in outputDir)
   // app.js uses the v2 generator that links commons/route modules
-  if (safeWriteFile("app.js", generateAppJsV2(answers, outputDir || "")))
+  if (safeWriteFile("app.js", generateAppJs(answers, outputDir || "")))
     files.push("app.js");
   if (safeWriteFile(".env", generateEnvFile(answers, secrets)))
     files.push(".env");

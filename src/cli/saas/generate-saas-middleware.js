@@ -49,6 +49,8 @@ function generateTenantIsolationMiddleware() {
 function tenantIsolation(req, res, next) {
   const hasGlobal = req.session.permission.some((p) => p.scope === "global");
   if (!hasGlobal) {
+    if (!req.query) req.query = {};
+    if (!req.body) req.body = {};
     req.query.tenant_id = req.session.user.tenant_id;
     req.body.tenant_id = req.session.user.tenant_id;
   }

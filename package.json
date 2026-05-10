@@ -1,6 +1,6 @@
 {
   "name": "db-model-router",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Generative API Creation using mysql2 and express libraries in node js",
   "main": "src/index.js",
   "bin": {

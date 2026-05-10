@@ -172,6 +172,7 @@ function buildEnvContent(answers, mode, secrets) {
   lines.push("API_BASE_PATH=/api");
   lines.push("");
   lines.push("# Database");
+  lines.push(`DB_TYPE=${answers.database}`);
 
   const vars = DB_ENV_MAP[answers.database] || [];
   for (const v of vars) {
@@ -356,83 +357,6 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
 }));`;
-}
-
-/**
- * Generate the app.js file content.
- * @param {import('./types').InitAnswers} answers
- * @returns {string}
- */
-function generateAppJs(answers) {
-  const frameworkPkg =
-    answers.framework === "ultimate-express" ? "ultimate-express" : "express";
-
-  // Imports
-  let imports = `import express from "${frameworkPkg}";
-import { init, db } from "db-model-router";
-import session from "express-session";`;
-
-  if (answers.session === "redis") {
-    imports += `\nimport RedisStore from "connect-redis";
-import { Redis } from "ioredis";`;
-  }
-  if (answers.rateLimiting) {
-    imports += `\nimport rateLimit from "express-rate-limit";`;
-  }
-  if (answers.helmet) {
-    imports += `\nimport helmet from "helmet";`;
-  }
-  imports += `\nimport logger from "./middleware/logger.js";`;
-
-  // Rate limiting block
-  const rateLimitBlock = answers.rateLimiting
-    ? `app.use(rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-}));`
-    : "";
-
-  const helmetBlock = answers.helmet ? `app.use(helmet());` : "";
-
-  return `${imports}
-import "dotenv/config";
-
-// Initialize database adapter
-init("${answers.database}");
-${dbConnectBlock(answers.database)}
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-${helmetBlock ? helmetBlock + "\n" : ""}${rateLimitBlock ? rateLimitBlock + "\n" : ""}${sessionBlock(answers)}
-app.use(logger);
-
-// Routes
-import routes from "#routes/index.js";
-app.use(process.env.API_BASE_PATH || "/api", routes);
-
-// Health check
-app.get("/health", (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
-});
-
-// Error handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ type: "danger", message: "Internal Server Error" });
-});
-
-app.listen(PORT, () => {
-  console.log(\`Server running on port \${PORT}\`);
-});
-
-export default app;
-`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1720,7 +1644,7 @@ export default db;
  * @param {string} [outputDir] - relative output directory for source files (e.g. "backend")
  * @returns {string}
  */
-function generateAppJsV2(answers, outputDir) {
+function generateAppJs(answers, outputDir) {
   const frameworkPkg =
     answers.framework === "ultimate-express" ? "ultimate-express" : "express";
 
@@ -1735,7 +1659,7 @@ import "${commonsPrefix}/db.js";
 import configureSession from "${commonsPrefix}/session.js";
 import applySecurity from "${commonsPrefix}/security.js";
 import logger from "${middlewarePrefix}/logger.js";
-import route from "${routePrefix}/index.js";
+import routes from "${routePrefix}/index.js";
 import { fileURLToPath } from 'node:url';
 import path from "path";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1756,7 +1680,7 @@ app.use(configureSession());
 app.use(logger);
 
 // Routes
-app.use(route);
+app.use(process.env.API_BASE_PATH || "/api", routes);
 
 // Error handler
 app.use((err, req, res, next) => {
@@ -1777,7 +1701,6 @@ module.exports = {
   isSql,
   randomPassword,
   generateAppJs,
-  generateAppJsV2,
   generateEnvFile,
   generateEnvExample,
   generateLoggerMiddleware,

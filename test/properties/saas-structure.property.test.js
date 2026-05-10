@@ -1190,7 +1190,7 @@ describe("Feature: saas-structure-generator, Property 1: Complete file generatio
    * For any valid adapter, the generator produces the complete set of expected
    * files (models, migrations, middleware, routes, seeds, utilities).
    */
-  it("produces at least 23 files with all expected paths and non-empty content for any adapter", function () {
+  it("produces at least 28 files with all expected paths and non-empty content for any adapter", function () {
     fc.assert(
       fc.property(
         fc.constantFrom(
@@ -1209,10 +1209,10 @@ describe("Feature: saas-structure-generator, Property 1: Complete file generatio
             timestamp: FIXED_TIMESTAMP,
           });
 
-          // 1. Total file count is at least 23 (1 migration + 7 models + 3 middleware + 6 routes + 2 seeds + 3 utils + 1 gitignore)
+          // 1. Total file count is at least 28 (1 migration + 7 models + 3 middleware + 6 routes + 2 seeds + 3 utils + 5 tests + 1 gitignore)
           assert.ok(
-            planned.length >= 23,
-            `Expected at least 23 files for adapter "${adapter}", got ${planned.length}`,
+            planned.length >= 28,
+            `Expected at least 28 files for adapter "${adapter}", got ${planned.length}`,
           );
 
           const paths = planned.map((f) => f.relPath);

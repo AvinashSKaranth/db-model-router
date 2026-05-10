@@ -21,6 +21,7 @@ const {
   generateModulesUtil,
   generateWebhookUtil,
 } = require("./saas/generate-saas-utils");
+const { generateSaasTests } = require("./saas/generate-saas-tests");
 
 /**
  * Read the existing .gitignore file and append `credentials.md` if not already present.
@@ -113,7 +114,13 @@ function generateSaasStructure(adapter, options) {
     content: generateWebhookUtil(),
   });
 
-  // 7. .gitignore update (add credentials.md)
+  // 7. Tests
+  const tests = generateSaasTests();
+  for (const entry of tests) {
+    planned.push(entry);
+  }
+
+  // 8. .gitignore update (add credentials.md)
   planned.push({ relPath: ".gitignore", content: getGitignoreContent() });
 
   return planned;

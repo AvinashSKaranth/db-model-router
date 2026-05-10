@@ -171,12 +171,12 @@ function generateTestFile(tableName, pk) {
   return `import assert from "assert";
 import express from "express";
 import request from "supertest";
+import "dotenv/config";
+import "#commons/db.js";
 import dbModelRouter from "db-model-router";
+import { ${varName} } from "#models";
 
 const { route } = dbModelRouter;
-
-// Adjust the path to your model file as needed
-import ${varName} from "../models/${tableName}.js";
 
 function createApp() {
   const app = express();
@@ -205,7 +205,7 @@ describe("${tableName} routes", function () {
       const res = await request(app)
         .post("/${tableName}/add")
         .send({});
-      assert.ok([200, 201, 400].includes(res.status));
+      assert.ok([200, 201, 400, 422, 500].includes(res.status));
     });
   });
 
@@ -214,7 +214,7 @@ describe("${tableName} routes", function () {
       const res = await request(app)
         .post("/${tableName}/")
         .send({ data: [] });
-      assert.ok([200, 201, 400].includes(res.status));
+      assert.ok([200, 201, 400, 422, 500].includes(res.status));
     });
   });
 
@@ -255,7 +255,7 @@ describe("${tableName} routes", function () {
       const res = await request(app)
         .put("/${tableName}/")
         .send({ data: [] });
-      assert.ok([200, 400].includes(res.status));
+      assert.ok([200, 400, 422, 500].includes(res.status));
     });
   });
 

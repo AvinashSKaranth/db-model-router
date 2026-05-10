@@ -79,7 +79,7 @@ function getScripts(outputDir) {
   return {
     start: "node app.js",
     dev: "nodemon app.js",
-    test: 'echo "Error: no test specified" && exit 1',
+    test: "dotenv -- mocha --exit",
     migrate: `node ${prefix}commons/migrate.js`,
     add_migration: `node ${prefix}commons/add_migration.js`,
     "docker:build": "docker build -t app .",

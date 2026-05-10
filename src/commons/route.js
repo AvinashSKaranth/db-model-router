@@ -31,7 +31,7 @@ module.exports = function route(model, override = {}) {
     .Router({ mergeParams: true })
     .get("/:" + model.pk, (req, res) => {
       let payload = payloadOverride(
-        { ...req.query, ...req.params },
+        { ...(req.query || {}), ...(req.params || {}) },
         req,
         override,
       );
@@ -52,7 +52,7 @@ module.exports = function route(model, override = {}) {
         });
     })
     .post("/:id", (req, res) => {
-      let payload = payloadOverride(req.body, req, override);
+      let payload = payloadOverride(req.body || {}, req, override);
       delete payload[model.pk];
       model
         .insert(payload)
@@ -64,7 +64,7 @@ module.exports = function route(model, override = {}) {
         });
     })
     .put("/:id", (req, res) => {
-      let payload = payloadOverride(req.body, req, override);
+      let payload = payloadOverride(req.body || {}, req, override);
       payload[model.pk] = req.params.id;
       let validateAccessPayload = payloadOverride({}, req, override);
       validateAccessPayload[model.pk] = req.params.id;
@@ -89,7 +89,7 @@ module.exports = function route(model, override = {}) {
         });
     })
     .patch("/:id", (req, res) => {
-      let payload = payloadOverride(req.body, req, override);
+      let payload = payloadOverride(req.body || {}, req, override);
       payload[model.pk] = req.params.id;
       let validateAccessPayload = payloadOverride({}, req, override);
       validateAccessPayload[model.pk] = req.params.id;
@@ -114,7 +114,7 @@ module.exports = function route(model, override = {}) {
         });
     })
     .delete("/:id", (req, res) => {
-      let payload = payloadOverride(req.body, req, override);
+      let payload = payloadOverride(req.body || {}, req, override);
       payload[model.pk] = req.params.id;
       let validateAccessPayload = payloadOverride({}, req, override);
       validateAccessPayload[model.pk] = req.params.id;
@@ -140,7 +140,7 @@ module.exports = function route(model, override = {}) {
     })
     .get("/", (req, res) => {
       let payload = payloadOverride(
-        { ...req.query, ...req.params },
+        { ...(req.query || {}), ...(req.params || {}) },
         req,
         override,
       );
