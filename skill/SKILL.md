@@ -97,7 +97,7 @@ const users = model(
   {
     safeDelete: "is_deleted", // soft-delete column
     created_at: "created_at", // auto-managed timestamp
-    modified_at: "updated_at", // auto-managed timestamp
+    modified_at: "modified_at", // auto-managed timestamp
   },
 );
 
@@ -343,12 +343,15 @@ Requires a `.env` file with `DB_TYPE` and connection variables.
         "email": "required|string",
         "is_deleted": "boolean",
         "created_at": "datetime",
-        "updated_at": "datetime"
+        "modified_at": "datetime"
       },
       "pk": "user_id",
       "unique": ["email"],
       "softDelete": "is_deleted",
-      "timestamps": { "created_at": "created_at", "modified_at": "updated_at" },
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
       "parent": null
     },
     "posts": {
@@ -385,9 +388,49 @@ Requires a `.env` file with `DB_TYPE` and connection variables.
 
 ### Column Rules
 
-Format: `(required|)?(string|integer|numeric|boolean|object|datetime|auto_increment)`
+Format: `[required|]<type>[:<subtype>][|<validator>...]`
 
 Include ALL columns in schema (PK, timestamps, softDelete). The generator auto-excludes them from model `structure`.
+
+**Sub-types** (colon syntax) refine the SQL column type:
+
+| Base Type | Sub-Types                                                                 | Default         |
+| --------- | ------------------------------------------------------------------------- | --------------- |
+| `string`  | `text`, `mediumtext`, `longtext`, `char`, `char(N)`, `varchar(N)`, `uuid` | `varchar(255)`  |
+| `integer` | `tinyint`, `smallint`, `bigint`, `unsigned`, `bigint_unsigned`            | `int`           |
+| `numeric` | `float`, `double`, `decimal(P,S)`, `money`                                | `decimal(12,2)` |
+
+**Validators** (pipe-separated, node-input-validator compatible):
+
+| Validator          | Description                        | Example                      |
+| ------------------ | ---------------------------------- | ---------------------------- |
+| `email`            | Valid email format                 | `string\|email`              |
+| `phoneNumber`      | Valid phone number                 | `string\|phoneNumber`        |
+| `url`              | Valid URL                          | `string\|url`                |
+| `ip`               | Valid IP address                   | `string\|ip`                 |
+| `minLength:N`      | Min string length                  | `string\|minLength:3`        |
+| `maxLength:N`      | Max string length                  | `string\|maxLength:100`      |
+| `min:N`            | Min numeric value                  | `integer\|min:0`             |
+| `max:N`            | Max numeric value                  | `integer\|max:100`           |
+| `between:N1,N2`    | Numeric range                      | `integer\|between:1,5`       |
+| `regex:PATTERN`    | Regex pattern match                | `string\|regex:^[a-z0-9-]+$` |
+| `in:val1,val2,...` | Enum (must be one of)              | `string\|in:active,inactive` |
+| `alpha`            | Only letters                       | `string\|alpha`              |
+| `alphaNumeric`     | Only letters + numbers             | `string\|alphaNumeric`       |
+| `alphaDash`        | Letters, numbers, dash, underscore | `string\|alphaDash`          |
+
+**Full examples:**
+
+```
+"email": "required|string|email|maxLength:255"
+"description": "string:text|maxLength:5000"
+"price": "required|numeric:decimal(10,2)|min:0"
+"stock": "required|integer:unsigned|min:0"
+"role": "required|string|in:admin,user,moderator"
+"slug": "required|string|regex:^[a-z0-9-]+$|maxLength:300"
+```
+
+For the full specification, see `docs/dbmr-schema-spec.md`.
 
 ### Table Fields
 

@@ -147,14 +147,14 @@ Examples of tables that should stay top-level (not be parents of feature modules
         "age": "integer",
         "is_deleted": "boolean",
         "created_at": "datetime",
-        "updated_at": "datetime"
+        "modified_at": "datetime"
       },
       "pk": "user_id",
       "unique": ["email"],
       "softDelete": "is_deleted",
       "timestamps": {
         "created_at": "created_at",
-        "modified_at": "updated_at"
+        "modified_at": "modified_at"
       },
       "parent": null
     },
@@ -209,7 +209,7 @@ Note: `comments` has `user_id` as a foreign key column but `users` is NOT its pa
 
 #### Column Rules
 
-Format: `(required|)?(string|integer|numeric|boolean|object|datetime|auto_increment)`
+Format: `[required|]<type>[:<subtype>][|<validator>...]`
 
 | Type             | Description                                                        |
 | ---------------- | ------------------------------------------------------------------ |
@@ -221,7 +221,28 @@ Format: `(required|)?(string|integer|numeric|boolean|object|datetime|auto_increm
 | `boolean`        | Boolean columns (BOOLEAN, BIT)                                     |
 | `object`         | JSON columns (JSON, JSONB)                                         |
 
-Prefix with `required|` for NOT NULL constraint (e.g. `"required|string"`).
+Prefix with `required|` for NOT NULL constraint. Append `:subtype` for finer SQL type control. Append `|validator` for runtime validation rules.
+
+**Sub-type examples:**
+
+```
+"description": "string:text"                       # TEXT instead of VARCHAR(255)
+"body": "required|string:longtext"                 # LONGTEXT NOT NULL
+"stock": "required|integer:unsigned"               # INT UNSIGNED NOT NULL
+"price": "required|numeric:decimal(10,4)"          # DECIMAL(10,4) NOT NULL
+```
+
+**Validation examples:**
+
+```
+"email": "required|string|email|maxLength:255"     # email format + length check
+"phone": "string|phoneNumber"                      # phone number format
+"rating": "required|integer|min:1|max:5"           # range validation
+"slug": "required|string|regex:^[a-z0-9-]+$"      # pattern validation
+"role": "required|string|in:admin,user,moderator"  # enum validation
+```
+
+For the full column rule specification including all sub-types and validators, see [docs/dbmr-schema-spec.md](./docs/dbmr-schema-spec.md).
 
 ### Unified CLI: `db-model-router`
 

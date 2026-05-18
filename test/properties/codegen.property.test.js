@@ -249,6 +249,13 @@ describe("Feature: schema-driven-cli, Property 8: Code Generation Artifact Count
         const N = meta.length;
         const M = relationships.length;
 
+        // Count unique children (they don't get top-level route files)
+        const nestedChildren = new Set();
+        for (const rel of relationships) {
+          nestedChildren.add(rel.child);
+        }
+        const expectedRouteCount = N - nestedChildren.size + M;
+
         const modelFiles = [];
         const routeFiles = [];
         const testFiles = [];
@@ -258,7 +265,9 @@ describe("Feature: schema-driven-cli, Property 8: Code Generation Artifact Count
         for (const key of expected.keys()) {
           if (key.startsWith("models/")) modelFiles.push(key);
           else if (key === "routes/index.js") hasIndex = true;
-          else if (key.startsWith("routes/")) routeFiles.push(key);
+          else if (key === "routes/docs.js") {
+            /* docs route — not counted as a table route */
+          } else if (key.startsWith("routes/")) routeFiles.push(key);
           else if (key === "openapi.json") hasOpenapi = true;
           else if (key.startsWith("test/")) testFiles.push(key);
         }
@@ -270,15 +279,15 @@ describe("Feature: schema-driven-cli, Property 8: Code Generation Artifact Count
         );
         assert.strictEqual(
           routeFiles.length,
-          N + M,
-          `Expected ${N + M} route files (excl. index), got ${routeFiles.length}`,
+          expectedRouteCount,
+          `Expected ${expectedRouteCount} route files (excl. index and docs), got ${routeFiles.length}`,
         );
         assert.ok(hasIndex, "Expected routes/index.js to be present");
         assert.ok(hasOpenapi, "Expected openapi.json to be present");
         assert.strictEqual(
           testFiles.length,
-          N + M,
-          `Expected ${N + M} test files, got ${testFiles.length}`,
+          expectedRouteCount,
+          `Expected ${expectedRouteCount} test files, got ${testFiles.length}`,
         );
       }),
       { numRuns: 100 },

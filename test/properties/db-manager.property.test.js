@@ -861,6 +861,10 @@ describe("Feature: db-manager-app, Property 8: Export data integrity and format"
         const keys = rows.map((r) => r.id);
 
         const mockDb = {
+          get(table, filter) {
+            // Return the rows when called with the matching filter
+            return { data: rows, count: rows.length };
+          },
           list(table, filter, sort, extra, page, limit) {
             // Return the rows when called with the matching filter
             return { data: rows, count: rows.length };
@@ -976,6 +980,9 @@ describe("Feature: db-manager-app, Property 9: Export filename derivation", func
     await fc.assert(
       fc.asyncProperty(arbTableName, async (tableName) => {
         const mockDb = {
+          get(table, filter) {
+            return { data: [{ id: 1, name: "test" }], count: 1 };
+          },
           list(table, filter, sort, extra, page, limit) {
             return { data: [{ id: 1, name: "test" }], count: 1 };
           },

@@ -5,6 +5,7 @@ const path = require("path");
 const { generateModelFile } = require("./generate-model.js");
 const {
   generateRouteFile,
+  generateParentRouteFile,
   generateChildRouteFile,
   generateRoutesIndexFile,
   generateTestFile,
@@ -55,8 +56,11 @@ function buildExpectedFiles(meta, relationships) {
 
   // Collect child tables
   const nestedChildren = new Set();
+  const childrenByParent = {};
   for (const rel of relationships) {
     nestedChildren.add(rel.child);
+    if (!childrenByParent[rel.parent]) childrenByParent[rel.parent] = [];
+    childrenByParent[rel.parent].push(rel);
   }
 
   // Model files
@@ -67,10 +71,18 @@ function buildExpectedFiles(meta, relationships) {
   // Route files (top-level only, skip children)
   for (const m of meta) {
     if (nestedChildren.has(m.table)) continue;
-    expected.set(
-      `routes/${m.table}.js`,
-      generateRouteFile(m.table, modelsRelPath),
-    );
+    const children = childrenByParent[m.table] || [];
+    if (children.length > 0) {
+      expected.set(
+        `routes/${m.table}.js`,
+        generateParentRouteFile(m.table, children),
+      );
+    } else {
+      expected.set(
+        `routes/${m.table}.js`,
+        generateRouteFile(m.table, modelsRelPath),
+      );
+    }
   }
 
   // Child route files in subfolders: routes/<parent>/<child>.js
@@ -100,7 +112,7 @@ function buildExpectedFiles(meta, relationships) {
     if (nestedChildren.has(m.table)) continue;
     expected.set(
       `test/${m.table}.test.js`,
-      generateTestFile(m.table, m.primary_key),
+      generateTestFile(m.table, m.primary_key, m.structure),
     );
   }
 

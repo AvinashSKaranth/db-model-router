@@ -97,14 +97,35 @@ async function generate(args, flags, ctx) {
   const relationships = schema.relationships || [];
   const tableNames = meta.map((m) => m.table).sort();
 
-  // Determine which artifact types to generate
-  // All flags default to true — use --flag=false to disable
-  const genModels = args.models !== false;
-  const genRoutes = args.routes !== false;
-  const genOpenapi = args.openapi !== false;
-  const genTests = args.tests !== false;
-  const genMigrations = args.migrations !== false;
-  const genSaas = args["saas-structure"] !== false;
+  // Determine which artifact types to generate.
+  // If any specific artifact flag is explicitly set to true, only generate those.
+  // Otherwise, all artifact types are generated (unless explicitly set to false).
+  const hasExplicitTrue =
+    args.models === true ||
+    args.routes === true ||
+    args.openapi === true ||
+    args.tests === true ||
+    args.migrations === true;
+
+  let genModels, genRoutes, genOpenapi, genTests, genMigrations, genSaas;
+
+  if (hasExplicitTrue) {
+    // Selective mode: only generate what was explicitly requested
+    genModels = args.models === true;
+    genRoutes = args.routes === true;
+    genOpenapi = args.openapi === true;
+    genTests = args.tests === true;
+    genMigrations = args.migrations === true;
+    genSaas = args["saas-structure"] === true;
+  } else {
+    // Default mode: generate all unless explicitly disabled
+    genModels = args.models !== false;
+    genRoutes = args.routes !== false;
+    genOpenapi = args.openapi !== false;
+    genTests = args.tests !== false;
+    genMigrations = args.migrations !== false;
+    genSaas = args["saas-structure"] !== false;
+  }
 
   const baseDir = process.cwd();
 
@@ -132,30 +153,30 @@ async function generate(args, flags, ctx) {
       childrenByParent[rel.parent].push(rel);
     }
 
-    // Generate route files for each table
+    // Generate route files for each table (top-level only, skip children)
     for (const m of meta) {
       if (nestedChildren.has(m.table)) continue;
 
       const children = childrenByParent[m.table] || [];
       if (children.length > 0) {
-        // Parent with children: generates index.js that mounts child routes
+        // Parent with children: generates route that mounts child routes
         planned.push({
-          relPath: `routes/${m.table}/index.js`,
+          relPath: `routes/${m.table}.js`,
           content: generateParentRouteFile(m.table, children),
         });
       } else {
         // Simple table: just CRUD
         planned.push({
-          relPath: `routes/${m.table}/index.js`,
+          relPath: `routes/${m.table}.js`,
           content: generateRouteFile(m.table),
         });
       }
     }
 
-    // Child route files inside parent folders: routes/<parent>/<child>/index.js
+    // Child route files inside parent folders: routes/<parent>/<child>.js
     for (const rel of relationships) {
       planned.push({
-        relPath: `routes/${rel.parent}/${rel.child}/index.js`,
+        relPath: `routes/${rel.parent}/${rel.child}.js`,
         content: generateChildRouteFile(rel.child, rel.parent, rel.foreignKey),
       });
     }
@@ -228,7 +249,7 @@ async function generate(args, flags, ctx) {
       if (nestedChildrenForTests.has(m.table)) continue;
       planned.push({
         relPath: `test/${m.table}.test.js`,
-        content: generateTestFile(m.table, m.primary_key),
+        content: generateTestFile(m.table, m.primary_key, m.structure),
       });
     }
 
@@ -286,6 +307,15 @@ async function generate(args, flags, ctx) {
     }
 
     for (const entry of saasFiles) {
+      // Skip seed/credential files if they already exist on disk —
+      // they contain generated passwords that should not be overwritten.
+      if (
+        (entry.relPath === "seeds/saas-seed.js" ||
+          entry.relPath === "credentials.md") &&
+        fs.existsSync(path.join(baseDir, entry.relPath))
+      ) {
+        continue;
+      }
       planned.push(entry);
     }
   }

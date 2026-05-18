@@ -12,16 +12,82 @@
 // ---------------------------------------------------------------------------
 
 /**
- * Map a dbmr column rule to a SQL column type for the given adapter.
- *
- * @param {string} rule - e.g. "required|string", "auto_increment", "integer"
- * @param {string} adapter - e.g. "postgres", "mysql", "sqlite3"
- * @returns {{ sqlType: string, nullable: boolean, isAutoIncrement: boolean }}
+ * Known base types — anything not in this set is treated as a validator.
  */
-function mapColumnType(rule, adapter) {
+const BASE_TYPES = new Set([
+  "auto_increment",
+  "string",
+  "integer",
+  "numeric",
+  "boolean",
+  "datetime",
+  "object",
+]);
+
+/**
+ * Parse a dbmr column rule string into its components.
+ *
+ * Format: [required|]<type>[:<subtype>][|<validator>...]
+ *
+ * @param {string} rule - e.g. "required|string:text|minLength:10|maxLength:5000"
+ * @returns {{ isRequired: boolean, baseType: string, subType: string|null, validators: string[] }}
+ */
+function parseColumnRule(rule) {
   const parts = rule.split("|");
   const isRequired = parts.includes("required");
-  const baseType = parts.filter((p) => p !== "required")[0] || "string";
+
+  let baseType = "string";
+  let subType = null;
+  const validators = [];
+
+  for (const part of parts) {
+    if (part === "required") continue;
+
+    // Check if this part is a base type (possibly with :subtype)
+    const colonIdx = part.indexOf(":");
+    const token = colonIdx > -1 ? part.slice(0, colonIdx) : part;
+
+    if (!baseType || baseType === "string") {
+      if (BASE_TYPES.has(token)) {
+        baseType = token;
+        subType = colonIdx > -1 ? part.slice(colonIdx + 1) : null;
+        continue;
+      }
+    }
+
+    // If we already found the base type, or this isn't a known type, it's a validator
+    if (BASE_TYPES.has(token) && baseType === "string" && token !== "string") {
+      baseType = token;
+      subType = colonIdx > -1 ? part.slice(colonIdx + 1) : null;
+    } else if (BASE_TYPES.has(part)) {
+      // Bare base type without colon, and we haven't set one yet
+      if (baseType === "string" && part !== "string") {
+        baseType = part;
+      } else if (baseType === "string" && part === "string") {
+        // already default, skip
+      } else {
+        validators.push(part);
+      }
+    } else if (BASE_TYPES.has(token)) {
+      baseType = token;
+      subType = colonIdx > -1 ? part.slice(colonIdx + 1) : null;
+    } else {
+      validators.push(part);
+    }
+  }
+
+  return { isRequired, baseType, subType, validators };
+}
+
+/**
+ * Map a dbmr column rule to a SQL column type for the given adapter.
+ *
+ * @param {string} rule - e.g. "required|string:text|minLength:10", "auto_increment", "integer:bigint"
+ * @param {string} adapter - e.g. "postgres", "mysql", "sqlite3"
+ * @returns {{ sqlType: string, nullable: boolean, isAutoIncrement: boolean, validators: string[] }}
+ */
+function mapColumnType(rule, adapter) {
+  const { isRequired, baseType, subType, validators } = parseColumnRule(rule);
 
   let sqlType;
   let isAutoIncrement = false;
@@ -32,13 +98,13 @@ function mapColumnType(rule, adapter) {
       sqlType = autoIncrementType(adapter);
       break;
     case "string":
-      sqlType = stringType(adapter);
+      sqlType = stringType(adapter, subType);
       break;
     case "integer":
-      sqlType = integerType(adapter);
+      sqlType = integerType(adapter, subType);
       break;
     case "numeric":
-      sqlType = numericType(adapter);
+      sqlType = numericType(adapter, subType);
       break;
     case "boolean":
       sqlType = booleanType(adapter);
@@ -50,13 +116,14 @@ function mapColumnType(rule, adapter) {
       sqlType = jsonType(adapter);
       break;
     default:
-      sqlType = stringType(adapter);
+      sqlType = stringType(adapter, subType);
   }
 
   return {
     sqlType,
     nullable: !isRequired && !isAutoIncrement,
     isAutoIncrement,
+    validators,
   };
 }
 
@@ -77,20 +144,140 @@ function autoIncrementType(adapter) {
   }
 }
 
-function stringType(adapter) {
-  if (adapter === "oracle") return "VARCHAR2(255)";
-  return "VARCHAR(255)";
+function stringType(adapter, subType) {
+  if (!subType) {
+    if (adapter === "oracle") return "VARCHAR2(255)";
+    if (adapter === "mssql") return "NVARCHAR(255)";
+    return "VARCHAR(255)";
+  }
+
+  // varchar(N) or char(N) with explicit length
+  const varcharMatch = subType.match(/^varchar\((\d+)\)$/i);
+  if (varcharMatch) {
+    const n = varcharMatch[1];
+    if (adapter === "oracle") return `VARCHAR2(${n})`;
+    if (adapter === "mssql") return `NVARCHAR(${n})`;
+    return `VARCHAR(${n})`;
+  }
+
+  const charMatch = subType.match(/^char\((\d+)\)$/i);
+  if (charMatch) {
+    const n = charMatch[1];
+    if (adapter === "oracle") return `CHAR(${n})`;
+    if (adapter === "mssql") return `NCHAR(${n})`;
+    if (adapter === "sqlite3") return "TEXT";
+    return `CHAR(${n})`;
+  }
+
+  switch (subType.toLowerCase()) {
+    case "text":
+      if (adapter === "oracle") return "CLOB";
+      if (adapter === "mssql") return "NVARCHAR(MAX)";
+      return "TEXT";
+    case "mediumtext":
+      if (adapter === "mysql" || adapter === "mariadb") return "MEDIUMTEXT";
+      if (adapter === "oracle") return "CLOB";
+      if (adapter === "mssql") return "NVARCHAR(MAX)";
+      return "TEXT";
+    case "longtext":
+      if (adapter === "mysql" || adapter === "mariadb") return "LONGTEXT";
+      if (adapter === "oracle") return "CLOB";
+      if (adapter === "mssql") return "NVARCHAR(MAX)";
+      return "TEXT";
+    case "char":
+      if (adapter === "oracle") return "CHAR(255)";
+      if (adapter === "mssql") return "NCHAR(255)";
+      if (adapter === "sqlite3") return "TEXT";
+      return "CHAR(255)";
+    case "uuid":
+      if (adapter === "postgres" || adapter === "cockroachdb") return "UUID";
+      if (adapter === "mssql") return "UNIQUEIDENTIFIER";
+      if (adapter === "oracle") return "CHAR(36)";
+      return "CHAR(36)";
+    default:
+      if (adapter === "oracle") return "VARCHAR2(255)";
+      if (adapter === "mssql") return "NVARCHAR(255)";
+      return "VARCHAR(255)";
+  }
 }
 
-function integerType(adapter) {
-  if (adapter === "oracle") return "NUMBER(10)";
-  return "INTEGER";
+function integerType(adapter, subType) {
+  if (!subType) {
+    if (adapter === "oracle") return "NUMBER(10)";
+    return "INTEGER";
+  }
+
+  switch (subType.toLowerCase()) {
+    case "tinyint":
+      if (adapter === "oracle") return "NUMBER(3)";
+      if (adapter === "mssql") return "TINYINT";
+      if (adapter === "postgres" || adapter === "cockroachdb")
+        return "SMALLINT";
+      if (adapter === "sqlite3") return "INTEGER";
+      return "TINYINT";
+    case "smallint":
+      if (adapter === "oracle") return "NUMBER(5)";
+      if (adapter === "sqlite3") return "INTEGER";
+      return "SMALLINT";
+    case "bigint":
+      if (adapter === "oracle") return "NUMBER(19)";
+      if (adapter === "sqlite3") return "INTEGER";
+      return "BIGINT";
+    case "unsigned":
+      if (adapter === "mysql" || adapter === "mariadb") return "INT UNSIGNED";
+      if (adapter === "oracle") return "NUMBER(10)";
+      // PostgreSQL, SQLite, MSSQL don't support UNSIGNED — use plain INT
+      return "INTEGER";
+    case "bigint_unsigned":
+      if (adapter === "mysql" || adapter === "mariadb")
+        return "BIGINT UNSIGNED";
+      if (adapter === "oracle") return "NUMBER(19)";
+      if (adapter === "sqlite3") return "INTEGER";
+      return "BIGINT";
+    default:
+      if (adapter === "oracle") return "NUMBER(10)";
+      return "INTEGER";
+  }
 }
 
-function numericType(adapter) {
-  if (adapter === "oracle") return "NUMBER(12,2)";
-  if (adapter === "mssql") return "DECIMAL(12,2)";
-  return "DECIMAL(12,2)";
+function numericType(adapter, subType) {
+  if (!subType) {
+    if (adapter === "oracle") return "NUMBER(12,2)";
+    if (adapter === "mssql") return "DECIMAL(12,2)";
+    return "DECIMAL(12,2)";
+  }
+
+  // decimal(P,S) with explicit precision/scale
+  const decimalMatch = subType.match(/^decimal\((\d+),(\d+)\)$/i);
+  if (decimalMatch) {
+    const p = decimalMatch[1];
+    const s = decimalMatch[2];
+    if (adapter === "oracle") return `NUMBER(${p},${s})`;
+    return `DECIMAL(${p},${s})`;
+  }
+
+  switch (subType.toLowerCase()) {
+    case "float":
+      if (adapter === "oracle") return "FLOAT";
+      if (adapter === "postgres" || adapter === "cockroachdb") return "REAL";
+      if (adapter === "sqlite3") return "REAL";
+      return "FLOAT";
+    case "double":
+      if (adapter === "oracle") return "BINARY_DOUBLE";
+      if (adapter === "postgres" || adapter === "cockroachdb")
+        return "DOUBLE PRECISION";
+      if (adapter === "sqlite3") return "REAL";
+      if (adapter === "mssql") return "FLOAT";
+      return "DOUBLE";
+    case "money":
+      if (adapter === "postgres" || adapter === "cockroachdb") return "MONEY";
+      if (adapter === "mssql") return "MONEY";
+      if (adapter === "oracle") return "NUMBER(19,4)";
+      return "DECIMAL(19,4)";
+    default:
+      if (adapter === "oracle") return "NUMBER(12,2)";
+      return "DECIMAL(12,2)";
+  }
 }
 
 function booleanType(adapter) {
@@ -353,4 +540,5 @@ module.exports = {
   generateMigrationFiles,
   generateCreateTableSQL,
   mapColumnType,
+  parseColumnRule,
 };

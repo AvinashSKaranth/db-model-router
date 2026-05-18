@@ -370,18 +370,15 @@ function generateRoutesIndex(tableNames, relationships, options) {
   code += `import saasPermissionsRoute from "#routes/roles/permissions/index.js";\n\n`;
 
   // --- dbmr schema-generated route imports (folder-based, skip SaaS-owned tables) ---
+  // Child routes are mounted inside their parent's index.js, not here
   const dbmrTables = tableNames.filter(
     (t) => !saasRouteModules.has(t) && !nestedChildren.has(t),
   );
-  if (dbmrTables.length > 0 || relationships.length > 0) {
+  if (dbmrTables.length > 0) {
     code += `// Schema-generated routes\n`;
   }
   for (const table of dbmrTables) {
     code += `import ${safeVarName(table)}Route from "#routes/${table}/index.js";\n`;
-  }
-  for (const rel of relationships) {
-    if (saasRouteModules.has(rel.child)) continue;
-    code += `import ${safeVarName(rel.child)}ChildRoute from "#routes/${rel.parent}/${rel.child}/index.js";\n`;
   }
 
   if (options.includeDocs) {
@@ -403,14 +400,7 @@ function generateRoutesIndex(tableNames, relationships, options) {
     code += `router.use("/docs", docsRoute);\n`;
   }
 
-  // --- Mount dbmr child routes before parent routes ---
-  for (const rel of relationships) {
-    if (saasRouteModules.has(rel.child)) continue;
-    const childVar = safeVarName(rel.child);
-    code += `router.use("/${rel.parent}/:${rel.foreignKey}/${rel.child}", ${childVar}ChildRoute);\n`;
-  }
-
-  // --- Mount dbmr top-level routes ---
+  // --- Mount dbmr top-level routes (children are inside parent's index.js) ---
   if (dbmrTables.length > 0) {
     code += `\n// Schema-generated routes\n`;
   }

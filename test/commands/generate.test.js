@@ -32,23 +32,23 @@ function writeSchemaFile(dir, overrides) {
       adapter: "sqlite3",
       framework: "express",
       tables: {
-        users: {
-          columns: { name: "required|string", email: "required|string" },
+        products: {
+          columns: { name: "required|string", sku: "required|string" },
           pk: "id",
-          unique: ["email"],
+          unique: ["sku"],
         },
-        posts: {
+        reviews: {
           columns: {
             title: "required|string",
             body: "string",
-            user_id: "required|integer",
+            product_id: "required|integer",
           },
           pk: "id",
           unique: ["id"],
         },
       },
       relationships: [
-        { parent: "users", child: "posts", foreignKey: "user_id" },
+        { parent: "products", child: "reviews", foreignKey: "product_id" },
       ],
       options: {},
     },
@@ -108,23 +108,23 @@ describe("CLI Commands - generate (src/cli/commands/generate.js)", function () {
 
       const paths = result.files.map((f) => f.path);
 
-      // Model files: users.js, posts.js
+      // Model files: products.js, reviews.js
       assert.ok(
-        paths.includes("models/users.js"),
-        "Should generate users model",
+        paths.includes("models/products.js"),
+        "Should generate products model",
       );
       assert.ok(
-        paths.includes("models/posts.js"),
-        "Should generate posts model",
+        paths.includes("models/reviews.js"),
+        "Should generate reviews model",
       );
 
-      // Route files: users.js, child route in subfolder, index.js
+      // Route files: products.js, child route in subfolder, index.js
       assert.ok(
-        paths.includes("routes/users.js"),
-        "Should generate users route",
+        paths.includes("routes/products.js"),
+        "Should generate products route",
       );
       assert.ok(
-        paths.includes("routes/users/posts.js"),
+        paths.includes("routes/products/reviews.js"),
         "Should generate child route in subfolder",
       );
       assert.ok(
@@ -137,19 +137,19 @@ describe("CLI Commands - generate (src/cli/commands/generate.js)", function () {
 
       // Test files
       assert.ok(
-        paths.includes("test/users.test.js"),
-        "Should generate users test",
+        paths.includes("test/products.test.js"),
+        "Should generate products test",
       );
       assert.ok(
-        paths.includes("test/users/posts.test.js"),
+        paths.includes("test/products/reviews.test.js"),
         "Should generate child test in subfolder",
       );
 
       // Verify files actually exist on disk
-      assert.ok(fs.existsSync(path.join(tmpDir, "models/users.js")));
+      assert.ok(fs.existsSync(path.join(tmpDir, "models/products.js")));
       assert.ok(fs.existsSync(path.join(tmpDir, "routes/index.js")));
       assert.ok(fs.existsSync(path.join(tmpDir, "openapi.json")));
-      assert.ok(fs.existsSync(path.join(tmpDir, "test/users.test.js")));
+      assert.ok(fs.existsSync(path.join(tmpDir, "test/products.test.js")));
     });
   });
 
@@ -178,12 +178,12 @@ describe("CLI Commands - generate (src/cli/commands/generate.js)", function () {
 
       // Should have model files
       assert.ok(
-        paths.includes("models/users.js"),
-        "Should generate users model",
+        paths.includes("models/products.js"),
+        "Should generate products model",
       );
       assert.ok(
-        paths.includes("models/posts.js"),
-        "Should generate posts model",
+        paths.includes("models/reviews.js"),
+        "Should generate reviews model",
       );
 
       // Should NOT have route, test, or openapi files
@@ -221,11 +221,11 @@ describe("CLI Commands - generate (src/cli/commands/generate.js)", function () {
 
       // Should have route files
       assert.ok(
-        paths.includes("routes/users.js"),
-        "Should generate users route",
+        paths.includes("routes/products.js"),
+        "Should generate products route",
       );
       assert.ok(
-        paths.includes("routes/users/posts.js"),
+        paths.includes("routes/products/reviews.js"),
         "Should generate child route in subfolder",
       );
       assert.ok(

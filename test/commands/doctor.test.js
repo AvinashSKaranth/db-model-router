@@ -31,10 +31,10 @@ function validSchema(overrides) {
       adapter: "sqlite3",
       framework: "express",
       tables: {
-        users: {
-          columns: { name: "required|string", email: "required|string" },
+        products: {
+          columns: { name: "required|string", sku: "required|string" },
           pk: "id",
-          unique: ["email"],
+          unique: ["sku"],
         },
       },
       relationships: [],
@@ -71,13 +71,14 @@ function writePkg(dir, deps) {
 /**
  * Generate all files for a schema so they are in sync.
  * Uses the generate command to produce the expected files.
+ * Disables SaaS structure to avoid conflicts with diff-engine expectations.
  */
 async function generateSyncedFiles(dir, schemaPath) {
   delete require.cache[require.resolve("../../src/cli/commands/generate")];
   const generateCmd = require("../../src/cli/commands/generate");
   const ctx = new OutputContext({ json: true });
   await generateCmd(
-    { from: schemaPath },
+    { from: schemaPath, "saas-structure": false },
     { yes: false, json: true, dryRun: false, noInstall: false, help: false },
     ctx,
   );
@@ -294,7 +295,7 @@ describe("CLI Commands - doctor (src/cli/commands/doctor.js)", function () {
       await generateSyncedFiles(tmpDir, schemaPath);
 
       // Tamper with a generated file
-      const modelPath = path.join(tmpDir, "models", "users.js");
+      const modelPath = path.join(tmpDir, "models", "products.js");
       fs.writeFileSync(modelPath, "// tampered content\n", "utf8");
 
       const ctx = new OutputContext({ json: true });
@@ -318,9 +319,9 @@ describe("CLI Commands - doctor (src/cli/commands/doctor.js)", function () {
       );
 
       const modifiedFile = result.sync.outOfSync.find(
-        (s) => s.file === "models/users.js",
+        (s) => s.file === "models/products.js",
       );
-      assert.ok(modifiedFile, "users.js should be reported as out of sync");
+      assert.ok(modifiedFile, "products.js should be reported as out of sync");
       assert.strictEqual(modifiedFile.status, "modified");
       assert.strictEqual(process.exitCode, 1);
     });

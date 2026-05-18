@@ -62,6 +62,10 @@ function collectDependencies(answers) {
 
   // Dev dependencies
   devDependencies["nodemon"] = "latest";
+  devDependencies["mocha"] = "latest";
+  devDependencies["supertest"] = "latest";
+  devDependencies["dotenv-cli"] = "latest";
+  devDependencies["@faker-js/faker"] = "latest";
 
   // Swagger UI for API documentation
   dependencies["swagger-ui-express"] = "latest";

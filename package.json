@@ -1,6 +1,6 @@
 {
   "name": "db-model-router",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Generative API Creation using mysql2 and express libraries in node js",
   "main": "src/index.js",
   "bin": {
@@ -20,7 +20,8 @@
     "test:mssql": "dotenv -e env/.env.mssql -- mocha test/adapters/mssql.*.test.js --timeout 30000 --exit",
     "test:kafka": "dotenv -e env/.env.kafka -- mocha test/kafka.test.js test/kafka.integration.test.js --timeout 30000 --exit",
     "test:properties": "mocha test/properties/*.property.test.js --timeout 30000 --exit",
-    "test:all": "mocha test/adapters/*.test.js test/properties/*.property.test.js test/function.test.js --timeout 30000 --exit",
+    "test:all": "mocha test/adapters/*.test.js test/properties/*.property.test.js test/function.test.js test/commands/*.test.js --timeout 300000 --exit",
+    "test:command": "mocha test/commands/*.test.js --timeout 30000 --exit",
     "demo:clear": "node -e \"var fs=require('fs'),p=require('path'),d=p.join(__dirname,'demo');fs.existsSync(d)&&fs.rmSync(d,{recursive:true,force:true});fs.mkdirSync(d,{recursive:true})\"",
     "demo:create": "node scripts/demo-create.js"
   },
@@ -109,6 +110,7 @@
     }
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.4.0",
     "dotenv-cli": "^11.0.0",
     "express": "^4.21.0",
     "faker": "^5.5.3",

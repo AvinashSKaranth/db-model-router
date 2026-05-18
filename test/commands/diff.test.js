@@ -31,23 +31,23 @@ function validSchema(overrides) {
       adapter: "sqlite3",
       framework: "express",
       tables: {
-        users: {
-          columns: { name: "required|string", email: "required|string" },
+        products: {
+          columns: { name: "required|string", sku: "required|string" },
           pk: "id",
-          unique: ["email"],
+          unique: ["sku"],
         },
-        posts: {
+        reviews: {
           columns: {
             title: "required|string",
             body: "string",
-            user_id: "required|integer",
+            product_id: "required|integer",
           },
           pk: "id",
           unique: ["id"],
         },
       },
       relationships: [
-        { parent: "users", child: "posts", foreignKey: "user_id" },
+        { parent: "products", child: "reviews", foreignKey: "product_id" },
       ],
       options: {},
     },
@@ -66,13 +66,14 @@ function writeSchema(dir, schema) {
 
 /**
  * Generate all files for a schema so they are in sync.
+ * Disables SaaS structure to avoid conflicts with diff-engine expectations.
  */
 async function generateSyncedFiles(dir, schemaPath) {
   delete require.cache[require.resolve("../../src/cli/commands/generate")];
   const generateCmd = require("../../src/cli/commands/generate");
   const ctx = new OutputContext({ json: true });
   await generateCmd(
-    { from: schemaPath },
+    { from: schemaPath, "saas-structure": false },
     { yes: false, json: true, dryRun: false, noInstall: false, help: false },
     ctx,
   );
@@ -142,9 +143,9 @@ describe("CLI Commands - diff (src/cli/commands/diff.js)", function () {
 
       const result = ctx._results[0];
       assert.ok(result.added.length > 0, "Should have added files");
-      assert.ok(result.added.includes("models/users.js"));
-      assert.ok(result.added.includes("models/posts.js"));
-      assert.ok(result.added.includes("routes/users.js"));
+      assert.ok(result.added.includes("models/products.js"));
+      assert.ok(result.added.includes("models/reviews.js"));
+      assert.ok(result.added.includes("routes/products.js"));
       assert.ok(result.added.includes("routes/index.js"));
       assert.ok(result.added.includes("openapi.json"));
       assert.strictEqual(result.modified.length, 0);
@@ -159,7 +160,7 @@ describe("CLI Commands - diff (src/cli/commands/diff.js)", function () {
       await generateSyncedFiles(tmpDir, schemaPath);
 
       // Tamper with a file
-      const modelPath = path.join(tmpDir, "models", "users.js");
+      const modelPath = path.join(tmpDir, "models", "products.js");
       fs.writeFileSync(modelPath, "// tampered\n", "utf8");
 
       const ctx = new OutputContext({ json: true });
@@ -177,9 +178,9 @@ describe("CLI Commands - diff (src/cli/commands/diff.js)", function () {
 
       const result = ctx._results[0];
       const modEntry = result.modified.find(
-        (m) => m.file === "models/users.js",
+        (m) => m.file === "models/products.js",
       );
-      assert.ok(modEntry, "models/users.js should be in modified list");
+      assert.ok(modEntry, "models/products.js should be in modified list");
       assert.ok(modEntry.diff.length > 0, "diff should not be empty");
     });
 
@@ -313,7 +314,7 @@ describe("CLI Commands - diff (src/cli/commands/diff.js)", function () {
       await generateSyncedFiles(tmpDir, schemaPath);
 
       // Tamper with a file to create a diff scenario
-      const modelPath = path.join(tmpDir, "models", "users.js");
+      const modelPath = path.join(tmpDir, "models", "products.js");
       fs.writeFileSync(modelPath, "// tampered\n", "utf8");
 
       // Snapshot all files before diff

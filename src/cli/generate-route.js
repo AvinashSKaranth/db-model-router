@@ -40,7 +40,7 @@ export default router;
 
 /**
  * Generate a parent route file that includes its own CRUD and mounts child routes.
- * e.g., routes/orders/index.js mounts order_items under /:order_id/items
+ * e.g., routes/users.js mounts posts under /:user_id/posts
  *
  * @param {string} tableName - Parent table name
  * @param {Array<{child, foreignKey}>} children - Child relationships for this parent
@@ -56,7 +56,7 @@ import { ${varName} } from "#models";
   // Import child routes
   for (const child of children) {
     const childVar = safeVarName(child.child);
-    code += `import ${childVar}Route from "./${child.child}/index.js";\n`;
+    code += `import ${childVar}Route from "./${tableName}/${child.child}.js";\n`;
   }
 
   code += `
@@ -129,7 +129,7 @@ function generateRoutesIndexFile(tableNames, relationships = [], options = {}) {
   for (const table of tableNames) {
     if (nestedChildren.has(table)) continue;
     const varName = safeVarName(table);
-    imports += `import ${varName}Route from "./${table}/index.js";\n`;
+    imports += `import ${varName}Route from "./${table}.js";\n`;
   }
 
   // Import docs route if openapi is generated
@@ -166,15 +166,19 @@ function generateSimpleRoutesIndexFile(tableNames) {
  * Generate a test file for a route covering all CRUD methods.
  * Uses supertest + the app's express setup.
  */
-function generateTestFile(tableName, pk) {
+function generateTestFile(tableName, pk, structure) {
   const varName = safeVarName(tableName);
+  const fakerFields = generateFakerFields(structure || {});
+  const fakerImport = `import { faker } from "@faker-js/faker";`;
+
   return `import assert from "assert";
 import express from "express";
 import request from "supertest";
 import "dotenv/config";
-import "#commons/db.js";
+import "../commons/db.js";
 import dbModelRouter from "db-model-router";
-import { ${varName} } from "#models";
+import { ${varName} } from "../models/index.js";
+${fakerImport}
 
 const { route } = dbModelRouter;
 
@@ -185,90 +189,184 @@ function createApp() {
   return app;
 }
 
+${fakerFields.helperFn}
+
 describe("${tableName} routes", function () {
   let app;
+  let createdId;
 
   before(function () {
     app = createApp();
   });
 
-  describe("GET /${tableName}/", function () {
-    it("should list records", async function () {
+  describe("CRUD lifecycle", function () {
+    it("POST /${tableName}/add — should insert a record", async function () {
+      const data = generateFakeData();
+      const res = await request(app)
+        .post("/${tableName}/add")
+        .send(data);
+      assert.strictEqual(res.status, 200, \`Expected 200, got \${res.status}: \${JSON.stringify(res.body)}\`);
+      createdId = res.body.${pk} || res.body.id;
+      assert.ok(createdId, "Response should contain the created record ID");
+    });
+
+    it("GET /${tableName}/ — should list records including created one", async function () {
       const res = await request(app).get("/${tableName}/");
       assert.strictEqual(res.status, 200);
       assert.ok(Array.isArray(res.body.data));
+      assert.ok(res.body.data.length > 0, "Should have at least one record");
     });
-  });
 
-  describe("POST /${tableName}/add", function () {
-    it("should insert a single record", async function () {
+    it("GET /${tableName}/:${pk} — should get the created record", async function () {
+      const res = await request(app).get(\`/${tableName}/\${createdId}\`);
+      assert.strictEqual(res.status, 200, \`Expected 200, got \${res.status}\`);
+      assert.strictEqual(String(res.body.${pk} || res.body.id), String(createdId));
+    });
+
+    it("PUT /${tableName}/:${pk} — should update the record", async function () {
+      const data = { ...generateFakeData(), ${pk}: createdId };
       const res = await request(app)
-        .post("/${tableName}/add")
-        .send({});
-      assert.ok([200, 201, 400, 422, 500].includes(res.status));
+        .put(\`/${tableName}/\${createdId}\`)
+        .send(data);
+      assert.strictEqual(res.status, 200, \`Expected 200, got \${res.status}: \${JSON.stringify(res.body)}\`);
+    });
+
+    it("PATCH /${tableName}/:${pk} — should partially update the record", async function () {
+      const res = await request(app)
+        .patch(\`/${tableName}/\${createdId}\`)
+        .send(${fakerFields.patchPayload});
+      assert.strictEqual(res.status, 200, \`Expected 200, got \${res.status}: \${JSON.stringify(res.body)}\`);
+    });
+
+    it("DELETE /${tableName}/:${pk} — should delete the record", async function () {
+      const res = await request(app).delete(\`/${tableName}/\${createdId}\`);
+      assert.ok([200, 204].includes(res.status), \`Expected 200/204, got \${res.status}\`);
+    });
+
+    it("GET /${tableName}/:${pk} — should return 404 after deletion", async function () {
+      const res = await request(app).get(\`/${tableName}/\${createdId}\`);
+      assert.strictEqual(res.status, 404);
     });
   });
 
-  describe("POST /${tableName}/", function () {
-    it("should bulk insert records", async function () {
+  describe("Bulk operations", function () {
+    it("POST /${tableName}/ — should bulk insert records", async function () {
+      const data = [generateFakeData(), generateFakeData()];
       const res = await request(app)
         .post("/${tableName}/")
-        .send({ data: [] });
-      assert.ok([200, 201, 400, 422, 500].includes(res.status));
+        .send({ data });
+      assert.strictEqual(res.status, 200, \`Expected 200, got \${res.status}: \${JSON.stringify(res.body)}\`);
     });
   });
 
-  describe("GET /${tableName}/:${pk}", function () {
-    it("should get a record by ID", async function () {
-      const res = await request(app).get("/${tableName}/1");
-      assert.ok([200, 404].includes(res.status));
-    });
-  });
-
-  describe("PUT /${tableName}/:${pk}", function () {
-    it("should update a record", async function () {
-      const res = await request(app)
-        .put("/${tableName}/1")
-        .send({});
-      assert.ok([200, 400, 404].includes(res.status));
-    });
-  });
-
-  describe("PATCH /${tableName}/:${pk}", function () {
-    it("should partially update a record", async function () {
-      const res = await request(app)
-        .patch("/${tableName}/1")
-        .send({});
-      assert.ok([200, 400, 404].includes(res.status));
-    });
-  });
-
-  describe("DELETE /${tableName}/:${pk}", function () {
-    it("should delete a record", async function () {
-      const res = await request(app).delete("/${tableName}/1");
-      assert.ok([200, 204, 404].includes(res.status));
-    });
-  });
-
-  describe("PUT /${tableName}/", function () {
-    it("should bulk update records", async function () {
-      const res = await request(app)
-        .put("/${tableName}/")
-        .send({ data: [] });
-      assert.ok([200, 400, 422, 500].includes(res.status));
-    });
-  });
-
-  describe("DELETE /${tableName}/", function () {
-    it("should bulk delete records", async function () {
-      const res = await request(app)
-        .delete("/${tableName}/")
-        .send({});
-      assert.ok([200, 204, 400].includes(res.status));
+  describe("Error handling", function () {
+    it("GET /${tableName}/:${pk} — should return 404 for non-existent ID", async function () {
+      const res = await request(app).get("/${tableName}/999999");
+      assert.strictEqual(res.status, 404);
     });
   });
 });
 `;
+}
+
+/**
+ * Generate a faker helper function string and patch payload based on model structure.
+ *
+ * @param {object} structure - Model structure { colName: "rule" }
+ * @returns {{ helperFn: string, patchPayload: string }}
+ */
+function generateFakerFields(structure) {
+  const lines = [];
+  let firstStringCol = null;
+
+  for (const [col, rule] of Object.entries(structure)) {
+    const fakerCall = columnToFaker(col, rule);
+    lines.push(`    ${col}: ${fakerCall},`);
+    if (!firstStringCol && rule.includes("string")) {
+      firstStringCol = col;
+    }
+  }
+
+  const helperFn = `function generateFakeData() {
+  return {
+${lines.join("\n")}
+  };
+}`;
+
+  const patchPayload = firstStringCol
+    ? `{ ${firstStringCol}: faker.lorem.word() }`
+    : `{ ${Object.keys(structure)[0] || "name"}: faker.lorem.word() }`;
+
+  return { helperFn, patchPayload };
+}
+
+/**
+ * Map a column name + rule to an appropriate faker call.
+ */
+function columnToFaker(col, rule) {
+  const lowerCol = col.toLowerCase();
+
+  // Name-based heuristics first
+  if (lowerCol === "email") return "faker.internet.email()";
+  if (lowerCol === "phone") return "faker.phone.number()";
+  if (lowerCol === "name" || lowerCol.endsWith("_name"))
+    return "faker.person.fullName()";
+  if (lowerCol === "url" || lowerCol.endsWith("_url"))
+    return "faker.internet.url()";
+  if (lowerCol === "slug") return "faker.helpers.slugify(faker.lorem.words(2))";
+  if (lowerCol === "password" || lowerCol === "password_hash")
+    return "faker.internet.password()";
+  if (lowerCol === "secret" || lowerCol === "key" || lowerCol === "token")
+    return "faker.string.alphanumeric(32)";
+  if (lowerCol === "title") return "faker.lorem.sentence()";
+  if (
+    lowerCol === "description" ||
+    lowerCol === "body" ||
+    lowerCol === "content"
+  )
+    return "faker.lorem.paragraph()";
+  if (lowerCol === "status")
+    return "faker.helpers.arrayElement(['active', 'inactive', 'pending'])";
+  if (lowerCol === "event_type")
+    return "faker.helpers.arrayElement(['user.created', 'order.placed', 'payment.received'])";
+  if (lowerCol === "currency") return "faker.finance.currencyCode()";
+  if (
+    lowerCol.includes("amount") ||
+    lowerCol.includes("price") ||
+    lowerCol.includes("total") ||
+    lowerCol.includes("subtotal")
+  )
+    return "parseFloat(faker.finance.amount())";
+  if (lowerCol.includes("quantity") || lowerCol.includes("count"))
+    return "faker.number.int({ min: 1, max: 100 })";
+  if (lowerCol === "unique_attribute") return "faker.string.uuid()";
+  if (lowerCol === "attributes") return "{ custom: faker.lorem.word() }";
+  if (lowerCol === "permission")
+    return "{ module: 'users', action: 'read', scope: 'tenant' }";
+  if (lowerCol === "response_body") return "faker.lorem.sentence()";
+  if (lowerCol === "response_status_code")
+    return "faker.helpers.arrayElement([200, 201, 400, 500])";
+
+  // Type-based fallback
+  const parts = rule.split("|");
+  const baseType = parts.filter((p) => p !== "required")[0] || "string";
+
+  switch (baseType) {
+    case "integer":
+      if (lowerCol.endsWith("_id"))
+        return "faker.number.int({ min: 1, max: 100 })";
+      return "faker.number.int({ min: 1, max: 1000 })";
+    case "numeric":
+      return "parseFloat(faker.finance.amount())";
+    case "boolean":
+      return "faker.datatype.boolean()";
+    case "object":
+      return "{ key: faker.lorem.word() }";
+    case "datetime":
+      return "faker.date.recent().toISOString()";
+    default:
+      return "faker.lorem.word()";
+  }
 }
 
 /**
