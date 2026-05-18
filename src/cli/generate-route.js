@@ -40,7 +40,7 @@ export default router;
 
 /**
  * Generate a parent route file that includes its own CRUD and mounts child routes.
- * e.g., routes/users.js mounts posts under /:user_id/posts
+ * e.g., routes/orders/index.js mounts order_items under /:order_id/items
  *
  * @param {string} tableName - Parent table name
  * @param {Array<{child, foreignKey}>} children - Child relationships for this parent
@@ -56,7 +56,7 @@ import { ${varName} } from "#models";
   // Import child routes
   for (const child of children) {
     const childVar = safeVarName(child.child);
-    code += `import ${childVar}Route from "./${tableName}/${child.child}.js";\n`;
+    code += `import ${childVar}Route from "./${child.child}/index.js";\n`;
   }
 
   code += `
@@ -129,7 +129,7 @@ function generateRoutesIndexFile(tableNames, relationships = [], options = {}) {
   for (const table of tableNames) {
     if (nestedChildren.has(table)) continue;
     const varName = safeVarName(table);
-    imports += `import ${varName}Route from "./${table}.js";\n`;
+    imports += `import ${varName}Route from "./${table}/index.js";\n`;
   }
 
   // Import docs route if openapi is generated

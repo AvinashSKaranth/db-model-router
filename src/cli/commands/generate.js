@@ -153,30 +153,30 @@ async function generate(args, flags, ctx) {
       childrenByParent[rel.parent].push(rel);
     }
 
-    // Generate route files for each table (top-level only, skip children)
+    // Generate route files for each table
     for (const m of meta) {
       if (nestedChildren.has(m.table)) continue;
 
       const children = childrenByParent[m.table] || [];
       if (children.length > 0) {
-        // Parent with children: generates route that mounts child routes
+        // Parent with children: generates index.js that mounts child routes
         planned.push({
-          relPath: `routes/${m.table}.js`,
+          relPath: `routes/${m.table}/index.js`,
           content: generateParentRouteFile(m.table, children),
         });
       } else {
         // Simple table: just CRUD
         planned.push({
-          relPath: `routes/${m.table}.js`,
+          relPath: `routes/${m.table}/index.js`,
           content: generateRouteFile(m.table),
         });
       }
     }
 
-    // Child route files inside parent folders: routes/<parent>/<child>.js
+    // Child route files inside parent folders: routes/<parent>/<child>/index.js
     for (const rel of relationships) {
       planned.push({
-        relPath: `routes/${rel.parent}/${rel.child}.js`,
+        relPath: `routes/${rel.parent}/${rel.child}/index.js`,
         content: generateChildRouteFile(rel.child, rel.parent, rel.foreignKey),
       });
     }

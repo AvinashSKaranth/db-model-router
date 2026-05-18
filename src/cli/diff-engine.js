@@ -74,21 +74,21 @@ function buildExpectedFiles(meta, relationships) {
     const children = childrenByParent[m.table] || [];
     if (children.length > 0) {
       expected.set(
-        `routes/${m.table}.js`,
+        `routes/${m.table}/index.js`,
         generateParentRouteFile(m.table, children),
       );
     } else {
       expected.set(
-        `routes/${m.table}.js`,
+        `routes/${m.table}/index.js`,
         generateRouteFile(m.table, modelsRelPath),
       );
     }
   }
 
-  // Child route files in subfolders: routes/<parent>/<child>.js
+  // Child route files inside parent folders: routes/<parent>/<child>/index.js
   for (const rel of relationships) {
     expected.set(
-      `routes/${rel.parent}/${rel.child}.js`,
+      `routes/${rel.parent}/${rel.child}/index.js`,
       generateChildRouteFile(
         rel.child,
         rel.parent,

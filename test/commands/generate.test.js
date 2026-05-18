@@ -118,13 +118,13 @@ describe("CLI Commands - generate (src/cli/commands/generate.js)", function () {
         "Should generate reviews model",
       );
 
-      // Route files: products.js, child route in subfolder, index.js
+      // Route files: products/index.js, child route in subfolder, index.js
       assert.ok(
-        paths.includes("routes/products.js"),
+        paths.includes("routes/products/index.js"),
         "Should generate products route",
       );
       assert.ok(
-        paths.includes("routes/products/reviews.js"),
+        paths.includes("routes/products/reviews/index.js"),
         "Should generate child route in subfolder",
       );
       assert.ok(
@@ -221,11 +221,11 @@ describe("CLI Commands - generate (src/cli/commands/generate.js)", function () {
 
       // Should have route files
       assert.ok(
-        paths.includes("routes/products.js"),
+        paths.includes("routes/products/index.js"),
         "Should generate products route",
       );
       assert.ok(
-        paths.includes("routes/products/reviews.js"),
+        paths.includes("routes/products/reviews/index.js"),
         "Should generate child route in subfolder",
       );
       assert.ok(

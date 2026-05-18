@@ -145,7 +145,7 @@ describe("CLI Commands - diff (src/cli/commands/diff.js)", function () {
       assert.ok(result.added.length > 0, "Should have added files");
       assert.ok(result.added.includes("models/products.js"));
       assert.ok(result.added.includes("models/reviews.js"));
-      assert.ok(result.added.includes("routes/products.js"));
+      assert.ok(result.added.includes("routes/products/index.js"));
       assert.ok(result.added.includes("routes/index.js"));
       assert.ok(result.added.includes("openapi.json"));
       assert.strictEqual(result.modified.length, 0);
