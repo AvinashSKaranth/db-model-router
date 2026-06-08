@@ -74,6 +74,9 @@
         "is_featured": "boolean",
         "is_deleted": "boolean",
         "meta": "object",
+        "extra": "object",
+        "extra.title": "string",
+        "extra.description": "string",
         "created_at": "datetime",
         "modified_at": "datetime"
       },

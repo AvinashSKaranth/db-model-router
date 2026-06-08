@@ -146,6 +146,11 @@ describe("Schema Validator", function () {
         "required|numeric",
         "required|boolean",
         "required|object",
+        "string:text|minLength:10",
+        "required|string|email|maxLength:255",
+        "integer:unsigned|min:0",
+        "numeric:decimal(10,2)|min:0",
+        "object|json",
       ];
       for (const rule of validRules) {
         const schema = validSchema();

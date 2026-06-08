@@ -317,6 +317,10 @@ function generateCreateTableSQL(tableName, tableDef, adapter) {
   const pk = tableDef.pk;
 
   for (const [colName, rule] of Object.entries(tableDef.columns)) {
+    // Skip dot-notation keys — they are object sub-key validation rules,
+    // not standalone database columns. Only the parent object column is created.
+    if (colName.includes(".")) continue;
+
     const { sqlType, nullable, isAutoIncrement } = mapColumnType(rule, adapter);
     let line = `  ${quoteIdent(colName, adapter)} ${sqlType}`;
 

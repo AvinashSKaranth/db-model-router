@@ -430,7 +430,7 @@ Include ALL columns in schema (PK, timestamps, softDelete). The generator auto-e
 "slug": "required|string|regex:^[a-z0-9-]+$|maxLength:300"
 ```
 
-For the full specification, see `docs/dbmr-schema-spec.md`.
+For the full specification, see `references/dbmr-schema-spec.md`.
 
 ### Table Fields
 

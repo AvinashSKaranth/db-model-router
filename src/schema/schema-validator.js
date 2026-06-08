@@ -16,7 +16,7 @@ const VALID_ADAPTERS = new Set([
 const VALID_FRAMEWORKS = new Set(["express", "ultimate-express"]);
 
 const COLUMN_RULE_RE =
-  /^(required\|)?(string|integer|numeric|boolean|object|datetime|auto_increment)$/;
+  /^(required\|)?(string|integer|numeric|boolean|object|datetime|auto_increment)(:[^|]+)?(\|[^|]+)*$/;
 
 class SchemaValidationError extends Error {
   constructor(errors) {
