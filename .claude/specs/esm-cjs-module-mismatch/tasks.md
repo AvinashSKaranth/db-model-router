@@ -1,0 +1,123 @@
+# Implementation Plan
+
+- [x] 1. Write bug condition exploration test
+  - **Property 1: Bug Condition** - CJS Syntax in Five Generator Functions
+  - **CRITICAL**: This test MUST FAIL on unfixed code — failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **NOTE**: This test encodes the expected behavior — it will validate the fix when it passes after implementation
+  - **GOAL**: Surface counterexamples that demonstrate the five buggy generators produce CJS syntax
+  - **Scoped PBT Approach**: Use fast-check to generate random model metadata (table names, structures, primary keys, unique columns, options) and random init answers (database, framework, session, helmet, rateLimiting), then call each of the five functions and assert the output contains no `require(` or `module.exports`
+  - Create test file `test/properties/esm-cjs-bugfix.property.test.js` using Mocha + assert + fast-check (matching existing pattern in `test/properties/codegen.property.test.js`)
+  - **Arbitraries to define**:
+    - `arbModelMeta`: random `{ table, primary_key, unique, structure, option }` objects for `generateModelFile()`
+    - `arbModelArray`: array of 1–5 `arbModelMeta` for `generateIndexFile()`
+    - `arbInitAnswers`: random `{ database, framework, session, helmet, rateLimiting, logger }` for `generateAppJs()`, `generateMigrateScript()`, `generateAddMigrationScript()`
+  - **Test assertions** (from Expected Behavior in design):
+    - `generateModelFile(m)` output does NOT contain `require(` or `module.exports`, and DOES contain `import ` and `export default`
+    - `generateIndexFile(models)` output does NOT contain `require(` or `module.exports`, and DOES contain `import ` and `export `
+    - `generateAppJs(answers)` output does NOT contain `require(` or `module.exports`, and DOES contain `import ` and `export default`
+    - `generateMigrateScript(answers)` output does NOT contain `require(` or `module.exports`, and DOES contain `import ` (for both SQL and NoSQL paths)
+    - `generateAddMigrationScript(answers)` output does NOT contain `require(` or `module.exports`, and DOES contain `import ` (for both SQL and NoSQL paths; NoSQL template must also use `export async function` instead of `module.exports`)
+  - Run test on UNFIXED code: `npx mocha test/properties/esm-cjs-bugfix.property.test.js --timeout 30000 --exit`
+  - **EXPECTED OUTCOME**: Test FAILS (this is correct — it proves the bug exists in all five functions)
+  - Document counterexamples found (e.g., `generateModelFile({table:"users",...})` produces `const { db, model } = require("db-model-router")`)
+  - Mark task complete when test is written, run, and failure is documented
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6_
+
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
+  - **Property 2: Preservation** - Existing ESM Generators Unchanged
+  - **IMPORTANT**: Follow observation-first methodology
+  - **Observe behavior on UNFIXED code** for all already-correct ESM generators:
+    - Route generators in `src/cli/generate-route.js`: `generateRouteFile()`, `generateChildRouteFile()`, `generateRoutesIndexFile()`, `generateTestFile()`, `generateChildTestFile()`
+    - V2/ESM generators in `src/cli/init/generators.js`: `generateLoggerMiddleware()`, `generateDbModule()`, `generateAppJsV2()`, `generateMigrateModule()`, `generateAddMigrationModule()`, `generateSessionJs()`, `generateSecurityJs()`
+  - **Write property-based tests** in the same test file `test/properties/esm-cjs-bugfix.property.test.js`:
+    - For each ESM generator, generate random valid inputs using fast-check and assert:
+      - Output contains `import ` or `export ` (valid ESM syntax)
+      - Output does NOT contain `require(` or `module.exports` (no CJS contamination)
+    - For `generateModelFile()` semantic preservation: generate random model metadata and verify the output contains the table name, stringified structure JSON, primary key, and unique array regardless of module syntax
+    - For `generateIndexFile()` semantic preservation: generate random model arrays and verify every table name appears in both an import and an export statement
+  - **Arbitraries to reuse/extend**:
+    - `arbInitAnswers` for V2 generators (same as task 1)
+    - Route generator arbitraries: random table names, models-relative paths, relationships, primary keys
+  - Verify tests pass on UNFIXED code: `npx mocha test/properties/esm-cjs-bugfix.property.test.js --timeout 30000 --exit`
+  - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
+  - Mark task complete when tests are written, run, and passing on unfixed code
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14_
+
+- [x] 3. Fix ESM/CJS module mismatch in five generator functions
+  - [x] 3.1 Convert `generateModelFile()` to produce ESM output
+    - In `src/cli/generate-model.js`, update the `generateModelFile(m)` function:
+    - Replace `const { db, model } = require("db-model-router");` with `import { db, model } from "db-model-router";`
+    - Replace `module.exports = ${varName};` with `export default ${varName};`
+    - _Bug_Condition: isBugCondition(input) where functionName = "generateModelFile" AND output CONTAINS "require(" OR "module.exports"_
+    - _Expected_Behavior: output uses `import { db, model } from "db-model-router"` and `export default varName`_
+    - _Preservation: Model semantic content (table name, structure, primary key, unique, options) must remain identical_
+    - _Requirements: 2.1, 3.13_
+
+  - [x] 3.2 Convert `generateIndexFile()` to produce ESM output
+    - In `src/cli/generate-model.js`, update the `generateIndexFile(models)` function:
+    - Replace `const ${varName} = require("./${m.table}");` with `import ${varName} from "./${m.table}.js";`
+    - Replace `module.exports = { ... };` with `export { ... };` plus `export default { ... };`
+    - _Bug_Condition: isBugCondition(input) where functionName = "generateIndexFile" AND output CONTAINS "require(" OR "module.exports"_
+    - _Expected_Behavior: output uses `import varName from "./table.js"` and `export { ... }` with `export default { ... }`_
+    - _Preservation: All model files are imported and re-exported_
+    - _Requirements: 2.2, 3.14_
+
+  - [x] 3.3 Convert `generateAppJs()` to produce ESM output
+    - In `src/cli/init/generators.js`, update the `generateAppJs(answers)` function:
+    - Replace all `const X = require("Y")` with `import X from "Y"` (or named imports as appropriate)
+    - Replace `const { init, db } = require("db-model-router")` with `import { init, db } from "db-model-router";`
+    - Replace `require("dotenv").config()` with `import "dotenv/config";`
+    - Replace `const RedisStore = require("connect-redis").default` and `const { Redis } = require("ioredis")` with ESM imports
+    - Replace `const logger = require("./middleware/logger")` with `import logger from "./middleware/logger.js";`
+    - Replace `module.exports = app;` with `export default app;`
+    - _Bug_Condition: isBugCondition(input) where functionName = "generateAppJs" AND output CONTAINS "require(" OR "module.exports"_
+    - _Expected_Behavior: output uses ESM `import`/`export` statements throughout_
+    - _Preservation: All middleware setup (session, helmet, rate limiting, logger), db connection, health check, error handler must remain_
+    - _Requirements: 2.3_
+
+  - [x] 3.4 Convert `generateMigrateScript()` to produce ESM output
+    - In `src/cli/init/generators.js`, update the `generateMigrateScript(answers)` function for both SQL and NoSQL paths:
+    - Replace `const fs = require("fs")`, `const path = require("path")`, `const crypto = require("crypto")` with ESM imports
+    - Replace `require("dotenv").config()` with `import "dotenv/config";`
+    - Replace `const { init, db } = require("db-model-router")` with `import { init, db } from "db-model-router";`
+    - Add `import { fileURLToPath } from "url";` and compute `const __dirname = path.dirname(fileURLToPath(import.meta.url));`
+    - In NoSQL path: replace `const migration = require(filePath)` with `const migration = await import(filePath)`
+    - Remove `"use strict";` (not needed in ESM)
+    - _Bug_Condition: isBugCondition(input) where functionName = "generateMigrateScript" AND output CONTAINS "require(" OR "module.exports"_
+    - _Expected_Behavior: output uses ESM imports, `import.meta.url` for \_\_dirname, `await import()` for dynamic NoSQL migration loading_
+    - _Preservation: Migration tracking, checksum computation, SQL/NoSQL branching logic must remain identical_
+    - _Requirements: 2.4_
+
+  - [x] 3.5 Convert `generateAddMigrationScript()` to produce ESM output
+    - In `src/cli/init/generators.js`, update the `generateAddMigrationScript(answers)` function:
+    - Replace `const fs = require("fs")`, `const path = require("path")` with ESM imports
+    - Add `import { fileURLToPath } from "url";` and compute `const __dirname = path.dirname(fileURLToPath(import.meta.url));`
+    - Remove `"use strict";` (not needed in ESM)
+    - Update NoSQL template from `module.exports = { async up(db) { ... }, async down(db) { ... } }` to `export async function up(db) { ... }` / `export async function down(db) { ... }`
+    - _Bug_Condition: isBugCondition(input) where functionName = "generateAddMigrationScript" AND output CONTAINS "require(" OR "module.exports"_
+    - _Expected_Behavior: output uses ESM imports, `import.meta.url` for \_\_dirname, ESM template for NoSQL migrations_
+    - _Preservation: Timestamped filename generation, SQL/NoSQL extension selection, directory creation must remain identical_
+    - _Requirements: 2.5_
+
+  - [x] 3.6 Verify bug condition exploration test now passes
+    - **Property 1: Expected Behavior** - CJS Syntax in Five Generator Functions
+    - **IMPORTANT**: Re-run the SAME test from task 1 — do NOT write a new test
+    - The test from task 1 encodes the expected behavior (no CJS syntax, valid ESM syntax)
+    - When this test passes, it confirms the expected behavior is satisfied for all five functions
+    - Run: `npx mocha test/properties/esm-cjs-bugfix.property.test.js --timeout 30000 --exit`
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
+
+  - [x] 3.7 Verify preservation tests still pass
+    - **Property 2: Preservation** - Existing ESM Generators Unchanged
+    - **IMPORTANT**: Re-run the SAME tests from task 2 — do NOT write new tests
+    - Run: `npx mocha test/properties/esm-cjs-bugfix.property.test.js --timeout 30000 --exit`
+    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions in existing ESM generators)
+    - Confirm all tests still pass after fix (no regressions)
+
+- [x] 4. Checkpoint - Ensure all tests pass
+  - Run the full property test suite: `npx mocha test/properties/esm-cjs-bugfix.property.test.js --timeout 30000 --exit`
+  - Run existing codegen property tests to verify no regressions: `npx mocha test/properties/codegen.property.test.js --timeout 30000 --exit`
+  - Run existing CLI init tests: `npx mocha test/cli.init.test.js --timeout 30000 --exit`
+  - Ensure all tests pass, ask the user if questions arise.

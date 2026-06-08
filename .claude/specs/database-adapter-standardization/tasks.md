@@ -1,0 +1,348 @@
+# Implementation Plan: Database Adapter Standardization
+
+## Overview
+
+Standardize all eight stub adapters (SQLite3, MongoDB, DynamoDB, Redis, CockroachDB, MSSQL, PocketBase, Supabase) to match the MySQL/PostgreSQL/Oracle reference implementation pattern. Each adapter gets `db.js`, `model.js`, `route.js`, `function.js`, and `validator.js`. Shared utilities are re-exported per adapter. Tests cover individual, bulk, and route-based operations. Docker Compose provides all database services for integration testing.
+
+## Tasks
+
+- [x] 1. Create shared utility re-exports for all stub adapters
+  - [x] 1.1 Create `function.js` and `validator.js` re-exports for SQL adapters (SQLite3, CockroachDB, MSSQL)
+    - Create `src/sqlite3/function.js` re-exporting `../function.js`
+    - Create `src/sqlite3/validator.js` re-exporting `../validator.js`
+    - Create `src/cockroachdb/function.js` re-exporting `../function.js`
+    - Create `src/cockroachdb/validator.js` re-exporting `../validator.js`
+    - Create `src/mssql/function.js` re-exporting `../function.js`
+    - Create `src/mssql/validator.js` re-exporting `../validator.js`
+    - _Requirements: 15.1, 15.2_
+  - [x] 1.2 Create `function.js` and `validator.js` re-exports for NoSQL adapters (MongoDB, DynamoDB, Redis, PocketBase, Supabase)
+    - Create `src/mongodb/function.js` re-exporting `../function.js`
+    - Create `src/mongodb/validator.js` re-exporting `../validator.js`
+    - Create `src/dynamodb/function.js` re-exporting `../function.js`
+    - Create `src/dynamodb/validator.js` re-exporting `../validator.js`
+    - Create `src/redis/function.js` re-exporting `../function.js`
+    - Create `src/redis/validator.js` re-exporting `../validator.js`
+    - Create `src/pocketbase/function.js` re-exporting `../function.js`
+    - Create `src/pocketbase/validator.js` re-exporting `../validator.js`
+    - Create `src/supabase/function.js` re-exporting `../function.js`
+    - Create `src/supabase/validator.js` re-exporting `../validator.js`
+    - _Requirements: 15.3, 15.4_
+
+- [x] 2. Implement SQLite3 adapter
+  - [x] 2.1 Create `src/sqlite3/db.js` with SQLite3 database operations
+    - Use `better-sqlite3` library (synchronous API wrapped in async interface)
+    - Implement `connect`, `query`, `get`, `list`, `qcount`, `remove`, `upsert`, `insert`, `change`, `disconnect`/`close`
+    - Implement `where()` filter translation for SQLite3 (same operators as MySQL: `=`, `like`, `not like`, `in`, `not in`, `<`, `>`, `<=`, `>=`, `!=`)
+    - Implement `sort_builder()` for ORDER BY clauses
+    - Use `LIMIT`/`OFFSET` for pagination in `list()`
+    - Return `{ data, count }` from `get()` and `list()`
+    - Return `{ rows, message, type, id }` from `insert()` using `lastInsertRowid`
+    - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6_
+  - [x] 2.2 Create `src/sqlite3/model.js` with model layer
+    - Follow the same pattern as `src/model.js` (MySQL reference)
+    - Import from local `./validator` and `./function`
+    - Implement `insert`, `update`, `upsert`, `remove`, `byId`, `find`, `findOne`, `list` with validation
+    - Expose `pk`, `modelStructure`, `table` properties
+    - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10, 9.11, 9.12, 9.13_
+  - [x] 2.3 Create `src/sqlite3/route.js` with Express router factory
+    - Follow the same pattern as `src/route.js` (MySQL reference)
+    - Import `errorResponse` from local `./validator`
+    - Register GET /:pk, POST /:id, PUT /:id, DELETE /:id, GET /, POST /, PUT /, DELETE / endpoints
+    - Support payload override via `override` parameter
+    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 10.10_
+  - [x] 2.4 Update `src/sqlite3/index.js` to export `db`, `model`, `route`
+    - Replace stub with proper imports of `./db`, `./model`, `./route`
+    - _Requirements: 1.7, 1.8, 1.9_
+  - [x] 2.5 Write property test for SQLite3 filter translation
+    - **Property 1: Filter translation produces valid where clauses**
+    - **Validates: Requirements 1.2**
+
+- [x] 3. Implement MongoDB adapter
+  - [x] 3.1 Create `src/mongodb/db.js` with MongoDB database operations
+    - Use `mongodb` driver (MongoClient)
+    - Implement `connect`, `query`, `get`, `list`, `qcount`, `remove`, `upsert`, `insert`, `change`, `disconnect`/`close`
+    - Implement `where()` filter translation: Filter_Array → MongoDB query using `$and`, `$or`, `$in`, `$nin`, `$regex`, `$lt`, `$gt`, `$lte`, `$gte`, `$ne`
+    - Use `skip`/`limit` for pagination in `list()`
+    - Return `{ data, count }` from `get()` and `list()`
+    - Return `{ rows, message, type, id }` from `insert()` using `insertedId`
+    - Map duplicate key error `E11000` to `ER_DUP_ENTRY`
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
+  - [x] 3.2 Create `src/mongodb/model.js` with model layer
+    - Same pattern as MySQL model, import from local `./validator` and `./function`
+    - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10, 9.11, 9.12, 9.13_
+  - [x] 3.3 Create `src/mongodb/route.js` with Express router factory
+    - Same pattern as MySQL route
+    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 10.10_
+  - [x] 3.4 Update `src/mongodb/index.js` to export `db`, `model`, `route`
+    - _Requirements: 2.6_
+  - [x] 3.5 Write property test for MongoDB filter translation
+    - **Property 1: Filter translation produces valid where clauses**
+    - **Validates: Requirements 2.2**
+
+- [x] 4. Implement DynamoDB adapter
+  - [x] 4.1 Create `src/dynamodb/db.js` with DynamoDB database operations
+    - Use `@aws-sdk/client-dynamodb` and `@aws-sdk/lib-dynamodb`
+    - Implement `connect`, `get`, `list`, `qcount`, `remove`, `upsert`, `insert`, `change`, `disconnect`/`close`
+    - Implement `where()` filter translation: Filter_Array → DynamoDB FilterExpression + ExpressionAttributeValues
+    - Use Scan with Limit and ExclusiveStartKey for pagination
+    - Return `{ data, count }` from `get()` and `list()`
+    - Map `ConditionalCheckFailedException` and `ResourceNotFoundException` to standard error format
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+  - [x] 4.2 Create `src/dynamodb/model.js` with model layer
+    - Same pattern as MySQL model
+    - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10, 9.11, 9.12, 9.13_
+  - [x] 4.3 Create `src/dynamodb/route.js` with Express router factory
+    - Same pattern as MySQL route
+    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 10.10_
+  - [x] 4.4 Update `src/dynamodb/index.js` to export `db`, `model`, `route`
+    - _Requirements: 3.6_
+  - [x] 4.5 Write property test for DynamoDB filter translation
+    - **Property 1: Filter translation produces valid where clauses**
+    - **Validates: Requirements 3.2**
+
+- [x] 5. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 6. Implement Redis adapter
+  - [x] 6.1 Create `src/redis/db.js` with Redis database operations
+    - Use `ioredis` library
+    - Store records as Redis Hashes keyed by `{table}:{pk_value}`
+    - Implement `connect`, `get`, `list`, `qcount`, `remove`, `upsert`, `insert`, `change`, `disconnect`/`close`
+    - Implement `where()` filter translation: SCAN + HGETALL with in-memory filtering against Filter_Array operators
+    - Paginate by slicing the filtered result set in `list()`
+    - Return `{ data, count }` from `get()` and `list()`
+    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
+  - [x] 6.2 Create `src/redis/model.js` with model layer
+    - Same pattern as MySQL model
+    - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10, 9.11, 9.12, 9.13_
+  - [x] 6.3 Create `src/redis/route.js` with Express router factory
+    - Same pattern as MySQL route
+    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 10.10_
+  - [x] 6.4 Update `src/redis/index.js` to export `db`, `model`, `route`
+    - _Requirements: 4.6_
+
+- [x] 7. Implement CockroachDB adapter
+  - [x] 7.1 Create `src/cockroachdb/db.js` with CockroachDB database operations
+    - Use `pg` (node-postgres) library — CockroachDB is PG wire-compatible
+    - Delegate to PostgreSQL adapter patterns with config overrides (default port 26257)
+    - Implement `where()` with PostgreSQL-compatible WHERE clause generation
+    - Use `INSERT ... ON CONFLICT ... DO UPDATE SET` for upsert
+    - _Requirements: 5.1, 5.2, 5.3, 5.4_
+  - [x] 7.2 Create `src/cockroachdb/model.js` with model layer
+    - Same pattern as PostgreSQL model, import from local `./validator` and `./function`
+    - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10, 9.11, 9.12, 9.13_
+  - [x] 7.3 Create `src/cockroachdb/route.js` with Express router factory
+    - Same pattern as PostgreSQL route
+    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 10.10_
+  - [x] 7.4 Update `src/cockroachdb/index.js` to export `db`, `model`, `route`
+    - _Requirements: 5.5_
+
+- [x] 8. Implement MSSQL adapter
+  - [x] 8.1 Create `src/mssql/db.js` with MSSQL database operations
+    - Use `mssql` library (tedious-based)
+    - Implement `connect`, `query`, `get`, `list`, `qcount`, `remove`, `upsert`, `insert`, `change`, `disconnect`/`close`
+    - Implement `where()` filter translation for T-SQL
+    - Use `OFFSET ... ROWS FETCH NEXT ... ROWS ONLY` for pagination
+    - Use `MERGE INTO` for upsert operations
+    - Use `SCOPE_IDENTITY()` or `OUTPUT INSERTED` for returning inserted IDs
+    - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
+  - [x] 8.2 Create `src/mssql/model.js` with model layer
+    - Same pattern as MySQL model
+    - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10, 9.11, 9.12, 9.13_
+  - [x] 8.3 Create `src/mssql/route.js` with Express router factory
+    - Same pattern as MySQL route
+    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 10.10_
+  - [x] 8.4 Update `src/mssql/index.js` to export `db`, `model`, `route`
+    - _Requirements: 6.6_
+
+- [x] 9. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 10. Implement PocketBase adapter
+  - [x] 10.1 Create `src/pocketbase/db.js` with PocketBase database operations
+    - Use `pocketbase` SDK
+    - Implement `connect`, `get`, `list`, `qcount`, `remove`, `upsert`, `insert`, `change`, `disconnect`/`close`
+    - Implement `where()` filter translation: Filter_Array → PocketBase filter strings
+    - Use PocketBase SDK pagination parameters for `list()`
+    - Map HTTP errors from SDK to standard error format with `sqlMessage`
+    - _Requirements: 7.1, 7.2, 7.3, 7.4_
+  - [x] 10.2 Create `src/pocketbase/model.js` with model layer
+    - Same pattern as MySQL model
+    - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10, 9.11, 9.12, 9.13_
+  - [x] 10.3 Create `src/pocketbase/route.js` with Express router factory
+    - Same pattern as MySQL route
+    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 10.10_
+  - [x] 10.4 Update `src/pocketbase/index.js` to export `db`, `model`, `route`
+    - _Requirements: 7.5_
+
+- [x] 11. Implement Supabase adapter
+  - [x] 11.1 Create `src/supabase/db.js` with Supabase database operations
+    - Use `@supabase/supabase-js` client
+    - Implement `connect`, `get`, `list`, `qcount`, `remove`, `upsert`, `insert`, `change`, `disconnect`/`close`
+    - Implement `where()` filter translation: Filter_Array → Supabase query builder calls (`.eq()`, `.like()`, `.in()`, `.lt()`, `.gt()`, `.lte()`, `.gte()`, `.neq()`)
+    - Use `.range()` for pagination in `list()`
+    - Use `.upsert()` for upsert operations
+    - Map HTTP errors from SDK to standard error format
+    - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
+  - [x] 11.2 Create `src/supabase/model.js` with model layer
+    - Same pattern as MySQL model
+    - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10, 9.11, 9.12, 9.13_
+  - [x] 11.3 Create `src/supabase/route.js` with Express router factory
+    - Same pattern as MySQL route
+    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 10.10_
+  - [x] 11.4 Update `src/supabase/index.js` to export `db`, `model`, `route`
+    - _Requirements: 8.6_
+
+- [x] 12. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 13. Create Docker Compose for integration testing
+  - [x] 13.1 Create `docker-compose.yml` with all database services
+    - MySQL 8 on port 3306
+    - PostgreSQL 16 on port 5432
+    - MongoDB 7 on port 27017
+    - Redis 7 on port 6379
+    - CockroachDB (cockroachdb/cockroach:latest) on port 26257
+    - MSSQL (mcr.microsoft.com/mssql/server) on port 1433
+    - DynamoDB Local (amazon/dynamodb-local) on port 8000
+    - Configure default credentials matching test environment variables
+    - Add health checks for each service
+    - Define a shared network for all services
+    - Use `restart: unless-stopped` so services start independently
+    - _Requirements: 14.1, 14.2, 14.3, 14.4, 14.5, 14.6_
+
+- [x] 14. Create test suites for individual operations
+  - [x] 14.1 Create `test/adapters/sqlite3.individual.test.js`
+    - Test single insert, get by ID, get by conditions, update, remove by ID, remove by filter
+    - Verify returned record has valid PK and correct fields
+    - Verify byId returns correct record, findOne returns record or false
+    - Create/drop test table with random UUID in before/after hooks
+    - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7_
+  - [x] 14.2 Create `test/adapters/mongodb.individual.test.js`
+    - Same test pattern as SQLite3 individual tests, adapted for MongoDB
+    - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7_
+  - [x] 14.3 Create `test/adapters/dynamodb.individual.test.js`
+    - Same test pattern, adapted for DynamoDB
+    - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7_
+  - [x] 14.4 Create `test/adapters/redis.individual.test.js`
+    - Same test pattern, adapted for Redis
+    - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7_
+  - [x] 14.5 Create `test/adapters/cockroachdb.individual.test.js`
+    - Same test pattern, adapted for CockroachDB
+    - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7_
+  - [x] 14.6 Create `test/adapters/mssql.individual.test.js`
+    - Same test pattern, adapted for MSSQL
+    - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7_
+  - [x] 14.7 Create `test/adapters/pocketbase.individual.test.js`
+    - Same test pattern, adapted for PocketBase
+    - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7_
+  - [x] 14.8 Create `test/adapters/supabase.individual.test.js`
+    - Same test pattern, adapted for Supabase
+    - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7_
+
+- [x] 15. Create test suites for bulk operations
+  - [x] 15.1 Create `test/adapters/sqlite3.bulk.test.js`
+    - Test bulk insert (verify rows count matches input length), bulk update, bulk remove
+    - Test list pagination (page 0 returns default 30, verify count)
+    - Test list with search filters, invalid data, invalid filter objects
+    - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5_
+  - [x] 15.2 Create `test/adapters/mongodb.bulk.test.js`
+    - Same bulk test pattern for MongoDB
+    - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5_
+  - [x] 15.3 Create `test/adapters/dynamodb.bulk.test.js`
+    - Same bulk test pattern for DynamoDB
+    - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5_
+  - [x] 15.4 Create `test/adapters/redis.bulk.test.js`
+    - Same bulk test pattern for Redis
+    - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5_
+  - [x] 15.5 Create `test/adapters/cockroachdb.bulk.test.js`
+    - Same bulk test pattern for CockroachDB
+    - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5_
+  - [x] 15.6 Create `test/adapters/mssql.bulk.test.js`
+    - Same bulk test pattern for MSSQL
+    - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5_
+  - [x] 15.7 Create `test/adapters/pocketbase.bulk.test.js`
+    - Same bulk test pattern for PocketBase
+    - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5_
+  - [x] 15.8 Create `test/adapters/supabase.bulk.test.js`
+    - Same bulk test pattern for Supabase
+    - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5_
+
+- [x] 16. Checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 17. Create test suites for router-based REST APIs
+  - [x] 17.1 Create `test/adapters/sqlite3.route.test.js`
+    - Use supertest to exercise POST /:id (insert), GET /:pk (find), PUT /:pk (update), DELETE /:pk (remove)
+    - Test GET / (list), POST / (bulk insert), PUT / (bulk update), DELETE / (bulk remove)
+    - Verify 200 responses with correct data and 404 for non-existing records
+    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7_
+  - [x] 17.2 Create `test/adapters/mongodb.route.test.js`
+    - Same route test pattern for MongoDB
+    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7_
+  - [x] 17.3 Create `test/adapters/dynamodb.route.test.js`
+    - Same route test pattern for DynamoDB
+    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7_
+  - [x] 17.4 Create `test/adapters/redis.route.test.js`
+    - Same route test pattern for Redis
+    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7_
+  - [x] 17.5 Create `test/adapters/cockroachdb.route.test.js`
+    - Same route test pattern for CockroachDB
+    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7_
+  - [x] 17.6 Create `test/adapters/mssql.route.test.js`
+    - Same route test pattern for MSSQL
+    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7_
+  - [x] 17.7 Create `test/adapters/pocketbase.route.test.js`
+    - Same route test pattern for PocketBase
+    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7_
+  - [x] 17.8 Create `test/adapters/supabase.route.test.js`
+    - Same route test pattern for Supabase
+    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7_
+
+- [x] 18. Create property-based test suites
+  - [x] 18.1 Write property test for filter translation across all adapters
+    - **Property 1: Filter translation produces valid where clauses across all adapters**
+    - Create `test/properties/filter.property.test.js`
+    - Use `fast-check` to generate random Filter_Arrays with supported operators
+    - Pass through each adapter's `where()` function, verify output has `query` string and `value` array with matching bind parameter count
+    - Minimum 100 iterations
+    - **Validates: Requirements 1.2, 2.2, 3.2, 4.3, 5.2, 6.2, 7.2, 8.2**
+  - [x] 18.2 Write property tests for get/list response shape invariants
+    - **Property 2: Get and find always return data array and count number**
+    - **Property 3: List pagination respects page and limit bounds**
+    - Create `test/properties/response-shape.property.test.js`
+    - Use `fast-check` to generate random filters and page/limit values
+    - Verify `data` is always an array, `count` is always a non-negative number, `data.length <= limit`
+    - **Validates: Requirements 1.3, 1.4, 2.3, 2.4, 3.3, 3.4, 4.4, 4.5, 6.3, 7.3, 7.4, 8.3, 8.4, 9.10, 9.12**
+  - [x] 18.3 Write property tests for model CRUD round-trips
+    - **Property 4: Single insert returns a valid id**
+    - **Property 5: Bulk insert rows count matches input length**
+    - **Property 6: Model insert round-trip preserves data**
+    - **Property 7: Model update round-trip preserves changes**
+    - **Property 8: Model remove then byId returns null**
+    - **Property 9: FindOne returns record or false**
+    - Create `test/properties/model-roundtrip.property.test.js`
+    - Use `fast-check` to generate random model-conforming records
+    - Exercise insert/update/remove/find round-trips, verify invariants
+    - **Validates: Requirements 1.5, 1.6, 2.5, 3.5, 6.5, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.11**
+  - [x] 18.4 Write property tests for route behavior
+    - **Property 10: Route GET /:pk returns 200 for existing and 404 for non-existing records**
+    - **Property 11: Route POST inserts and returns the record**
+    - **Property 12: Payload override injects fields from request**
+    - Create `test/properties/route.property.test.js`
+    - Use `fast-check` to generate random payloads, exercise routes via supertest
+    - Verify status codes and response shapes
+    - **Validates: Requirements 10.2, 10.3, 10.4, 10.5, 10.7, 10.10**
+
+- [x] 19. Final checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+## Notes
+
+- Tasks marked with `*` are optional and can be skipped for faster MVP
+- Each task references specific requirements for traceability
+- Checkpoints ensure incremental validation
+- Property tests validate universal correctness properties from the design document
+- CockroachDB adapter reuses PostgreSQL patterns since it's PG wire-compatible
+- SQLite3 is file-based (no Docker container needed), all other databases use Docker Compose
+- NoSQL adapters implement filter translation inline in `db.js` rather than separate translator modules
