@@ -117,7 +117,7 @@ For adapter-specific connect options (ports, env vars, upsert behavior), read th
 | ----------- | --------------- | --------------------------------------------------------------------------------------------------------------- |
 | `structure` | `{col: "rule"}` | Types: `string\|integer\|numeric\|boolean\|object\|datetime\|auto_increment`. Prefix `required\|` for NOT NULL. |
 | `pk`        | string          | Primary key column. Convention: `<table>_id`                                                                    |
-| `unique`    | string[]        | Columns for upsert conflict resolution                                                                          |
+| `unique`    | string[] \| string[][] | Flat array = one composite unique group; array-of-arrays = multiple independent constraints               |
 | `option`    | object          | `{ safeDelete, created_at, modified_at }` — column names or null                                                |
 
 > PK, timestamp, soft-delete, and `auto_increment` cols are auto-excluded from insert/update payloads.
@@ -249,7 +249,7 @@ Generated structure (ESM, `"type":"module"`):
 ```
 app.js                             Express entry point
 .env / .env.example                Env config (random passwords)
-docker-compose.yml                 DB + CloudBeaver + optional Loki/Grafana
+docker-compose.yml                 DB + optional Loki/Grafana
 <output>/commons/db.js             Database init + global.db
 <output>/commons/migrate.js        Migration runner
 <output>/route/index.js            Central route mounting
@@ -257,7 +257,7 @@ docker-compose.yml                 DB + CloudBeaver + optional Loki/Grafana
 <output>/migrations/               Initial migration files
 ```
 
-Docker services auto-generated: database, Redis (if session=redis), CloudBeaver (SQL/MongoDB, port 8978), Loki + Grafana (if --loki).
+Docker services auto-generated: database, Redis (if session=redis), Loki + Grafana (if --loki).
 
 Scripts: `start`, `dev`, `test`, `migrate`, `add_migration`, `docker:build`, `docker:up`, `docker:down`.
 
@@ -383,7 +383,7 @@ Requires a `.env` file with `DB_TYPE` and connection variables.
 ### `parent` field rules
 
 - `"parent": null` → top-level route: `/comments/`
-- `"parent": "posts"` → nested route: `/posts/:post_id/comments/` (also mounted at top-level for direct access)
+- `"parent": "posts"` → nested route: `/posts/:post_id/comments/` (only available under parent path)
 - **Do NOT use system tables as parents** (`users`, `tenants`, `roles`, `permissions`, `sessions`, `accounts`, `auth_tokens`). They are cross-cutting and referenced via FK columns — not route hierarchies. Only use `parent` for true domain hierarchies: `posts → comments`, `orders → order_items`, `projects → tasks`.
 
 ### Column Rules

@@ -17,7 +17,6 @@ const {
   generateDockerignore,
   generateGrafanaDatasources,
   generateDockerCompose,
-  generateCloudBeaverDataSources,
   generateSessionJs,
   generateMigrateModule,
   generateAddMigrationModule,
@@ -122,18 +121,6 @@ function generateFiles(answers, outputDir) {
   if (dockerCompose !== null) {
     if (safeWriteFile("docker-compose.yml", dockerCompose))
       files.push("docker-compose.yml");
-  }
-
-  // CloudBeaver data-sources.json (auto-connect config)
-  const cbDataSources = generateCloudBeaverDataSources(answers, secrets);
-  if (cbDataSources !== null) {
-    const cbDir = ".cloudbeaver";
-    if (!fs.existsSync(cbDir)) {
-      fs.mkdirSync(cbDir, { recursive: true });
-    }
-    const cbPath = path.join(cbDir, "data-sources.json");
-    if (safeWriteFile(cbPath, cbDataSources))
-      files.push(".cloudbeaver/data-sources.json");
   }
 
   // Grafana datasource provisioning (when loki is enabled)

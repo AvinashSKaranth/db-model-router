@@ -165,18 +165,35 @@ function validateTables(tables, errors) {
           message: `unique must be an array in table "${tableName}"`,
         });
       } else {
-        for (let i = 0; i < tableDef.unique.length; i++) {
-          const entry = tableDef.unique[i];
-          if (typeof entry !== "string") {
+        // Support both flat arrays and array-of-arrays
+        const groups = Array.isArray(tableDef.unique[0])
+          ? tableDef.unique
+          : [tableDef.unique];
+        for (let g = 0; g < groups.length; g++) {
+          const group = groups[g];
+          const groupPath = Array.isArray(tableDef.unique[0])
+            ? `${basePath}.unique[${g}]`
+            : `${basePath}.unique`;
+          if (!Array.isArray(group)) {
             errors.push({
-              path: `${basePath}.unique[${i}]`,
-              message: `unique entry must be a string in table "${tableName}"`,
+              path: groupPath,
+              message: `unique constraint must be an array of column names in table "${tableName}"`,
             });
-          } else if (entry !== pk && !columnNames.has(entry)) {
-            errors.push({
-              path: `${basePath}.unique[${i}]`,
-              message: `unique entry "${entry}" does not match any column or the primary key "${pk}" in table "${tableName}"`,
-            });
+            continue;
+          }
+          for (let i = 0; i < group.length; i++) {
+            const entry = group[i];
+            if (typeof entry !== "string") {
+              errors.push({
+                path: `${groupPath}[${i}]`,
+                message: `unique entry must be a string in table "${tableName}"`,
+              });
+            } else if (entry !== pk && !columnNames.has(entry)) {
+              errors.push({
+                path: `${groupPath}[${i}]`,
+                message: `unique entry "${entry}" does not match any column or the primary key "${pk}" in table "${tableName}"`,
+              });
+            }
           }
         }
       }

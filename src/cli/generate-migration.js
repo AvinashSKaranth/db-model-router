@@ -354,9 +354,17 @@ function generateCreateTableSQL(tableName, tableDef, adapter) {
 
   // Unique constraints (excluding PK which is already PRIMARY KEY)
   if (tableDef.unique && tableDef.unique.length > 0) {
-    const uniqueCols = tableDef.unique.filter((c) => c !== pk);
-    for (const col of uniqueCols) {
-      lines.push(`  UNIQUE (${quoteIdent(col, adapter)})`);
+    // Support both flat arrays (wrapped as one composite group) and array-of-arrays
+    const uniqueGroups = Array.isArray(tableDef.unique[0])
+      ? tableDef.unique
+      : [tableDef.unique];
+    for (const group of uniqueGroups) {
+      const cols = group.filter((c) => c !== pk);
+      if (cols.length > 0) {
+        lines.push(
+          `  UNIQUE (${cols.map((c) => quoteIdent(c, adapter)).join(", ")})`,
+        );
+      }
     }
   }
 
@@ -412,12 +420,16 @@ function defaultBoolean(adapter) {
  * Generate a MongoDB migration JS file for a single table (collection).
  */
 function generateMongoDBMigration(tableName, tableDef) {
-  const uniqueCols = (tableDef.unique || []).filter((c) => c !== tableDef.pk);
-  const indexLines = uniqueCols
-    .map(
-      (col) =>
-        `  await db.collection("${tableName}").createIndex({ ${col}: 1 }, { unique: true });`,
-    )
+  const uniqueGroups = Array.isArray((tableDef.unique || [])[0])
+    ? tableDef.unique || []
+    : [tableDef.unique || []];
+  const indexLines = uniqueGroups
+    .flatMap((group) => {
+      const cols = group.filter((c) => c !== tableDef.pk);
+      if (cols.length === 0) return [];
+      const indexObj = cols.map((c) => `${c}: 1`).join(", ");
+      return `  await db.collection("${tableName}").createIndex({ ${indexObj} }, { unique: true });`;
+    })
     .join("\n");
 
   return `"use strict";

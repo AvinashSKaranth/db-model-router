@@ -17,18 +17,16 @@ This document is the single source of truth for writing a `dbmr.schema.json` fil
     "logger": true,
     "loki": false
   },
-  "tables": { ... },
-  "relationships": [ ... ]
+  "tables": { ... }
 }
 ```
 
-| Field           | Required | Description                                                                    |
-| --------------- | -------- | ------------------------------------------------------------------------------ |
-| `adapter`       | Yes      | Database adapter. One of: `mysql`, `mariadb`, `postgres`, `sqlite3`, `mongodb`, `mssql`, `cockroachdb`, `oracle`, `redis`, `dynamodb` |
-| `framework`     | Yes      | Express variant. One of: `express`, `ultimate-express`                           |
-| `options`       | No       | Project scaffolding options (session store, rate limiting, helmet, logger, loki) |
-| `tables`        | Yes      | Object where each key is a table name and the value is a **Table Definition**    |
-| `relationships` | No       | Array of parent-child route nesting descriptors                                |
+| Field       | Required | Description                                                                    |
+| ----------- | -------- | ------------------------------------------------------------------------------ |
+| `adapter`   | Yes      | Database adapter. One of: `mysql`, `mariadb`, `postgres`, `sqlite3`, `mongodb`, `mssql`, `cockroachdb`, `oracle`, `redis`, `dynamodb` |
+| `framework` | Yes      | Express variant. One of: `express`, `ultimate-express`                           |
+| `options`   | No       | Project scaffolding options (session store, rate limiting, helmet, logger, loki) |
+| `tables`    | Yes      | Object where each key is a table name and the value is a **Table Definition**    |
 
 ---
 
@@ -54,7 +52,7 @@ Each entry in `tables` is a Table Definition object:
 | ------------ | -------- | --------------------------------------------------------------------------------------------- |
 | `columns`    | Yes      | **All** columns in the table, including PK, timestamps, and soft-delete. Each key is a column name; the value is a **Column Rule** string. |
 | `pk`         | Yes      | Primary key column name. Convention: `<table>_id` (e.g. `user_id`, `order_id`).                 |
-| `unique`     | No       | Array of column names with unique constraints. Defaults to `[pk]` if omitted.                   |
+| `unique`     | No       | Unique constraint columns. A flat array creates one composite unique group; an array-of-arrays creates multiple independent constraints. Defaults to `[[pk]]`. |
 | `softDelete` | No       | Column name used for soft-delete. When set, `remove()` updates this column to `1`/`true` instead of hard-deleting. |
 | `timestamps` | No       | Object mapping `{ created_at: "col_name", modified_at: "col_name" }`. These columns are auto-excluded from insert/update payloads. |
 | `parent`     | No       | Parent table name for route nesting, or `null` for a top-level route.                           |
@@ -367,31 +365,28 @@ Tables that must **never** appear in your schema (because SaaS generates them):
 
 ---
 
-## Relationships and Route Nesting
+## Route Nesting via the `parent` Field
 
-The `relationships` array defines parent-child route nesting independent of foreign key columns.
-
-```json
-"relationships": [
-  {
-    "parent": "posts",
-    "child": "comments",
-    "foreignKey": "post_id"
-  }
-]
-```
-
-| Field        | Description                                                    |
-| ------------ | -------------------------------------------------------------- |
-| `parent`     | Parent table name. Must exist in `tables`.                   |
-| `child`      | Child table name. Must exist in `tables`.                    |
-| `foreignKey` | Column in the child table that references the parent's PK.     |
+Route nesting is driven **exclusively** by the `parent` field on each table. Set `parent` to the name of the table this module belongs under. Use `null` (or omit) for top-level routes.
 
 ### Routing Behavior
 
 - `parent: null` → Top-level routes: `GET /products/`, `GET /products/:product_id`
 - `parent: "posts"` → Nested routes: `GET /posts/:post_id/comments/`, `GET /posts/:post_id/comments/:comment_id`
-- Child routes are **also** mounted at top-level for direct access: `GET /comments/:comment_id`
+- Child routes are **only** available under their parent path. There is no duplicate top-level route for child tables.
+
+### Multi-Level Nesting (Deep Hierarchies)
+
+You can nest more than two levels. Intermediate tables that are both a child and a parent (e.g. `tasks` under `projects`, with `subtasks` under `tasks`) get a **hybrid route file** that:
+
+1. Scopes their own CRUD by the ancestor parameter (e.g. `project_id`).
+2. Mounts their own children under their path.
+
+Example: `projects → tasks → subtasks` produces:
+
+- `GET /projects/` — top-level project CRUD
+- `GET /projects/:project_id/tasks/` — task CRUD scoped by project
+- `GET /projects/:project_id/tasks/:task_id/subtasks/` — subtask CRUD scoped by task
 
 ### Best Practice: Don't Nest System Tables
 
@@ -399,7 +394,7 @@ Tables like `users`, `tenants`, `roles`, `permissions`, `sessions`, `accounts`, 
 
 - `posts → comments`
 - `orders → order_items`
-- `projects → tasks`
+- `projects → tasks → subtasks`
 - `invoices → invoice_items`
 
 ---
@@ -559,14 +554,7 @@ Validators map to OpenAPI schema properties:
       },
       "parent": "orders"
     }
-  },
-  "relationships": [
-    {
-      "parent": "orders",
-      "child": "order_items",
-      "foreignKey": "order_id"
-    }
-  ]
+  }
 }
 ```
 

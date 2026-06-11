@@ -97,6 +97,35 @@ async function generate(args, flags, ctx) {
   const relationships = schema.relationships || [];
   const tableNames = meta.map((m) => m.table).sort();
 
+  // For route generation, only use parent-derived relationships.
+  // Explicit relationships may define multiple foreign keys per table,
+  // but nested routes should follow the canonical parent declared on each table.
+  const routeRelationships = [];
+  for (const [tableName, tableDef] of Object.entries(schema.tables)) {
+    if (tableDef.parent) {
+      const parentTable = schema.tables[tableDef.parent];
+      if (parentTable) {
+        routeRelationships.push({
+          parent: tableDef.parent,
+          child: tableName,
+          foreignKey: parentTable.pk,
+        });
+      }
+    }
+  }
+
+  // Build ancestry chains for correct multi-level nested file placement.
+  const ancestors = {};
+  for (const m of meta) {
+    const chain = [];
+    let current = m.table;
+    while (schema.tables[current]?.parent) {
+      chain.unshift(schema.tables[current].parent);
+      current = schema.tables[current].parent;
+    }
+    ancestors[m.table] = chain;
+  }
+
   // Determine which artifact types to generate.
   // If any specific artifact flag is explicitly set to true, only generate those.
   // Otherwise, all artifact types are generated (unless explicitly set to false).
@@ -144,47 +173,62 @@ async function generate(args, flags, ctx) {
 
   // --- Route files ---
   if (genRoutes) {
-    // Collect child tables and group by parent
-    const nestedChildren = new Set();
     const childrenByParent = {};
-    for (const rel of relationships) {
-      nestedChildren.add(rel.child);
+    for (const rel of routeRelationships) {
       if (!childrenByParent[rel.parent]) childrenByParent[rel.parent] = [];
       childrenByParent[rel.parent].push(rel);
     }
 
-    // Generate route files for each table
+    // Generate exactly ONE route file per table at its correct nested path.
+    // Intermediate tables (both child and parent) get a hybrid route file
+    // that scopes their own CRUD by an ancestor FK and mounts their children.
     for (const m of meta) {
-      if (nestedChildren.has(m.table)) continue;
+      const tableName = m.table;
+      const chain = ancestors[tableName];
+      const hasChildren = (childrenByParent[tableName] || []).length > 0;
+      const hasParent = chain.length > 0;
 
-      const children = childrenByParent[m.table] || [];
-      if (children.length > 0) {
-        // Parent with children: generates index.js that mounts child routes
+      const pathParts = [...chain, tableName];
+      const relPath = `routes/${pathParts.join("/")}/index.js`;
+
+      if (hasChildren) {
+        const children = childrenByParent[tableName];
+        if (hasParent) {
+          // Intermediate node: own CRUD scoped by parent PK + mounts children
+          const immediateParent = chain[chain.length - 1];
+          const parentFk = schema.tables[immediateParent].pk;
+          planned.push({
+            relPath,
+            content: generateParentRouteFile(tableName, children, parentFk),
+          });
+        } else {
+          // Root parent: own CRUD unscoped + mounts children
+          planned.push({
+            relPath,
+            content: generateParentRouteFile(tableName, children),
+          });
+        }
+      } else if (hasParent) {
+        // Leaf child
+        const immediateParent = chain[chain.length - 1];
+        const parentFk = schema.tables[immediateParent].pk;
         planned.push({
-          relPath: `routes/${m.table}/index.js`,
-          content: generateParentRouteFile(m.table, children),
+          relPath,
+          content: generateChildRouteFile(tableName, immediateParent, parentFk),
         });
       } else {
-        // Simple table: just CRUD
+        // Root leaf
         planned.push({
-          relPath: `routes/${m.table}/index.js`,
-          content: generateRouteFile(m.table),
+          relPath,
+          content: generateRouteFile(tableName),
         });
       }
-    }
-
-    // Child route files inside parent folders: routes/<parent>/<child>/index.js
-    for (const rel of relationships) {
-      planned.push({
-        relPath: `routes/${rel.parent}/${rel.child}/index.js`,
-        content: generateChildRouteFile(rel.child, rel.parent, rel.foreignKey),
-      });
     }
 
     // Routes index file (include docs route when openapi is being generated)
     planned.push({
       relPath: "routes/index.js",
-      content: generateRoutesIndexFile(tableNames, relationships, {
+      content: generateRoutesIndexFile(tableNames, routeRelationships, {
         includeDocs: genOpenapi,
       }),
     });
@@ -192,7 +236,7 @@ async function generate(args, flags, ctx) {
 
   // --- OpenAPI spec + docs route ---
   if (genOpenapi) {
-    const spec = generateOpenAPISpec(meta, { relationships });
+    const spec = generateOpenAPISpec(meta, { relationships: routeRelationships });
 
     // Merge SaaS routes into the OpenAPI spec when saas-structure is active
     // SaaS routes appear BEFORE product routes in the docs
@@ -239,33 +283,33 @@ async function generate(args, flags, ctx) {
 
   // --- Test files ---
   if (genTests) {
-    // Collect child tables to skip generating top-level test files for them
-    const nestedChildrenForTests = new Set();
-    for (const rel of relationships) {
-      nestedChildrenForTests.add(rel.child);
-    }
-
     for (const m of meta) {
-      if (nestedChildrenForTests.has(m.table)) continue;
-      planned.push({
-        relPath: `test/${m.table}.test.js`,
-        content: generateTestFile(m.table, m.primary_key, m.structure),
-      });
-    }
+      const tableName = m.table;
+      const chain = ancestors[tableName];
+      const hasParent = chain.length > 0;
 
-    // Child test files in subfolders: test/<parent>/<child>.test.js
-    for (const rel of relationships) {
-      const childMeta = meta.find((m) => m.table === rel.child);
-      const pk = childMeta ? childMeta.primary_key : "id";
-      planned.push({
-        relPath: `test/${rel.parent}/${rel.child}.test.js`,
-        content: generateChildTestFile(
-          rel.child,
-          rel.parent,
-          rel.foreignKey,
-          pk,
-        ),
-      });
+      if (hasParent) {
+        const immediateParent = chain[chain.length - 1];
+        const parentFk = schema.tables[immediateParent].pk;
+        const pathParts = [...chain, tableName];
+        const depth = pathParts.length;
+        const modelsRelPath = "../".repeat(depth) + "models/";
+        planned.push({
+          relPath: `test/${pathParts.join("/")}.test.js`,
+          content: generateChildTestFile(
+            tableName,
+            immediateParent,
+            parentFk,
+            m.primary_key,
+            modelsRelPath,
+          ),
+        });
+      } else {
+        planned.push({
+          relPath: `test/${tableName}.test.js`,
+          content: generateTestFile(tableName, m.primary_key, m.structure),
+        });
+      }
     }
   }
 
@@ -292,7 +336,7 @@ async function generate(args, flags, ctx) {
       json: flags.json,
       timestamp: new Date(),
       tableNames,
-      relationships,
+      relationships: routeRelationships,
       routeOptions: { includeDocs: genOpenapi },
     });
 

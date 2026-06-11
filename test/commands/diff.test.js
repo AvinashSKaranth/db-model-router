@@ -44,6 +44,7 @@ function validSchema(overrides) {
           },
           pk: "id",
           unique: ["id"],
+          parent: "products",
         },
       },
       relationships: [

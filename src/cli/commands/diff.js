@@ -61,8 +61,23 @@ async function diff(args, flags, ctx) {
 
   // --- 2. Compute diff ---
   const meta = schemaToModelMeta(schema);
-  const relationships = schema.relationships || [];
-  const result = computeDiff(baseDir, meta, relationships);
+
+  // For diff, match generate by using only parent-derived relationships
+  const routeRelationships = [];
+  for (const [tableName, tableDef] of Object.entries(schema.tables)) {
+    if (tableDef.parent) {
+      const parentTable = schema.tables[tableDef.parent];
+      if (parentTable) {
+        routeRelationships.push({
+          parent: tableDef.parent,
+          child: tableName,
+          foreignKey: parentTable.pk,
+        });
+      }
+    }
+  }
+
+  const result = computeDiff(baseDir, meta, routeRelationships);
 
   // --- 3. Output results ---
   if (flags.json) {

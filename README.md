@@ -114,7 +114,8 @@ When a table has `parent` set, the CLI automatically:
 
 1. Creates a child route file scoped by the parent's PK as a URL parameter
 2. Mounts the child routes under the parent path
-3. Also mounts the child as a top-level route for direct access
+
+Intermediate tables that are both a child and a parent (e.g. `campaign` under `project`, with `campaign_recipient` under it) get a hybrid route file that scopes their own CRUD by the ancestor parameter and mounts their own children. Children are **only** available under their parent path — there is no duplicate top-level route.
 
 #### Best Practice: Don't Use System Tables as Parents
 
@@ -191,8 +192,7 @@ This generates routes:
 
 - `GET /users/`, `GET /users/:user_id` — top-level
 - `GET /posts/`, `GET /posts/:post_id` — top-level
-- `GET /posts/:post_id/comments/`, `GET /posts/:post_id/comments/:comment_id` — nested under posts
-- `GET /comments/`, `GET /comments/:comment_id` — also available as top-level
+- `GET /posts/:post_id/comments/`, `GET /posts/:post_id/comments/:comment_id` — nested under posts (not available as top-level)
 
 Note: `comments` has `user_id` as a foreign key column but `users` is NOT its parent — `posts` is. The `user_id` is just a data reference, not a route hierarchy.
 
@@ -202,7 +202,7 @@ Note: `comments` has `user_id` as a foreign key column but `users` is NOT its pa
 | ------------ | -------- | ------------------------------------------------------------------------ |
 | `columns`    | Yes      | Object mapping column names to Column_Rule strings (include ALL columns) |
 | `pk`         | Yes      | Primary key column name (convention: `<table>_id`)                       |
-| `unique`     | No       | Array of unique constraint columns (defaults to `[pk]`)                  |
+| `unique`     | No       | Unique constraint columns. Flat array = one composite group; array-of-arrays = multiple independent constraints. Defaults to `[[pk]]`. |
 | `softDelete` | No       | Column name used for soft-delete                                         |
 | `timestamps` | No       | Object with `created_at` and `modified_at` column name mapping           |
 | `parent`     | No       | Parent table name for route nesting, or `null` for top-level             |
@@ -278,7 +278,7 @@ All subcommands accept these flags:
 # 1. Introspect an existing database into a schema file
 db-model-router inspect --type postgres --env .env
 
-# 2. (Optional) Edit dbmr.schema.json to add relationships, tweak columns, etc.
+# 2. (Optional) Edit dbmr.schema.json to tweak columns, set parent for nesting, etc.
 
 # 3. Generate all artifacts from the schema
 db-model-router generate --from dbmr.schema.json
@@ -340,9 +340,7 @@ Generated project structure (with `--output backend`):
 ├── .gitignore
 ├── Dockerfile                # node:alpine production image
 ├── .dockerignore
-├── docker-compose.yml        # database + CloudBeaver + optional Loki/Grafana
-├── .cloudbeaver/
-│   └── data-sources.json     # auto-connects CloudBeaver to your DB
+├── docker-compose.yml        # database + optional Loki/Grafana
 ├── .grafana/                 # (only when --loki)
 │   └── datasources.yml       # auto-connects Grafana to Loki
 └── backend/
@@ -367,7 +365,6 @@ Docker services included automatically:
 | ----------- | ------------------------------------- | ------ | -------------------------------------- |
 | Database    | Always (except sqlite3)               | Varies | Selected database with random password |
 | Redis       | `--session redis` (if DB isn't redis) | 6379   | Session store                          |
-| CloudBeaver | SQL/MongoDB databases                 | 8978   | Web-based DB admin, auto-connected     |
 | Loki        | `--loki`                              | 3100   | Log aggregation                        |
 | Grafana     | `--loki`                              | 3001   | Log visualization, Loki pre-configured |
 

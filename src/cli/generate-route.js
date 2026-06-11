@@ -42,11 +42,15 @@ export default router;
  * Generate a parent route file that includes its own CRUD and mounts child routes.
  * e.g., routes/orders/index.js mounts order_items under /:order_id/items
  *
+ * When the parent is itself a child (intermediate node), its own CRUD is scoped
+ * by the parentForeignKey so it filters on params from the ancestor router.
+ *
  * @param {string} tableName - Parent table name
  * @param {Array<{child, foreignKey}>} children - Child relationships for this parent
+ * @param {string} [parentForeignKey] - If set, own CRUD is scoped by this FK from an ancestor
  * @returns {string}
  */
-function generateParentRouteFile(tableName, children) {
+function generateParentRouteFile(tableName, children, parentForeignKey) {
   const varName = safeVarName(tableName);
   let code = `import dbModelRouter from "db-model-router";
 import express from "express";
@@ -71,9 +75,12 @@ const { route } = dbModelRouter;
     code += `router.use("/:${child.foreignKey}/${child.child}", ${childVar}Route);\n`;
   }
 
+  const scope = parentForeignKey
+    ? `, { ${parentForeignKey}: "params.${parentForeignKey}" }`
+    : "";
   code += `
 // CRUD routes for ${tableName}
-router.use("/", route(${varName}));
+router.use("/", route(${varName}${scope}));
 
 export default router;
 `;
@@ -372,7 +379,7 @@ function columnToFaker(col, rule) {
 /**
  * Generate a child route test file that tests the nested parent/:fk/child endpoints.
  */
-function generateChildTestFile(childTable, parentTable, fkColumn, pk) {
+function generateChildTestFile(childTable, parentTable, fkColumn, pk, modelsRelPath = "../models/") {
   const childVar = safeVarName(childTable);
   return `import assert from "assert";
 import express from "express";
@@ -381,7 +388,7 @@ import dbModelRouter from "db-model-router";
 
 const { route } = dbModelRouter;
 
-import ${childVar} from "../models/${childTable}.js";
+import ${childVar} from "${modelsRelPath}${childTable}.js";
 
 function createApp() {
   const app = express();

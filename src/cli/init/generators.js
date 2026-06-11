@@ -901,108 +901,6 @@ const DOCKER_DB_MAP = {
 };
 
 /**
- * CloudBeaver JDBC driver IDs and URL templates per database.
- */
-const CLOUDBEAVER_DB_MAP = {
-  mysql: {
-    provider: "mysql",
-    driver: "mysql8",
-    urlTemplate: (host, port, dbName) =>
-      `jdbc:mysql://${host}:${port}/${dbName}`,
-  },
-  mariadb: {
-    provider: "mysql",
-    driver: "mariaDB",
-    urlTemplate: (host, port, dbName) =>
-      `jdbc:mariadb://${host}:${port}/${dbName}`,
-  },
-  postgres: {
-    provider: "postgresql",
-    driver: "postgres-jdbc",
-    urlTemplate: (host, port, dbName) =>
-      `jdbc:postgresql://${host}:${port}/${dbName}`,
-  },
-  cockroachdb: {
-    provider: "postgresql",
-    driver: "postgres-jdbc",
-    urlTemplate: (host, port, dbName) =>
-      `jdbc:postgresql://${host}:${port}/${dbName}`,
-  },
-  mssql: {
-    provider: "sqlserver",
-    driver: "mssql_jdbc_ms_new",
-    urlTemplate: (host, port, dbName) =>
-      `jdbc:sqlserver://${host}:${port};databaseName=${dbName};trustServerCertificate=true`,
-  },
-  oracle: {
-    provider: "oracle",
-    driver: "oracle_thin",
-    urlTemplate: (host, port, dbName) =>
-      `jdbc:oracle:thin:@${host}:${port}/${dbName}`,
-  },
-  mongodb: {
-    provider: "mongodb",
-    driver: "mongodb",
-    urlTemplate: (host, port, dbName) => `mongodb://${host}:${port}/${dbName}`,
-  },
-};
-
-/**
- * Generate CloudBeaver data-sources.json for auto-connecting to the project database.
- * @param {import('./types').InitAnswers} answers
- * @param {object} secrets
- * @returns {string|null}
- */
-function generateCloudBeaverDataSources(answers, secrets) {
-  const cbDb = CLOUDBEAVER_DB_MAP[answers.database];
-  if (!cbDb) return null;
-
-  const dbConfig = DOCKER_DB_MAP[answers.database];
-  if (!dbConfig) return null;
-
-  const host = answers.database; // service name in docker-compose
-  const port = dbConfig.port.split(":")[1];
-  const dbName = "my_app";
-
-  // Determine user/pass based on adapter
-  let user = "root";
-  let pass = secrets.dbPass;
-  if (answers.database === "postgres" || answers.database === "cockroachdb")
-    user = "postgres";
-  if (answers.database === "mssql") user = "sa";
-  if (answers.database === "oracle") user = "system";
-  if (answers.database === "mongodb") user = "root";
-
-  const connId = `${answers.database}-project-db`;
-  const url = cbDb.urlTemplate(host, port, dbName);
-
-  const config = {
-    folders: {},
-    connections: {
-      [connId]: {
-        provider: cbDb.provider,
-        driver: cbDb.driver,
-        name: `${answers.database} - my_app`,
-        "save-password": true,
-        configuration: {
-          host: host,
-          port: port,
-          database: dbName,
-          url: url,
-          configurationType: "MANUAL",
-          type: "dev",
-          auth: "native",
-          userName: user,
-          userPassword: pass,
-        },
-      },
-    },
-  };
-
-  return JSON.stringify(config, null, 2) + "\n";
-}
-
-/**
  * Generate docker-compose.yml content.
  * @param {import('./types').InitAnswers} answers
  * @param {object} secrets - { dbPass, redisPass }
@@ -1055,27 +953,6 @@ function generateDockerCompose(answers, secrets) {
     }
     redisService.volumes = ["./data/redis:/data"];
     services["redis"] = redisService;
-  }
-
-  // --- CloudBeaver service (for SQL/MongoDB databases) ---
-  const hasCbSupport = !!CLOUDBEAVER_DB_MAP[answers.database];
-  if (hasCbSupport) {
-    services["cloudbeaver"] = {
-      container_name: "cloudbeaver",
-      image: "dbeaver/cloudbeaver:latest",
-      ports: ["8978:8978"],
-      restart: "unless-stopped",
-      environment: {
-        CB_SERVER_NAME: "CloudBeaver",
-        CB_ADMIN_NAME: "cbadmin",
-        CB_ADMIN_PASSWORD: secrets.dbPass,
-      },
-      volumes: [
-        "./data/cloudbeaver:/opt/cloudbeaver/workspace",
-        "./.cloudbeaver/data-sources.json:/opt/cloudbeaver/workspace/GlobalConfiguration/.dbeaver/data-sources.json:ro",
-      ],
-      depends_on: [answers.database],
-    };
   }
 
   // --- Loki + Grafana (when logger + loki are enabled) ---
@@ -1225,7 +1102,6 @@ function generateGitignore() {
 .env
 *.db
 data/
-.cloudbeaver/
 `;
 }
 
@@ -1713,7 +1589,6 @@ module.exports = {
   generateDockerignore,
   generateGrafanaDatasources,
   generateDockerCompose,
-  generateCloudBeaverDataSources,
   generateSessionJs,
   generateMigrateModule,
   generateAddMigrationModule,

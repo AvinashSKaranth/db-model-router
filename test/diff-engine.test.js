@@ -81,8 +81,8 @@ describe("Diff Engine", function () {
         assert.ok(result.added.includes("models/users.js"));
         assert.ok(result.added.includes("models/posts.js"));
         // Should include route files
-        assert.ok(result.added.includes("routes/users.js"));
-        assert.ok(result.added.includes("routes/posts.js"));
+        assert.ok(result.added.includes("routes/users/index.js"));
+        assert.ok(result.added.includes("routes/posts/index.js"));
         assert.ok(result.added.includes("routes/index.js"));
         // Should include test files
         assert.ok(result.added.includes("test/users.test.js"));
@@ -212,7 +212,7 @@ describe("Diff Engine", function () {
         // Empty disk — everything should be added
         const result = computeDiff(tmpDir, meta, rels);
         assert.ok(
-          result.added.includes("routes/users/posts.js"),
+          result.added.includes("routes/users/posts/index.js"),
           "child route should be added in subfolder",
         );
         assert.ok(

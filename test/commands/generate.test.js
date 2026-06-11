@@ -45,6 +45,7 @@ function writeSchemaFile(dir, overrides) {
           },
           pk: "id",
           unique: ["id"],
+          parent: "products",
         },
       },
       relationships: [

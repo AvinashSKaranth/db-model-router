@@ -51,51 +51,67 @@ function lineDiff(expected, actual) {
  */
 function buildExpectedFiles(meta, relationships) {
   const expected = new Map();
-  const modelsRelPath = "../models";
   const tableNames = meta.map((m) => m.table).sort();
 
-  // Collect child tables
-  const nestedChildren = new Set();
+  // Build children map
   const childrenByParent = {};
   for (const rel of relationships) {
-    nestedChildren.add(rel.child);
     if (!childrenByParent[rel.parent]) childrenByParent[rel.parent] = [];
     childrenByParent[rel.parent].push(rel);
   }
+
+  // Build ancestry chains from relationships
+  const parentMap = {};
+  for (const rel of relationships) {
+    parentMap[rel.child] = rel.parent;
+  }
+  const ancestors = {};
+  for (const m of meta) {
+    const chain = [];
+    let current = m.table;
+    while (parentMap[current]) {
+      chain.unshift(parentMap[current]);
+      current = parentMap[current];
+    }
+    ancestors[m.table] = chain;
+  }
+
+  const getPk = (table) => {
+    const m = meta.find((x) => x.table === table);
+    return m ? m.primary_key : "id";
+  };
 
   // Model files
   for (const m of meta) {
     expected.set(`models/${m.table}.js`, generateModelFile(m));
   }
 
-  // Route files (top-level only, skip children)
+  // Route files: exactly one per table at its correct nested path
   for (const m of meta) {
-    if (nestedChildren.has(m.table)) continue;
-    const children = childrenByParent[m.table] || [];
-    if (children.length > 0) {
-      expected.set(
-        `routes/${m.table}/index.js`,
-        generateParentRouteFile(m.table, children),
-      );
-    } else {
-      expected.set(
-        `routes/${m.table}/index.js`,
-        generateRouteFile(m.table, modelsRelPath),
-      );
-    }
-  }
+    const tableName = m.table;
+    const chain = ancestors[tableName];
+    const hasChildren = (childrenByParent[tableName] || []).length > 0;
+    const hasParent = chain.length > 0;
 
-  // Child route files inside parent folders: routes/<parent>/<child>/index.js
-  for (const rel of relationships) {
-    expected.set(
-      `routes/${rel.parent}/${rel.child}/index.js`,
-      generateChildRouteFile(
-        rel.child,
-        rel.parent,
-        rel.foreignKey,
-        `../../models`,
-      ),
-    );
+    const pathParts = [...chain, tableName];
+    const relPath = `routes/${pathParts.join("/")}/index.js`;
+
+    if (hasChildren) {
+      const children = childrenByParent[tableName];
+      if (hasParent) {
+        const immediateParent = chain[chain.length - 1];
+        const parentFk = getPk(immediateParent);
+        expected.set(relPath, generateParentRouteFile(tableName, children, parentFk));
+      } else {
+        expected.set(relPath, generateParentRouteFile(tableName, children));
+      }
+    } else if (hasParent) {
+      const immediateParent = chain[chain.length - 1];
+      const parentFk = getPk(immediateParent);
+      expected.set(relPath, generateChildRouteFile(tableName, immediateParent, parentFk));
+    } else {
+      expected.set(relPath, generateRouteFile(tableName));
+    }
   }
 
   // Routes index file (with docs route)
@@ -107,23 +123,28 @@ function buildExpectedFiles(meta, relationships) {
   // Docs route (Swagger UI)
   expected.set("routes/docs.js", generateDocsRoute());
 
-  // Test files (top-level only, skip children)
+  // Test files at correct nested paths
   for (const m of meta) {
-    if (nestedChildren.has(m.table)) continue;
-    expected.set(
-      `test/${m.table}.test.js`,
-      generateTestFile(m.table, m.primary_key, m.structure),
-    );
-  }
+    const tableName = m.table;
+    const chain = ancestors[tableName];
+    const hasParent = chain.length > 0;
 
-  // Child test files in subfolders: test/<parent>/<child>.test.js
-  for (const rel of relationships) {
-    const childMeta = meta.find((m) => m.table === rel.child);
-    const pk = childMeta ? childMeta.primary_key : "id";
-    expected.set(
-      `test/${rel.parent}/${rel.child}.test.js`,
-      generateChildTestFile(rel.child, rel.parent, rel.foreignKey, pk),
-    );
+    if (hasParent) {
+      const immediateParent = chain[chain.length - 1];
+      const parentFk = getPk(immediateParent);
+      const pathParts = [...chain, tableName];
+      const depth = pathParts.length;
+      const modelsRelPath = "../".repeat(depth) + "models/";
+      expected.set(
+        `test/${pathParts.join("/")}.test.js`,
+        generateChildTestFile(tableName, immediateParent, parentFk, m.primary_key, modelsRelPath),
+      );
+    } else {
+      expected.set(
+        `test/${tableName}.test.js`,
+        generateTestFile(tableName, m.primary_key, m.structure),
+      );
+    }
   }
 
   // OpenAPI spec

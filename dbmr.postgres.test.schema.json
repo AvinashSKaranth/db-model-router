@@ -12,7 +12,6 @@
     "template_survey": {
       "columns": {
         "template_survey_id": "auto_increment",
-        "project_id": "required|integer",
         "name": "required|string|minLength:3|maxLength:255",
         "description": "string:text|maxLength:5000",
         "status": "required|string|in:draft,active,archived",
@@ -48,8 +47,7 @@
       "timestamps": {
         "created_at": "created_at",
         "modified_at": "modified_at"
-      },
-      "parent": "project"
+      }
     },
     "template_section": {
       "columns": {
@@ -318,7 +316,7 @@
         "created_at": "created_at",
         "modified_at": "modified_at"
       },
-      "parent": "project"
+      "parent": "survey"
     },
     "respondent_assignment": {
       "columns": {
@@ -393,30 +391,10 @@
       },
       "parent": "respondent_import"
     },
-    "survey_link": {
-      "columns": {
-        "survey_link_id": "auto_increment",
-        "survey_id": "required|integer",
-        "token": "required|string|maxLength:255",
-        "status": "required|string|in:active,inactive,expired",
-        "expires_at": "datetime",
-        "is_deleted": "boolean",
-        "created_at": "datetime",
-        "modified_at": "datetime"
-      },
-      "pk": "survey_link_id",
-      "softDelete": "is_deleted",
-      "timestamps": {
-        "created_at": "created_at",
-        "modified_at": "modified_at"
-      },
-      "parent": "survey"
-    },
     "response": {
       "columns": {
         "response_id": "auto_increment",
         "tenant_id": "required|integer",
-        "survey_link_id": "required|integer",
         "respondent_id": "required|integer",
         "question_id": "required|integer",
         "response": "required|object",
@@ -434,7 +412,7 @@
         "created_at": "created_at",
         "modified_at": "modified_at"
       },
-      "parent": "survey_link"
+      "parent": null
     },
     "campaign": {
       "columns": {
@@ -667,16 +645,6 @@
       "parent": "project",
       "child": "respondent_import_run",
       "foreignKey": "project_id"
-    },
-    {
-      "parent": "survey",
-      "child": "survey_link",
-      "foreignKey": "survey_id"
-    },
-    {
-      "parent": "survey_link",
-      "child": "response",
-      "foreignKey": "survey_link_id"
     },
     {
       "parent": "respondent",
