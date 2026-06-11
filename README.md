@@ -394,6 +394,7 @@ Generate models, routes, tests, OpenAPI spec, and LLM docs from a schema file. A
 | Flag / Arg               | Description                                       |
 | ------------------------ | ------------------------------------------------- |
 | `--from <path>`          | Path to schema file (default: `dbmr.schema.json`) |
+| `--output <dir>`         | Directory for generated files (default: cwd)      |
 | `--models=false`         | Disable model file generation                     |
 | `--routes=false`         | Disable route file generation                     |
 | `--openapi=false`        | Disable OpenAPI spec generation                   |
@@ -424,6 +425,7 @@ db-model-router generate --tests=false --dry-run       # skip tests
 db-model-router generate --saas-structure=false        # skip SaaS generation
 db-model-router generate --openapi=false --tests=false # skip OpenAPI and tests
 db-model-router generate --from dbmr.schema.json --json
+db-model-router generate --from dbmr.schema.json --output ./backend
 ```
 
 #### `doctor`

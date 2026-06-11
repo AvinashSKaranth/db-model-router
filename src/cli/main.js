@@ -63,6 +63,7 @@ const COMMAND_FLAGS = {
   ],
   generate: [
     ["--from <path>", "Schema file (default: dbmr.schema.json)"],
+    ["--output <dir>", "Directory for generated files (default: cwd)"],
     ["--models", "Generate only model files"],
     ["--routes", "Generate only route files"],
     ["--openapi", "Generate only OpenAPI spec"],

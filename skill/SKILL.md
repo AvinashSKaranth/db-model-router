@@ -270,7 +270,7 @@ db-model-router inspect --type postgres --env .env [--out schema.json] [--tables
 ### `generate` — Generate code from schema
 
 ```bash
-db-model-router generate --from dbmr.schema.json [--models=false] [--routes=false] [--openapi=false] [--tests=false] [--migrations=false] [--saas-structure=false]
+db-model-router generate --from dbmr.schema.json [--output <dir>] [--models=false] [--routes=false] [--openapi=false] [--tests=false] [--migrations=false] [--saas-structure=false]
 ```
 
 All artifact types are **enabled by default**. Use `--flag=false` to disable specific ones.

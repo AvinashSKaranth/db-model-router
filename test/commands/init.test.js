@@ -134,6 +134,16 @@ describe("CLI Commands - init (src/cli/commands/init.js)", function () {
         envFile.includes("5432"),
         ".env should contain postgres default port from schema adapter",
       );
+
+      // Verify schema artifacts (models, routes) were also generated
+      assert.ok(
+        fs.existsSync(path.join(tmpDir, "models/users.js")),
+        "users model should be generated when --from is provided",
+      );
+      assert.ok(
+        fs.existsSync(path.join(tmpDir, "routes/users/index.js")),
+        "users route should be generated when --from is provided",
+      );
     });
   });
 

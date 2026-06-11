@@ -11,6 +11,7 @@ const {
   ensurePackageJson,
 } = require("../init");
 const { promptUser } = require("../init/prompt");
+const generateCmd = require("./generate");
 
 /**
  * Default answers used when --yes is provided and no schema is available.
@@ -86,6 +87,12 @@ async function init(args, flags, ctx) {
       for (const f of planned) {
         ctx.log(`  ${f}`);
       }
+    }
+    // Also preview schema-generated artifacts when --from is used
+    if (args.from) {
+      await generateCmd(args, flags, ctx);
+    }
+    if (!flags.json) {
       ctx.log("\nNo files were written.");
     }
     return;
@@ -104,6 +111,12 @@ async function init(args, flags, ctx) {
   const installed = !flags.noInstall;
   if (installed) {
     runInstall();
+  }
+
+  // When --from points to a schema, also generate models, routes, tests, etc.
+  if (args.from) {
+    await generateCmd(args, flags, ctx);
+    if (process.exitCode) return; // bail if generate reported an error
   }
 
   // Output

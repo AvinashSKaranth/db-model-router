@@ -156,7 +156,7 @@ async function generate(args, flags, ctx) {
     genSaas = args["saas-structure"] !== false;
   }
 
-  const baseDir = process.cwd();
+  const baseDir = path.resolve(args.output || process.cwd());
 
   // Collect all planned files: { relPath, content }
   const planned = [];
@@ -338,6 +338,7 @@ async function generate(args, flags, ctx) {
       tableNames,
       relationships: routeRelationships,
       routeOptions: { includeDocs: genOpenapi },
+      baseDir,
     });
 
     // The SaaS generator produces a combined routes/index.js that includes

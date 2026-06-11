@@ -29,8 +29,8 @@ const { generateSaasTests } = require("./saas/generate-saas-tests");
  *
  * @returns {string} Updated .gitignore content
  */
-function getGitignoreContent() {
-  const gitignorePath = path.join(process.cwd(), ".gitignore");
+function getGitignoreContent(baseDir) {
+  const gitignorePath = path.join(baseDir || process.cwd(), ".gitignore");
   let content = "";
   if (fs.existsSync(gitignorePath)) {
     content = fs.readFileSync(gitignorePath, "utf8");
@@ -121,7 +121,7 @@ function generateSaasStructure(adapter, options) {
   }
 
   // 8. .gitignore update (add credentials.md)
-  planned.push({ relPath: ".gitignore", content: getGitignoreContent() });
+  planned.push({ relPath: ".gitignore", content: getGitignoreContent(opts.baseDir) });
 
   return planned;
 }

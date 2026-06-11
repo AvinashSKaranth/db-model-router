@@ -49,7 +49,8 @@ function lineDiff(expected, actual) {
  * @param {Array<{parent, child, foreignKey}>} relationships
  * @returns {Map<string, string>}
  */
-function buildExpectedFiles(meta, relationships) {
+function buildExpectedFiles(meta, relationships, options = {}) {
+  const { includeDocs = true, saasFiles = [] } = options;
   const expected = new Map();
   const tableNames = meta.map((m) => m.table).sort();
 
@@ -114,14 +115,16 @@ function buildExpectedFiles(meta, relationships) {
     }
   }
 
-  // Routes index file (with docs route)
+  // Routes index file
   expected.set(
     "routes/index.js",
-    generateRoutesIndexFile(tableNames, relationships, { includeDocs: true }),
+    generateRoutesIndexFile(tableNames, relationships, { includeDocs }),
   );
 
   // Docs route (Swagger UI)
-  expected.set("routes/docs.js", generateDocsRoute());
+  if (includeDocs) {
+    expected.set("routes/docs.js", generateDocsRoute());
+  }
 
   // Test files at correct nested paths
   for (const m of meta) {
@@ -153,6 +156,11 @@ function buildExpectedFiles(meta, relationships) {
     JSON.stringify(generateOpenAPISpec(meta, { relationships }), null, 2) +
       "\n",
   );
+
+  // Merge SaaS expected files last so they overwrite schema files where needed
+  for (const entry of saasFiles) {
+    expected.set(entry.relPath, entry.content);
+  }
 
   return expected;
 }
@@ -220,8 +228,8 @@ function scanDiskFiles(baseDir) {
  * @param {Array<{parent, child, foreignKey}>} relationships
  * @returns {{ added: string[], modified: Array<{file: string, diff: string}>, deleted: string[] }}
  */
-function computeDiff(baseDir, meta, relationships) {
-  const expected = buildExpectedFiles(meta, relationships);
+function computeDiff(baseDir, meta, relationships, options = {}) {
+  const expected = buildExpectedFiles(meta, relationships, options);
   const diskFiles = scanDiskFiles(baseDir);
 
   const added = [];

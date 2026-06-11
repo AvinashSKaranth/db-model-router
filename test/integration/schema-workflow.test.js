@@ -45,9 +45,10 @@ function testSchema() {
         },
         pk: "id",
         unique: ["id"],
+        parent: "users",
       },
     },
-    relationships: [{ parent: "users", child: "posts", foreignKey: "user_id" }],
+    relationships: [],
     options: {},
   };
 }
@@ -110,7 +111,7 @@ describe("Integration: full workflow (init → generate → doctor)", function (
     const initCtx = new OutputContext({ json: true });
 
     await initCmd(
-      { from: schemaPath },
+      { from: schemaPath, "saas-structure": false },
       { yes: true, json: true, dryRun: false, noInstall: true, help: false },
       initCtx,
     );
@@ -135,7 +136,7 @@ describe("Integration: full workflow (init → generate → doctor)", function (
     const genCtx = new OutputContext({ json: true });
 
     await generateCmd(
-      { from: schemaPath },
+      { from: schemaPath, "saas-structure": false },
       { yes: false, json: true, dryRun: false, noInstall: false, help: false },
       genCtx,
     );
@@ -458,7 +459,7 @@ describe("Integration: existing generator equivalence", function () {
     const genCtx = new OutputContext({ json: true });
 
     await generateCmd(
-      { from: schemaPath },
+      { from: schemaPath, "saas-structure": false, openapi: false },
       { yes: false, json: true, dryRun: false, noInstall: false, help: false },
       genCtx,
     );
@@ -481,7 +482,7 @@ describe("Integration: existing generator equivalence", function () {
     // ---- Step 6: Compare route files ----
     for (const table of tableNames) {
       const newRouteContent = fs.readFileSync(
-        path.join(tmpDir, "routes", table + ".js"),
+        path.join(tmpDir, "routes", table, "index.js"),
         "utf8",
       );
       assert.strictEqual(

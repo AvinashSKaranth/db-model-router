@@ -6,6 +6,7 @@ const { parseSchema } = require("../../schema/schema-parser");
 const { SchemaValidationError } = require("../../schema/schema-validator");
 const { schemaToModelMeta } = require("../../schema/schema-to-meta");
 const { computeDiff } = require("../diff-engine");
+const { generateSaasStructure } = require("../generate-saas-structure");
 
 /**
  * Adapter-to-driver mapping.
@@ -111,13 +112,53 @@ async function doctor(args, flags, ctx) {
 
   if (schema) {
     const meta = schemaToModelMeta(schema);
-    const relationships = schema.relationships || [];
-    const diff = computeDiff(baseDir, meta, relationships);
+
+    // Derive route relationships from parent fields (same logic as generate)
+    const routeRelationships = [];
+    for (const [tableName, tableDef] of Object.entries(schema.tables || {})) {
+      if (tableDef.parent) {
+        const parentTable = schema.tables[tableDef.parent];
+        if (parentTable) {
+          routeRelationships.push({
+            parent: tableDef.parent,
+            child: tableName,
+            foreignKey: parentTable.pk,
+          });
+        }
+      }
+    }
+
+    const tableNames = meta.map((m) => m.table).sort();
+
+    // Detect whether OpenAPI docs were generated
+    const includeDocs = fs.existsSync(path.join(baseDir, "openapi.json"));
+
+    // Detect whether SaaS structure was generated
+    const saasFiles = [];
+    if (fs.existsSync(path.join(baseDir, "routes", "auth", "index.js"))) {
+      const adapter = schema.adapter;
+      saasFiles.push(
+        ...generateSaasStructure(adapter, {
+          tableNames,
+          relationships: routeRelationships,
+          routeOptions: { includeDocs },
+        }),
+      );
+    }
+
+    const diffOptions = { includeDocs, saasFiles };
+    const diff = computeDiff(baseDir, meta, routeRelationships, diffOptions);
+
+    // Filter out known init-scaffold files that doctor should ignore
+    const initWhitelist = new Set(["routes/health.js"]);
+    const filteredDeleted = diff.deleted.filter(
+      (f) => !initWhitelist.has(f),
+    );
 
     if (
       diff.added.length > 0 ||
       diff.modified.length > 0 ||
-      diff.deleted.length > 0
+      filteredDeleted.length > 0
     ) {
       sync.ok = false;
       for (const f of diff.added) {
@@ -126,7 +167,7 @@ async function doctor(args, flags, ctx) {
       for (const m of diff.modified) {
         sync.outOfSync.push({ file: m.file, status: "modified" });
       }
-      for (const f of diff.deleted) {
+      for (const f of filteredDeleted) {
         sync.outOfSync.push({ file: f, status: "extra" });
       }
     }

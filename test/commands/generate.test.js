@@ -385,6 +385,48 @@ describe("CLI Commands - generate (src/cli/commands/generate.js)", function () {
   });
 
   // -------------------------------------------------------------------
+  // --output flag: custom output directory
+  // -------------------------------------------------------------------
+  describe("--output flag", function () {
+    it("should write generated files to the specified output directory", async function () {
+      const schemaPath = writeSchemaFile(tmpDir);
+      const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), "gen-output-"));
+      const ctx = new OutputContext({ json: true });
+
+      await generateCmd(
+        { from: schemaPath, output: outputDir },
+        {
+          yes: false,
+          json: true,
+          dryRun: false,
+          noInstall: false,
+          help: false,
+        },
+        ctx,
+      );
+
+      const result = ctx._results[0];
+      assert.ok(!result.error, "Should not error");
+
+      // Files should exist in outputDir, not in tmpDir
+      assert.ok(
+        fs.existsSync(path.join(outputDir, "models/products.js")),
+        "products model should be in output directory",
+      );
+      assert.ok(
+        fs.existsSync(path.join(outputDir, "routes/products/index.js")),
+        "products route should be in output directory",
+      );
+      assert.ok(
+        !fs.existsSync(path.join(tmpDir, "models/products.js")),
+        "products model should NOT be in schema directory",
+      );
+
+      fs.rmSync(outputDir, { recursive: true, force: true });
+    });
+  });
+
+  // -------------------------------------------------------------------
   // Error handling: missing schema file
   // -------------------------------------------------------------------
   describe("error handling", function () {
