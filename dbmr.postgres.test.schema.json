@@ -1,0 +1,737 @@
+{
+  "adapter": "postgres",
+  "framework": "express",
+  "options": {
+    "session": "redis",
+    "rateLimiting": true,
+    "helmet": true,
+    "logger": true,
+    "loki": false
+  },
+  "tables": {
+    "template_survey": {
+      "columns": {
+        "template_survey_id": "auto_increment",
+        "project_id": "required|integer",
+        "name": "required|string|minLength:3|maxLength:255",
+        "description": "string:text|maxLength:5000",
+        "status": "required|string|in:draft,active,archived",
+        "config": "required|object",
+        "config.display.mode": "required|string|in:ONE_AT_A_TIME,ALL_AT_ONCE",
+        "config.display.theme": "object",
+        "config.display.font_family": "string",
+        "config.languages.default": "required|string|minLength:2|maxLength:10",
+        "config.languages.available": "object",
+        "config.branding.logo_light_url": "string|url",
+        "config.branding.logo_dark_url": "string|url",
+        "config.controls.auto_progress": "boolean",
+        "config.controls.show_progress_percentage": "boolean",
+        "config.controls.ip_tracking": "boolean",
+        "config.controls.consent_required": "boolean",
+        "config.controls.save_and_continue": "boolean",
+        "config.controls.restart_allowed": "boolean",
+        "config.buttons.start_text": "string|maxLength:100",
+        "config.buttons.next_text": "string|maxLength:100",
+        "config.buttons.back_text": "string|maxLength:100",
+        "config.buttons.submit_text": "string|maxLength:100",
+        "config.messages.welcome_title": "string:text",
+        "config.messages.thank_you_title": "string:text",
+        "config.messages.closed_title": "string:text",
+        "translations": "object",
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "template_survey_id",
+      "unique": ["template_survey_id"],
+      "softDelete": "is_deleted",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "project"
+    },
+    "template_section": {
+      "columns": {
+        "template_section_id": "auto_increment",
+        "template_survey_id": "integer",
+        "title": "required|string|maxLength:255",
+        "description": "string:text|maxLength:5000",
+        "order_index": "required|integer",
+        "status": "required|string|in:draft,active,archived",
+        "config": "object",
+        "translations": "object",
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "template_section_id",
+      "softDelete": "is_deleted",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "template_survey"
+    },
+    "template_question": {
+      "columns": {
+        "template_question_id": "auto_increment",
+        "template_survey_id": "required|integer",
+        "template_section_id": "required|integer",
+        "order_index": "required|integer",
+        "code": "required|string|alphaDash|maxLength:100",
+        "type": "required|string|in:OPEN_ENDED,SINGLE_SELECT,MULTI_SELECT,GRID,RANKING,GROUP,MESSAGE",
+        "display_type": "string|in:RADIO_BUTTONS,CARDS,DROPDOWN,DEFAULT_SLIDER,RYG_SLIDER,DEFAULT_SCALE,SCALE_WITH_TEXT,NEUTRAL_SCALE,DEFAULT_NPS,NPS_PREFILLED_COLOR,NPS_BORDER_COLOR",
+        "title": "required|string:text",
+        "description": "string:text",
+        "is_mandatory": "boolean",
+        "config": "required|object",
+        "translations": "object",
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "template_question_id",
+      "softDelete": "is_deleted",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "template_section"
+    },
+    "project": {
+      "columns": {
+        "project_id": "auto_increment",
+        "tenant_id": "required|integer",
+        "name": "required|string|minLength:3|maxLength:255",
+        "description": "string:text|maxLength:5000",
+        "status": "required|string|in:draft,active,archived",
+        "config": "required|object",
+        "config.language.default": "string|minLength:2|maxLength:10",
+        "config.language.supported": "object",
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "project_id",
+      "unique": ["project_id"],
+      "softDelete": "is_deleted",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      }
+    },
+    "document": {
+      "columns": {
+        "document_id": "auto_increment",
+        "tenant_id": "required|integer",
+        "project_id": "required|integer",
+        "name": "required|string|maxLength:255",
+        "file_url": "required|string:url",
+        "mime_type": "string|maxLength:255",
+        "sha256_hash": "string|maxLength:128",
+        "metadata": "object",
+        "extra": "object",
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "document_id",
+      "unique": ["tenant_id", "project_id", "sha256_hash"],
+      "softDelete": "is_deleted",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "project"
+    },
+    "survey": {
+      "columns": {
+        "survey_id": "auto_increment",
+        "tenant_id": "required|integer",
+        "project_id": "required|integer",
+        "name": "required|string|minLength:3|maxLength:255",
+        "slug": "required|string|alphaDash|maxLength:255",
+        "description": "string:text|maxLength:5000",
+        "status": "required|string|in:draft,active,closed",
+        "config": "required|object",
+        "config.display.mode": "required|string|in:ONE_AT_A_TIME,ALL_AT_ONCE",
+        "config.display.theme": "required|string",
+        "config.display.font_family": "string",
+        "config.display.logo_light_url": "string|url",
+        "config.display.logo_dark_url": "string|url",
+        "config.languages.default": "required|string|minLength:2|maxLength:10",
+        "config.languages.available": "object",
+        "config.controls.auto_progress": "boolean",
+        "config.controls.show_progress_percentage": "boolean",
+        "config.controls.ip_tracking": "boolean",
+        "config.controls.consent_required": "boolean",
+        "config.controls.save_and_continue": "boolean",
+        "config.controls.restart_allowed": "boolean",
+        "config.buttons.start_text": "string|maxLength:100",
+        "config.buttons.next_text": "string|maxLength:100",
+        "config.buttons.back_text": "string|maxLength:100",
+        "config.buttons.submit_text": "string|maxLength:100",
+        "config.messages.welcome_title": "string:text",
+        "config.messages.thank_you_title": "string:text",
+        "config.messages.closed_title": "string:text",
+        "translations": "object",
+        "extra": "object",
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime",
+        "template_survey_id": "integer"
+      },
+      "pk": "survey_id",
+      "unique": ["slug"],
+      "softDelete": "is_deleted",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "project"
+    },
+    "section": {
+      "columns": {
+        "section_id": "auto_increment",
+        "tenant_id": "required|integer",
+        "survey_id": "required|integer",
+        "project_id": "required|integer",
+        "title": "required|string|maxLength:255",
+        "description": "string:text|maxLength:5000",
+        "order_index": "required|integer",
+        "config": "object",
+        "translations": "object",
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "section_id",
+      "softDelete": "is_deleted",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "survey"
+    },
+    "question": {
+      "columns": {
+        "question_id": "auto_increment",
+        "tenant_id": "required|integer",
+        "survey_id": "required|integer",
+        "project_id": "required|integer",
+        "section_id": "required|integer",
+        "parent_question_id": "integer",
+        "code": "required|string|alphaDash|maxLength:100",
+        "type": "required|string|in:OPEN_ENDED,SINGLE_SELECT,MULTI_SELECT,GRID,RANKING,GROUP,MESSAGE",
+        "display_type": "string|in:RADIO_BUTTONS,CARDS,DROPDOWN,DEFAULT_SLIDER,RYG_SLIDER,DEFAULT_SCALE,SCALE_WITH_TEXT,NEUTRAL_SCALE,DEFAULT_NPS,NPS_PREFILLED_COLOR,NPS_BORDER_COLOR",
+        "title": "required|string:text",
+        "description": "string:text",
+        "order_index": "required|integer",
+        "is_mandatory": "boolean",
+        "is_visible_default": "boolean",
+        "config": "required|object",
+        "translations": "object",
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "question_id",
+      "softDelete": "is_deleted",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "section"
+    },
+    "rule": {
+      "columns": {
+        "rule_id": "auto_increment",
+        "tenant_id": "required|integer",
+        "project_id": "required|integer",
+        "survey_id": "required|integer",
+        "name": "required|string|maxLength:255",
+        "status": "required|string|in:draft,active,inactive",
+        "order_index": "required|integer",
+        "config": "required|object",
+        "config.conditions": "object",
+        "config.actions": "object",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "rule_id",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "survey"
+    },
+    "respondent_master": {
+      "columns": {
+        "respondent_master_id": "auto_increment",
+        "tenant_id": "required|integer",
+        "project_id": "required|integer",
+        "unique_id": "required|string|maxLength:255",
+        "first_name": "string|maxLength:255",
+        "last_name": "string|maxLength:255",
+        "email": "string|email",
+        "phone": "string|phoneNumber",
+        "status": "required|string|in:active,inactive,archived",
+        "attributes": "required|object",
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "respondent_master_id",
+      "softDelete": "is_deleted",
+      "unique": ["unique_id"],
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "project"
+    },
+    "respondent": {
+      "columns": {
+        "respondent_id": "auto_increment",
+        "respondent_master_id": "integer",
+        "tenant_id": "required|integer",
+        "project_id": "required|integer",
+        "survey_id": "integer",
+        "type": "required|string|in:LIVE,TEST",
+        "token": "required|string|maxLength:255",
+        "status": "required|string|in:PENDING,STARTED,INPROGRESS,COMPLETED,EXPIRED,REVOKED",
+        "progress_percentage": "numeric:decimal(5,2)",
+        "config": "object",
+        "config.language": "string",
+        "config.channel": "string|in:EMAIL,SMS,WHATSAPP,VOICE,WEB",
+        "config.consent_required": "boolean",
+        "config.expiry_policy": "object",
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "respondent_id",
+      "softDelete": "is_deleted",
+      "unique": ["respondent_master_id", "survey_id", "type"],
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "project"
+    },
+    "respondent_assignment": {
+      "columns": {
+        "respondent_assignment_id": "auto_increment",
+        "tenant_id": "required|integer",
+        "project_id": "required|integer",
+        "respondent_id": "required|integer",
+        "survey_id": "required|integer",
+        "user_id": "required|integer",
+        "assignment_type": "required|string|in:SPOC,FIELD_AGENT,FIELD_MANAGER,VIEWER",
+        "expires_at": "datetime",
+        "config": "object",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "respondent_assignment_id",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "respondent"
+    },
+    "respondent_import": {
+      "columns": {
+        "import_id": "auto_increment",
+        "tenant_id": "required|integer",
+        "project_id": "required|integer",
+        "name": "required|string|maxLength:255",
+        "integration_type": "required|string|in:CRM,HRMS,ERP,API,FILE",
+        "status": "required|string|in:draft,active,paused,failed",
+        "script": "string:longtext",
+        "config": "required|object",
+        "config.version": "required|integer",
+        "config.mode": "string|in:manual,scheduled,webhook",
+        "config.schedule.cron": "string",
+        "config.schedule.timezone": "string",
+        "credentials": "required|object",
+        "credentials.auth": "object",
+        "credentials.endpoint": "string|url",
+        "mapping.unique_id": "string",
+        "mapping.mapper": "object",
+        "extra": "object",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "import_id",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "project"
+    },
+    "respondent_import_run": {
+      "columns": {
+        "respondent_import_run_id": "auto_increment",
+        "tenant_id": "required|integer",
+        "project_id": "required|integer",
+        "import_id": "required|integer",
+        "status": "required|string|in:queued,running,completed,failed",
+        "input": "object",
+        "output": "object",
+        "error": "object",
+        "started_at": "datetime",
+        "finished_at": "datetime",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "respondent_import_run_id",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "respondent_import"
+    },
+    "survey_link": {
+      "columns": {
+        "survey_link_id": "auto_increment",
+        "survey_id": "required|integer",
+        "token": "required|string|maxLength:255",
+        "status": "required|string|in:active,inactive,expired",
+        "expires_at": "datetime",
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "survey_link_id",
+      "softDelete": "is_deleted",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "survey"
+    },
+    "response": {
+      "columns": {
+        "response_id": "auto_increment",
+        "tenant_id": "required|integer",
+        "survey_link_id": "required|integer",
+        "respondent_id": "required|integer",
+        "question_id": "required|integer",
+        "response": "required|object",
+        "status": "required|string|in:SAVED,SUBMITTED",
+        "meta": "object",
+        "meta.time_spent_ms": "integer",
+        "meta.page_index": "integer",
+        "meta.ip_address": "string|ip",
+        "meta.user_agent": "string:text",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "response_id",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "survey_link"
+    },
+    "campaign": {
+      "columns": {
+        "campaign_id": "auto_increment",
+        "tenant_id": "required|integer",
+        "project_id": "required|integer",
+        "survey_id": "required|integer",
+        "name": "required|string|maxLength:255",
+        "channel": "required|string|in:EMAIL,SMS,WHATSAPP,VOICE",
+        "status": "required|string|in:DRAFT,SCHEDULED,RUNNING,COMPLETED,FAILED,PAUSED",
+        "config": "required|object",
+        "config.message.subject": "string|maxLength:255",
+        "config.message.body": "string:text",
+        "config.schedule": "string|maxLength:63",
+        "send_after": "datetime",
+        "extra": "object",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "campaign_id",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "project"
+    },
+    "campaign_recipient": {
+      "columns": {
+        "campaign_recipient_id": "auto_increment",
+        "tenant_id": "required|integer",
+        "campaign_id": "required|integer",
+        "respondent_id": "required|integer",
+        "send_after": "datetime",
+        "status": "required|string|in:PENDING,SENT,DELIVERED,OPENED,CLICKED,RESPONDED,FAILED",
+        "subject": "string|maxLength:255",
+        "body": "string:text",
+        "config": "object",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "campaign_recipient_id",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "campaign"
+    },
+    "campaign_event": {
+      "columns": {
+        "campaign_event_id": "auto_increment",
+        "tenant_id": "required|integer",
+        "campaign_recipient_id": "required|integer",
+        "respondent_id": "required|integer",
+        "event_type": "required|string|maxLength:100",
+        "event_time": "required|datetime",
+        "event_data": "object",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "campaign_event_id",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "campaign_recipient"
+    },
+    "api_key": {
+      "columns": {
+        "api_key_id": "auto_increment",
+        "tenant_id": "required|integer",
+        "project_id": "required|integer",
+        "name": "required|string|maxLength:255",
+        "key_hash": "required|string:text",
+        "status": "required|string|in:ACTIVE,REVOKED,EXPIRED",
+        "config": "required|object",
+        "config.version": "required|integer",
+        "config.scopes": "object",
+        "config.rotation.enabled": "boolean",
+        "config.rotation.last_rotated_at": "datetime",
+        "expires_at": "datetime",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "api_key_id",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "project"
+    },
+    "audit_log": {
+      "columns": {
+        "audit_log_id": "auto_increment",
+        "tenant_id": "required|integer",
+        "user_id": "integer",
+        "project_id": "integer",
+        "entity_name": "required|string|maxLength:255",
+        "entity_id": "string|maxLength:255",
+        "event_name": "required|string|maxLength:255",
+        "event_data": "object",
+        "ip_address": "string|ip",
+        "user_agent": "string:text",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "audit_log_id",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      }
+    }
+  },
+  "relationships": [
+    {
+      "parent": "project",
+      "child": "template_survey",
+      "foreignKey": "project_id"
+    },
+    {
+      "parent": "template_survey",
+      "child": "template_section",
+      "foreignKey": "template_survey_id"
+    },
+    {
+      "parent": "template_section",
+      "child": "template_question",
+      "foreignKey": "template_section_id"
+    },
+    {
+      "parent": "template_survey",
+      "child": "template_question",
+      "foreignKey": "template_survey_id"
+    },
+    {
+      "parent": "project",
+      "child": "survey",
+      "foreignKey": "project_id"
+    },
+    {
+      "parent": "template_survey",
+      "child": "survey",
+      "foreignKey": "template_survey_id"
+    },
+    {
+      "parent": "survey",
+      "child": "section",
+      "foreignKey": "survey_id"
+    },
+    {
+      "parent": "project",
+      "child": "section",
+      "foreignKey": "project_id"
+    },
+    {
+      "parent": "section",
+      "child": "question",
+      "foreignKey": "section_id"
+    },
+    {
+      "parent": "survey",
+      "child": "question",
+      "foreignKey": "survey_id"
+    },
+    {
+      "parent": "project",
+      "child": "question",
+      "foreignKey": "project_id"
+    },
+    {
+      "parent": "question",
+      "child": "question",
+      "foreignKey": "parent_question_id"
+    },
+    {
+      "parent": "survey",
+      "child": "rule",
+      "foreignKey": "survey_id"
+    },
+    {
+      "parent": "project",
+      "child": "rule",
+      "foreignKey": "project_id"
+    },
+    {
+      "parent": "project",
+      "child": "respondent_master",
+      "foreignKey": "project_id"
+    },
+    {
+      "parent": "project",
+      "child": "respondent",
+      "foreignKey": "project_id"
+    },
+    {
+      "parent": "respondent_master",
+      "child": "respondent",
+      "foreignKey": "respondent_master_id"
+    },
+    {
+      "parent": "survey",
+      "child": "respondent",
+      "foreignKey": "survey_id"
+    },
+    {
+      "parent": "respondent",
+      "child": "respondent_assignment",
+      "foreignKey": "respondent_id"
+    },
+    {
+      "parent": "project",
+      "child": "respondent_assignment",
+      "foreignKey": "project_id"
+    },
+    {
+      "parent": "survey",
+      "child": "respondent_assignment",
+      "foreignKey": "survey_id"
+    },
+    {
+      "parent": "project",
+      "child": "respondent_import",
+      "foreignKey": "project_id"
+    },
+    {
+      "parent": "respondent_import",
+      "child": "respondent_import_run",
+      "foreignKey": "import_id"
+    },
+    {
+      "parent": "project",
+      "child": "respondent_import_run",
+      "foreignKey": "project_id"
+    },
+    {
+      "parent": "survey",
+      "child": "survey_link",
+      "foreignKey": "survey_id"
+    },
+    {
+      "parent": "survey_link",
+      "child": "response",
+      "foreignKey": "survey_link_id"
+    },
+    {
+      "parent": "respondent",
+      "child": "response",
+      "foreignKey": "respondent_id"
+    },
+    {
+      "parent": "question",
+      "child": "response",
+      "foreignKey": "question_id"
+    },
+    {
+      "parent": "project",
+      "child": "campaign",
+      "foreignKey": "project_id"
+    },
+    {
+      "parent": "survey",
+      "child": "campaign",
+      "foreignKey": "survey_id"
+    },
+    {
+      "parent": "campaign",
+      "child": "campaign_recipient",
+      "foreignKey": "campaign_id"
+    },
+    {
+      "parent": "respondent",
+      "child": "campaign_recipient",
+      "foreignKey": "respondent_id"
+    },
+    {
+      "parent": "campaign_recipient",
+      "child": "campaign_event",
+      "foreignKey": "campaign_recipient_id"
+    },
+    {
+      "parent": "respondent",
+      "child": "campaign_event",
+      "foreignKey": "respondent_id"
+    },
+    {
+      "parent": "project",
+      "child": "document",
+      "foreignKey": "project_id"
+    },
+    {
+      "parent": "project",
+      "child": "api_key",
+      "foreignKey": "project_id"
+    },
+    {
+      "parent": "project",
+      "child": "audit_log",
+      "foreignKey": "project_id"
+    }
+  ]
+}

@@ -23,7 +23,8 @@
     "test:all": "mocha test/adapters/*.test.js test/properties/*.property.test.js test/function.test.js test/commands/*.test.js --timeout 300000 --exit",
     "test:command": "mocha test/commands/*.test.js --timeout 30000 --exit",
     "demo:clear": "node -e \"var fs=require('fs'),p=require('path'),d=p.join(__dirname,'demo');fs.existsSync(d)&&fs.rmSync(d,{recursive:true,force:true});fs.mkdirSync(d,{recursive:true})\"",
-    "demo:create": "node scripts/demo-create.js"
+    "demo:create": "node scripts/demo-create.js",
+    "demo:create-postgres": "node scripts/demo-create.js postgres"
   },
   "repository": {
     "type": "git",

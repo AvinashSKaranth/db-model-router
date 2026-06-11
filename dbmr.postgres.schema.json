@@ -1,0 +1,269 @@
+{
+  "adapter": "postgres",
+  "framework": "express",
+  "options": {
+    "session": "redis",
+    "rateLimiting": true,
+    "helmet": true,
+    "logger": true,
+    "loki": false
+  },
+  "tables": {
+    "projects": {
+      "columns": {
+        "project_id": "auto_increment",
+        "name": "required|string|minLength:3|maxLength:300",
+        "slug": "required|string|regex:^[a-z0-9-]+$|maxLength:300",
+        "description": "string:text|maxLength:5000",
+        "status": "required|string|in:active,archived,paused",
+        "priority": "integer|between:1,5",
+        "budget": "numeric:decimal(10,2)|min:0",
+        "currency": "string|minLength:3|maxLength:3",
+        "start_date": "datetime",
+        "due_date": "datetime",
+        "owner_id": "required|integer",
+        "settings": "object",
+        "settings.notifications": "boolean",
+        "settings.theme": "string|in:light,dark,auto",
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "project_id",
+      "unique": ["slug"],
+      "softDelete": "is_deleted",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": null
+    },
+    "tasks": {
+      "columns": {
+        "task_id": "auto_increment",
+        "project_id": "required|integer",
+        "title": "required|string|minLength:3|maxLength:500",
+        "description": "string:text|maxLength:10000",
+        "status": "required|string|in:todo,in_progress,in_review,done,blocked",
+        "priority": "required|string|in:low,medium,high,critical",
+        "assignee_id": "integer",
+        "estimated_hours": "numeric:decimal(6,2)|min:0",
+        "actual_hours": "numeric:decimal(6,2)|min:0",
+        "due_date": "datetime",
+        "completed_at": "datetime",
+        "tags": "object",
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "task_id",
+      "unique": ["task_id"],
+      "softDelete": "is_deleted",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "projects"
+    },
+    "comments": {
+      "columns": {
+        "comment_id": "auto_increment",
+        "task_id": "required|integer",
+        "user_id": "required|integer",
+        "body": "required|string:text|maxLength:5000",
+        "is_edited": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "comment_id",
+      "unique": ["comment_id"],
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "tasks"
+    },
+    "attachments": {
+      "columns": {
+        "attachment_id": "auto_increment",
+        "task_id": "required|integer",
+        "file_name": "required|string|maxLength:500",
+        "file_url": "required|string|url|maxLength:2048",
+        "mime_type": "required|string|maxLength:100",
+        "file_size": "integer:bigint|min:0",
+        "uploaded_by": "required|integer",
+        "created_at": "datetime"
+      },
+      "pk": "attachment_id",
+      "unique": ["attachment_id"],
+      "timestamps": {
+        "created_at": "created_at"
+      },
+      "parent": "tasks"
+    },
+    "customers": {
+      "columns": {
+        "customer_id": "auto_increment",
+        "email": "required|string|email|maxLength:300",
+        "phone": "string|phoneNumber|maxLength:20",
+        "first_name": "required|string|maxLength:200",
+        "last_name": "required|string|maxLength:200",
+        "company": "string|maxLength:300",
+        "notes": "string:text|maxLength:5000",
+        "metadata": "object",
+        "metadata.source": "string|in:web,api,import,in_person",
+        "metadata.verified": "boolean",
+        "is_active": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "customer_id",
+      "unique": ["email"],
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": null
+    },
+    "invoices": {
+      "columns": {
+        "invoice_id": "auto_increment",
+        "customer_id": "required|integer",
+        "invoice_number": "required|string|alphaDash|maxLength:50",
+        "status": "required|string|in:draft,sent,paid,overdue,cancelled",
+        "subtotal": "required|numeric:money|min:0",
+        "tax_rate": "numeric:decimal(5,4)|between:0,1",
+        "tax_amount": "required|numeric:money|min:0",
+        "total": "required|numeric:money|min:0",
+        "currency": "required|string|minLength:3|maxLength:3",
+        "due_date": "datetime",
+        "paid_at": "datetime",
+        "notes": "string:text|maxLength:5000",
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "invoice_id",
+      "unique": ["invoice_number"],
+      "softDelete": "is_deleted",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "customers"
+    },
+    "invoice_items": {
+      "columns": {
+        "invoice_item_id": "auto_increment",
+        "invoice_id": "required|integer",
+        "description": "required|string|maxLength:500",
+        "quantity": "required|integer:unsigned|min:1",
+        "unit_price": "required|numeric:money|min:0",
+        "amount": "required|numeric:money|min:0",
+        "created_at": "datetime"
+      },
+      "pk": "invoice_item_id",
+      "unique": ["invoice_item_id"],
+      "timestamps": {
+        "created_at": "created_at"
+      },
+      "parent": "invoices"
+    },
+    "documents": {
+      "columns": {
+        "document_id": "auto_increment",
+        "title": "required|string|minLength:3|maxLength:500",
+        "slug": "required|string|regex:^[a-z0-9-]+$|maxLength:500",
+        "content": "required|string:text|maxLength:50000",
+        "excerpt": "string|maxLength:500",
+        "status": "required|string|in:draft,published,archived",
+        "author_id": "required|integer",
+        "featured": "boolean",
+        "tags": "object",
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "document_id",
+      "unique": ["slug"],
+      "softDelete": "is_deleted",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": null
+    },
+    "categories": {
+      "columns": {
+        "category_id": "auto_increment",
+        "name": "required|string|minLength:3|maxLength:200",
+        "slug": "required|string|regex:^[a-z0-9-]+$|maxLength:200",
+        "description": "string:text|maxLength:2000",
+        "sort_order": "integer",
+        "is_active": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "category_id",
+      "unique": ["slug"],
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": null
+    },
+    "events": {
+      "columns": {
+        "event_id": "auto_increment",
+        "name": "required|string|minLength:3|maxLength:300",
+        "description": "string:text|maxLength:5000",
+        "location": "required|string|maxLength:500",
+        "start_time": "required|datetime",
+        "end_time": "datetime",
+        "capacity": "integer:unsigned|min:1",
+        "price": "numeric:money|min:0",
+        "currency": "string|minLength:3|maxLength:3",
+        "status": "required|string|in:upcoming,ongoing,completed,cancelled",
+        "organizer_id": "required|integer",
+        "is_deleted": "boolean",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "event_id",
+      "unique": ["event_id"],
+      "softDelete": "is_deleted",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": null
+    }
+  },
+  "relationships": [
+    {
+      "parent": "projects",
+      "child": "tasks",
+      "foreignKey": "project_id"
+    },
+    {
+      "parent": "tasks",
+      "child": "comments",
+      "foreignKey": "task_id"
+    },
+    {
+      "parent": "tasks",
+      "child": "attachments",
+      "foreignKey": "task_id"
+    },
+    {
+      "parent": "customers",
+      "child": "invoices",
+      "foreignKey": "customer_id"
+    },
+    {
+      "parent": "invoices",
+      "child": "invoice_items",
+      "foreignKey": "invoice_id"
+    }
+  ]
+}
