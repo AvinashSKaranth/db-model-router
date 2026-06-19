@@ -145,6 +145,67 @@ describe("CLI Commands - init (src/cli/commands/init.js)", function () {
         "users route should be generated when --from is provided",
       );
     });
+
+    it("should prefix imports in package.json when --output is provided", async function () {
+      const schemaPath = writeSchemaFile(tmpDir, {
+        adapter: "sqlite3",
+        framework: "express",
+        options: {
+          session: "memory",
+          rateLimiting: false,
+          helmet: false,
+          logger: false,
+        },
+      });
+
+      const childProcess = require("child_process");
+      const origExecSync = childProcess.execSync;
+      childProcess.execSync = function () {};
+      const origLog = console.log;
+      console.log = function () {};
+
+      try {
+        await initCmd(
+          { from: schemaPath, output: "backend" },
+          {
+            yes: true,
+            json: true,
+            dryRun: false,
+            noInstall: true,
+            help: false,
+          },
+          new OutputContext({ json: true }),
+        );
+      } finally {
+        childProcess.execSync = origExecSync;
+        console.log = origLog;
+      }
+
+      const pkg = JSON.parse(
+        fs.readFileSync(path.join(tmpDir, "package.json"), "utf8"),
+      );
+      assert.ok(pkg.imports, "package.json should have an imports field");
+      assert.strictEqual(
+        pkg.imports["#models"],
+        "./backend/models/index.js",
+        "#models should point into the output directory",
+      );
+      assert.strictEqual(
+        pkg.imports["#routes/*.js"],
+        "./backend/routes/*.js",
+        "#routes should point into the output directory",
+      );
+      assert.strictEqual(
+        pkg.imports["#commons/*.js"],
+        "./backend/commons/*.js",
+        "#commons should point into the output directory",
+      );
+      assert.strictEqual(
+        pkg.imports["#middleware/*.js"],
+        "./backend/middleware/*.js",
+        "#middleware should point into the output directory",
+      );
+    });
   });
 
   // -------------------------------------------------------------------

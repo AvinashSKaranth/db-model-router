@@ -304,8 +304,9 @@ function where(filter, safeDelete = null) {
           ),
         );
       } else if (j[1] === "like" || j[1] === "not like") {
+        const pgOp = j[1] === "like" ? "ILIKE" : "NOT ILIKE";
         bindIdx++;
-        conditionAnd.push(`${escapeId(j[0])} ${j[1]} $${bindIdx}`);
+        conditionAnd.push(`${escapeId(j[0])} ${pgOp} $${bindIdx}`);
         value.push("%" + j[2] + "%");
       } else {
         bindIdx++;
