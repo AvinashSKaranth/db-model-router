@@ -35,6 +35,7 @@ PG_DB=test_db
 - `SERIAL` / `BIGSERIAL` primary keys are auto-detected via `pg_index`
 - `ON CONFLICT` is used for upsert operations
 - Includes a SQL translator layer that converts common MySQL DDL/DML to PostgreSQL syntax
+- `like` / `not like` filter operators (and the `?search=` parameter) compile to **`ILIKE` / `NOT ILIKE`** — case-insensitive substring matching. The value is wrapped as `%term%`.
 
 ## Table Creation
 

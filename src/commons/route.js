@@ -35,9 +35,12 @@ module.exports = function route(model, override = {}) {
         req,
         override,
       );
-      const { select_columns, output_content_type } =
+      const { select_columns, output_content_type, search } =
         extractReservedParams(payload);
       payload[model.pk] = req.params[model.pk];
+      // Re-attach search so the model layer can apply it against search_columns;
+      // route only needs select_columns/output_content_type for response shaping.
+      if (search !== null && search !== undefined) payload.search = search;
       model
         .find(payload)
         .then((response) => {
@@ -144,8 +147,10 @@ module.exports = function route(model, override = {}) {
         req,
         override,
       );
-      const { output_content_type } = extractReservedParams(payload);
+      const { output_content_type, search } = extractReservedParams(payload);
       // select_columns stays in payload — model.list handles it
+      // Re-attach search so the model layer can apply it against search_columns.
+      if (search !== null && search !== undefined) payload.search = search;
       model
         .list(payload)
         .then((response) => {

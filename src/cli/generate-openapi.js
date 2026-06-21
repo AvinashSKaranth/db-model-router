@@ -68,6 +68,20 @@ function generateOpenAPISpec(models, options = {}) {
     // Helper: prepend FK path param for child routes
     const withFk = (params) => (fkParam ? [fkParam, ...params] : params);
 
+    // Optional search parameter (substring match across configured columns)
+    const searchColumns = m.option && m.option.search_columns;
+    const searchParam =
+      Array.isArray(searchColumns) && searchColumns.length > 0
+        ? [
+            {
+              name: "search",
+              in: "query",
+              schema: { type: "string" },
+              description: `Substring match (OR) across: ${searchColumns.join(", ")}`,
+            },
+          ]
+        : [];
+
     // GET / — list
     spec.paths[`${prefix}/`] = {
       get: {
@@ -96,6 +110,7 @@ function generateOpenAPISpec(models, options = {}) {
             in: "query",
             schema: { type: "string", enum: ["json", "csv", "xml"] },
           },
+          ...searchParam,
         ]),
         responses: {
           200: {

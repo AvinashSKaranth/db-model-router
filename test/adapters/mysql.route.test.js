@@ -268,4 +268,93 @@ describe("MySQL Route REST API", function () {
       assert.strictEqual(check.count, 0, "removed records should not exist");
     });
   });
+
+  describe("Multi-column search", function () {
+    let searchModel;
+    let searchApp;
+
+    before(async function () {
+      // Model configured with search_columns; same underlying table
+      searchModel = model(db, tableName, modelStructure, primaryKey, [primaryKey], {
+        search_columns: ["name", "email"],
+      });
+      searchApp = express();
+      searchApp.use(express.json());
+      searchApp.use("/test", route(searchModel));
+
+      // Clean and seed deterministic rows
+      const all = await searchModel.find({});
+      for (const r of all.data) await searchModel.remove(r.id);
+      await searchModel.insert({
+        data: [
+          { name: "Alice Active", email: "alice@example.com", age: 30 },
+          { name: "Bob Inactive", email: "bob@work.com", age: 40 },
+          { name: "Carol Active", email: "carol@example.com", age: 50 },
+          { name: "Dave Inactive", email: "dave@other.com", age: 60 },
+        ],
+      });
+    });
+
+    it("GET /test/?search=alice should match name OR email (case-insensitive)", function (done) {
+      request(searchApp)
+        .get("/test/")
+        .query({ search: "alice" })
+        .expect("Content-Type", /json/)
+        .expect(200)
+        .expect((res) => {
+          assert.ok(Array.isArray(res.body.data), "data should be an array");
+          // Alice Active matches name; no other row contains "alice"
+          assert.strictEqual(res.body.count, 1, "only Alice row should match");
+          assert.strictEqual(res.body.data[0].name, "Alice Active");
+        })
+        .end(done);
+    });
+
+    it("GET /test/?search=example.com should match via email column", function (done) {
+      request(searchApp)
+        .get("/test/")
+        .query({ search: "example.com" })
+        .expect(200)
+        .expect((res) => {
+          // alice@example.com and carol@example.com
+          assert.strictEqual(res.body.count, 2, "two example.com rows");
+        })
+        .end(done);
+    });
+
+    it("GET /test/?search=active should AND-combine with column filters", function (done) {
+      // name contains "Active" (Alice Active, Carol Active) AND age=50 -> only Carol
+      request(searchApp)
+        .get("/test/")
+        .query({ search: "active", age: "50" })
+        .expect(200)
+        .expect((res) => {
+          assert.strictEqual(res.body.count, 1, "search AND age filter");
+          assert.strictEqual(res.body.data[0].name, "Carol Active");
+        })
+        .end(done);
+    });
+
+    it("GET /test/?search=nomatch should return empty data with count 0", function (done) {
+      request(searchApp)
+        .get("/test/")
+        .query({ search: "zzznomatchzzz" })
+        .expect(200)
+        .expect((res) => {
+          assert.strictEqual(res.body.count, 0);
+          assert.deepStrictEqual(res.body.data, []);
+        })
+        .end(done);
+    });
+
+    it("GET /test/ without search still works (regression)", function (done) {
+      request(searchApp)
+        .get("/test/")
+        .expect(200)
+        .expect((res) => {
+          assert.strictEqual(res.body.count, 4, "all seeded rows present");
+        })
+        .end(done);
+    });
+  });
 });

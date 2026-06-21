@@ -118,7 +118,7 @@ For adapter-specific connect options (ports, env vars, upsert behavior), read th
 | `structure` | `{col: "rule"}` | Types: `string\|integer\|numeric\|boolean\|object\|datetime\|auto_increment`. Prefix `required\|` for NOT NULL. |
 | `pk`        | string          | Primary key column. Convention: `<table>_id`                                                                    |
 | `unique`    | string[] \| string[][] | Flat array = one composite unique group; array-of-arrays = multiple independent constraints               |
-| `option`    | object          | `{ safeDelete, created_at, modified_at }` — column names or null                                                |
+| `option`    | object          | `{ safeDelete, created_at, modified_at, search_columns }` — column names or null; `search_columns` is a string[] enabling `?search=` |
 
 > PK, timestamp, soft-delete, and `auto_increment` cols are auto-excluded from insert/update payloads.
 
@@ -146,6 +146,8 @@ await m.byId(1)                                                       // → rec
 await m.find({ name: "Alice" })                                       // → {data:[], count}
 await m.findOne({ email: "a@b.com" })                                 // → record or false
 await m.list({ page: 0, size: 10, sort: ["-age"] })                   // → {data:[], count}
+// `search` works on find/findOne/list when option.search_columns is set:
+await m.list({ search: "alice", status: "active" })                   // (col0 LIKE %alice% OR ...) AND status='active'
 
 // DELETE — safeDelete: sets column=1; without: hard delete
 await m.remove(1)
@@ -197,6 +199,28 @@ When using `GET /` (list endpoint), query parameters are automatically parsed in
 
 `%` is URL-encoded as `%25`; `=` in `>=`/`<=` is URL-encoded as `%3D`. `LIKE` patterns follow SQL conventions: `%25john%25` → contains, `%25john` → ends with, `john%25` → starts with. `IN`/`NOT IN` values are comma-separated inside parentheses.
 
+### Multi-Column Search (`?search=`)
+
+`search` is a **reserved** query param for free-text matching across multiple columns. Enabled per-model via `option.search_columns` (string[]). Term is matched as **contains** (`LIKE %term%`) against any configured column, OR-joined, and AND-combined with other filters.
+
+```js
+const users = model(db, "users", structure, "id", ["id"], {
+  search_columns: ["name", "description", "email"],
+});
+```
+
+```bash
+GET /users/?search=alice&status=active
+# → (name LIKE %alice% OR description LIKE %alice% OR email LIKE %alice%) AND status='active'
+```
+
+- Works on `find`, `findOne`, `list` (and `GET /:id`, `GET /`). `findOne` returns first match.
+- Empty/whitespace `search` → ignored. `search` sent without `search_columns` → dropped (never a column filter, never 422).
+- `search_columns` is **config-only** (model option / `dbmr.schema.json`), not per-request overridable.
+- Case sensitivity is adapter-native: PostgreSQL/MongoDB/Redis/SQLite3 case-insensitive; DynamoDB case-sensitive; MySQL depends on collation.
+- Multi-term (`search=alice bob`) matches the literal substring `alice bob` per column. No tokenized search.
+- In SQL adapters `%`/`_` in the term act as `LIKE` wildcards; Mongo/Redis/DynamoDB match literally (Mongo escapes regex).
+
 ---
 
 ## route(model, override?)
@@ -217,7 +241,7 @@ Generates an Express Router with 9 endpoints:
 
 **Payload override** (multi-tenancy): `route(m, { tenant_id: "user.tenant_id" })` — maps columns to `req` paths via lodash.get.
 
-**Query params**: `select_columns=name,email`, `output_content_type=csv|xml|json`, `sort=-age,name`
+**Query params**: `select_columns=name,email`, `output_content_type=csv|xml|json`, `sort=-age,name`, `search=alice` (requires `search_columns` on the model — see Multi-Column Search above)
 
 ---
 
@@ -440,6 +464,7 @@ For the full specification, see `references/dbmr-schema-spec.md`.
 | `pk`         | Yes      | Primary key (convention: `<table>_id`)           |
 | `unique`     | No       | Unique constraint columns (default: `[pk]`)      |
 | `softDelete` | No       | Column name for soft-delete                      |
+| `search_columns` | No | String[] of columns for `?search=` (multi-col OR `LIKE`); each must exist |
 | `timestamps` | No       | `{ created_at, modified_at }` column mapping     |
 | `parent`     | No       | Parent table for route nesting, or `null`        |
 
@@ -621,3 +646,4 @@ Topic: `{KAFKA_TOPIC_PREFIX}.{table_name}` (e.g. `dbmr.users`)
 14. Use `parent` only for domain hierarchies (e.g. `posts → comments`), not system tables.
 15. When `--saas-structure` is active, do NOT define `users`, `tenants`, `roles`, or `role_permissions` in `dbmr.schema.json` — they are already generated with models, routes, middleware, and migrations. Only add your product-specific tables to the schema.
 16. Kafka is opt-in via `KAFKA_BROKER` env var. Call `kafka.init()` after `db.connect()`. Each write op produces one event per row to `{prefix}.{table}` topic.
+17. `search` is a **reserved** query param — never a column filter. It only takes effect when the model has `option.search_columns` set (config-only). It OR-joins a `LIKE %term%` across those columns and AND-combines with other filters. Works on `find`/`findOne`/`list` and the `GET /:id` + `GET /` routes.

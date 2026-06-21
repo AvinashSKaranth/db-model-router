@@ -214,6 +214,34 @@ function validateTables(tables, errors) {
       }
     }
 
+    // Validate search_columns (free-text search targets)
+    if (
+      tableDef.search_columns !== undefined &&
+      tableDef.search_columns !== null
+    ) {
+      if (!Array.isArray(tableDef.search_columns)) {
+        errors.push({
+          path: `${basePath}.search_columns`,
+          message: `search_columns must be an array of strings in table "${tableName}"`,
+        });
+      } else {
+        for (let i = 0; i < tableDef.search_columns.length; i++) {
+          const col = tableDef.search_columns[i];
+          if (typeof col !== "string" || col.length === 0) {
+            errors.push({
+              path: `${basePath}.search_columns[${i}]`,
+              message: `search_columns entry must be a non-empty string in table "${tableName}"`,
+            });
+          } else if (!columnNames.has(col)) {
+            errors.push({
+              path: `${basePath}.search_columns[${i}]`,
+              message: `search_columns entry "${col}" does not exist in table "${tableName}"`,
+            });
+          }
+        }
+      }
+    }
+
     // Validate parent (route nesting)
     if (tableDef.parent !== undefined && tableDef.parent !== null) {
       if (typeof tableDef.parent !== "string") {

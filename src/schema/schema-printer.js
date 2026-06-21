@@ -48,6 +48,14 @@ function printSchema(schema) {
       tableDef.softDelete = table.softDelete;
     }
 
+    // Preserve search_columns if set and non-empty
+    if (
+      Array.isArray(table.search_columns) &&
+      table.search_columns.length > 0
+    ) {
+      tableDef.search_columns = [...table.search_columns];
+    }
+
     // Preserve parent if set
     if (table.parent !== null && table.parent !== undefined) {
       tableDef.parent = table.parent;

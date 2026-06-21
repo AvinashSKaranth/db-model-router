@@ -42,6 +42,7 @@ Each entry in `tables` is a Table Definition object:
   "pk": "product_id",
   "unique": ["sku"],
   "softDelete": "is_deleted",
+  "search_columns": ["name", "description"],
   "timestamps": {
     "created_at": "created_at",
     "modified_at": "modified_at"
@@ -56,6 +57,7 @@ Each entry in `tables` is a Table Definition object:
 | `pk`         | Yes      | Primary key column name. Convention: `<table>_id` (e.g. `user_id`, `order_id`).                 |
 | `unique`     | No       | Array of column names with unique constraints. Defaults to `[pk]` if omitted.                   |
 | `softDelete` | No       | Column name used for soft-delete. When set, `remove()` updates this column to `1`/`true` instead of hard-deleting. |
+| `search_columns` | No  | Array of column names targeted by the `search=` query parameter (multi-column OR `LIKE`). Each entry must reference an existing column. Empty/absent disables search. |
 | `timestamps` | No       | Object mapping `{ created_at: "col_name", modified_at: "col_name" }`. These columns are auto-excluded from insert/update payloads. |
 | `parent`     | No       | Parent table name for route nesting, or `null` for a top-level route.                           |
 
@@ -449,11 +451,13 @@ const products = model(
   },
   "product_id",
   ["sku", "slug"],
-  { safeDelete: "is_deleted" },
+  { safeDelete: "is_deleted", search_columns: ["name", "description"] },
 );
 ```
 
 The model passes these rules to `node-input-validator` on every insert/update/patch operation. Sub-types are stripped — only the base type and validators are kept in the runtime structure.
+
+`search_columns` is passed through to the model `option` and enables the `search=` query parameter (multi-column OR `LIKE`). It is not a column rule and is not part of `structure`.
 
 ### OpenAPI Generation
 
@@ -475,6 +479,28 @@ Validators map to OpenAPI schema properties:
 | `alpha`         | `pattern: "^[a-zA-Z]+$"`              |
 | `alphaNumeric`  | `pattern: "^[a-zA-Z0-9]+$"`           |
 | `alphaDash`     | `pattern: "^[a-zA-Z0-9_-]+$"`         |
+
+When a table defines `search_columns`, the OpenAPI generator adds a `search` query parameter (type `string`) to that table's `GET /` list path, with a description listing the targeted columns. Tables without `search_columns` get no `search` parameter.
+
+---
+
+## Multi-Column Search (`search_columns` / `?search=`)
+
+`search_columns` enables free-text search across multiple columns via the reserved `search` query parameter. The term is matched as a substring against any configured column (OR-joined), and AND-combined with any other filters in the same request.
+
+```bash
+# (name LIKE %alice% OR description LIKE %alice%) AND sku = 'ABC'
+GET /products/?search=alice&sku=ABC
+```
+
+**Rules:**
+
+- Optional per table. If absent or empty, `search=` is ignored.
+- Each entry must be a non-empty string referencing an existing column (validated by `doctor`/`validateSchema`).
+- Applies to `find`, `findOne`, and `list` (and the `GET /:id`/`GET /` routes). `findOne` returns the first match.
+- Matching is **contains** (substring). Case sensitivity is adapter-native (PostgreSQL/MongoDB/Redis/SQLite3 case-insensitive; DynamoDB case-sensitive; MySQL depends on collation).
+- `search_columns` is config-only — set in the schema/model option, not overridable per request.
+- The `search` parameter is reserved: it is never treated as a column filter, even when `search_columns` is unset.
 
 ---
 

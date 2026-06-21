@@ -56,6 +56,10 @@ function parseSchema(input) {
     const softDelete =
       tableDef.softDelete !== undefined ? tableDef.softDelete : null;
 
+    const search_columns = Array.isArray(tableDef.search_columns)
+      ? [...tableDef.search_columns]
+      : [];
+
     const parent =
       tableDef.parent !== undefined && tableDef.parent !== null
         ? tableDef.parent
@@ -67,6 +71,7 @@ function parseSchema(input) {
       pk,
       unique,
       softDelete,
+      search_columns,
       timestamps,
       parent,
     };

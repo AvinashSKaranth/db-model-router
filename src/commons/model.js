@@ -10,11 +10,16 @@ const { produce } = require("./kafka");
 
 /**
  * Extract and remove reserved params from a data/payload object.
- * Returns { select_columns: string[]|null, output_content_type: string|null, cleaned: data }
+ * Returns { select_columns: string[]|null, output_content_type: string|null, search: string|null }
+ *
+ * `search` is the free-text search term. It is stripped here so it is never
+ * treated as a column filter by dataToFilter; it is consumed by applySearch
+ * against the model's configured `search_columns` option.
  */
 function extractReservedParams(data) {
   let select_columns = null;
   let output_content_type = null;
+  let search = null;
   if (data && typeof data === "object" && !Array.isArray(data)) {
     if (data.select_columns) {
       select_columns =
@@ -27,8 +32,55 @@ function extractReservedParams(data) {
       output_content_type = data.output_content_type;
       delete data.output_content_type;
     }
+    if (data.search !== undefined && data.search !== null) {
+      search = data.search;
+      delete data.search;
+    }
   }
-  return { select_columns, output_content_type };
+  return { select_columns, output_content_type, search };
+}
+
+/**
+ * Fan a free-text `search` term out to one OR-group per configured search
+ * column, AND-combined with the existing filter.
+ *
+ * Filter format is [[OR_groups[AND_conditions[col,op,val]]]] (top-level array
+ * = OR, within a group = AND). Each search column becomes its own OR-group
+ * containing a single `like` condition. To AND search with the existing
+ * filter, cross-product every existing OR-group with every search OR-group:
+ *
+ *   merged = for g in base, for sg in searchGroups: [...g, ...sg]
+ *
+ * Result OR-joined == (existing OR-groups) AND (col0 LIKE term OR col1 LIKE term OR ...).
+ * Empty base ([[]]) collapses to pure search OR-groups.
+ *
+ * The term is NOT pre-wrapped in `%` — adapters handle contains-wrapping:
+ * mysql/postgres add `%term%` (postgres via ILIKE, case-insensitive);
+ * mongodb/redis/dynamodb use native substring primitives (mongo regex `i`,
+ * redis String.includes ci, dynamodb contains()).
+ */
+function applySearch(filter, searchColumns, term) {
+  if (!Array.isArray(searchColumns) || searchColumns.length === 0) {
+    return filter;
+  }
+  if (term === undefined || term === null) return filter;
+  term = String(term).trim();
+  if (term === "") return filter;
+  const searchGroups = searchColumns.map((col) => [[col, "like", term]]);
+  let base = Array.isArray(filter) && filter.length > 0 ? filter : [[]];
+  const merged = [];
+  for (const g of base) {
+    // Drop malformed empty conditions (e.g. the `[]` placeholder inside the
+    // `[[[]]]` shape returned by dataToFilter for an empty object); otherwise
+    // adapter where() short-circuits the whole group to "match all".
+    const gClean = (Array.isArray(g) ? g : []).filter(
+      (c) => Array.isArray(c) && c.length === 3,
+    );
+    for (const sg of searchGroups) {
+      merged.push([...gClean, ...sg]);
+    }
+  }
+  return merged;
 }
 
 /**
@@ -177,6 +229,9 @@ module.exports = function model(
     primary_key = modelStructureOrPK || "id";
     unique = primary_keyOrUnique || [];
     option = uniqueOrOption || { safeDelete: null };
+    option.search_columns = Array.isArray(option.search_columns)
+      ? option.search_columns
+      : [];
   } else {
     // model(db, "table", structure, pk, unique, option) — classic signature
     db = dbOrTable;
@@ -185,6 +240,9 @@ module.exports = function model(
     primary_key = primary_keyOrUnique || "id";
     unique = uniqueOrOption || [];
     option = optionOrUndefined || { safeDelete: null };
+    option.search_columns = Array.isArray(option.search_columns)
+      ? option.search_columns
+      : [];
   }
 
   const { createdKeys, modifiedKeys } = buildTimestampKeys(option);
@@ -341,7 +399,7 @@ module.exports = function model(
     },
     //TODO: Implement Sort Logic
     find: async (data) => {
-      const { select_columns } = extractReservedParams(data);
+      const { select_columns, search } = extractReservedParams(data);
       let sort = [];
       if (data.hasOwnProperty("sort")) {
         sort = data.sort;
@@ -349,13 +407,14 @@ module.exports = function model(
         sort = jsonSafeParse(sort);
       }
       let filter = dataToFilter(jsonSafeParse(data), primary_key);
+      filter = applySearch(filter, option.search_columns, search);
       const result = await db.get(table, filter, sort, option.safeDelete);
       if (select_columns)
         result.data = applySelect(result.data, select_columns);
       return result;
     },
     findOne: async (data) => {
-      const { select_columns } = extractReservedParams(data);
+      const { select_columns, search } = extractReservedParams(data);
       let sort = [];
       if (data.hasOwnProperty("sort")) {
         sort = data.sort;
@@ -363,6 +422,7 @@ module.exports = function model(
         sort = jsonSafeParse(sort);
       }
       let filter = dataToFilter(jsonSafeParse(data), primary_key);
+      filter = applySearch(filter, option.search_columns, search);
       let result = await db.get(table, filter, sort, option.safeDelete);
       if (result.count > 0) {
         let record = result["data"][0];
@@ -373,7 +433,7 @@ module.exports = function model(
       }
     },
     list: async (data) => {
-      const { select_columns } = extractReservedParams(data);
+      const { select_columns, search } = extractReservedParams(data);
       let page = 0;
       let size = 30;
       let sort = [];
@@ -393,6 +453,7 @@ module.exports = function model(
         delete data.sort;
       }
       let filter = dataToFilter(jsonSafeParse(data), primary_key);
+      filter = applySearch(filter, option.search_columns, search);
       sort = jsonSafeParse(sort);
       const result = await db.list(
         table,
@@ -461,3 +522,4 @@ module.exports.toCSV = toCSV;
 module.exports.toXML = toXML;
 module.exports.applySelect = applySelect;
 module.exports.extractReservedParams = extractReservedParams;
+module.exports.applySearch = applySearch;

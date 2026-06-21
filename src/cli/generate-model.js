@@ -535,13 +535,18 @@ function generateModelFile(m) {
   const structStr = JSON.stringify(m.structure, null, 4);
   const uniqueStr = JSON.stringify(m.unique);
   const opt = m.option || {};
-  const hasOption = opt.safeDelete || opt.created_at || opt.modified_at;
+  const hasSearchColumns =
+    Array.isArray(opt.search_columns) && opt.search_columns.length > 0;
+  const hasOption =
+    opt.safeDelete || opt.created_at || opt.modified_at || hasSearchColumns;
   let optionStr = "";
   if (hasOption) {
     const parts = [];
     if (opt.safeDelete) parts.push(`safeDelete: "${opt.safeDelete}"`);
     if (opt.created_at) parts.push(`created_at: "${opt.created_at}"`);
     if (opt.modified_at) parts.push(`modified_at: "${opt.modified_at}"`);
+    if (hasSearchColumns)
+      parts.push(`search_columns: ${JSON.stringify(opt.search_columns)}`);
     optionStr = `\n  { ${parts.join(", ")} },`;
   }
   return `import dbModelRouter from "db-model-router";

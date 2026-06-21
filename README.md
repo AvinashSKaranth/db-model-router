@@ -205,6 +205,7 @@ Note: `comments` has `user_id` as a foreign key column but `users` is NOT its pa
 | `unique`     | No       | Unique constraint columns. Flat array = one composite group; array-of-arrays = multiple independent constraints. Defaults to `[[pk]]`. |
 | `softDelete` | No       | Column name used for soft-delete                                         |
 | `timestamps` | No       | Object with `created_at` and `modified_at` column name mapping           |
+| `search_columns` | No  | Array of column names targeted by the `search=` query param (multi-column OR `LIKE`). Each entry must reference an existing column. |
 | `parent`     | No       | Parent table name for route nesting, or `null` for top-level             |
 
 #### Column Rules
@@ -528,7 +529,10 @@ const users = model(
   },
   "id", // primary key column
   ["id"], // unique key columns
-  { safeDelete: "is_deleted" }, // optional: soft-delete column
+  {
+    safeDelete: "is_deleted", // optional: soft-delete column
+    search_columns: ["name", "email"], // optional: columns searched by ?search=
+  },
 );
 ```
 
@@ -632,6 +636,10 @@ const user = await users.byId(1);
 ```js
 const result = await users.find({ name: "Alice" });
 // => { data: [{ id: 1, name: "Alice", ... }], count: 1 }
+
+// Free-text search across the model's search_columns (OR between columns)
+const found = await users.find({ search: "alice", status: "active" });
+// => rows where (name LIKE %alice% OR email LIKE %alice%) AND status = 'active'
 ```
 
 ### findOne(filter)
@@ -639,6 +647,9 @@ const result = await users.find({ name: "Alice" });
 ```js
 const user = await users.findOne({ email: "alice@example.com" });
 // => { id: 1, ... } or false
+
+// findOne also accepts `search` (returns the first matching row)
+const user = await users.findOne({ search: "alice" });
 ```
 
 ### list(options)
@@ -649,6 +660,9 @@ const page = await users.list({ page: 0, size: 10 });
 
 // With filter
 const filtered = await users.list({ name: "Ali", page: 0 });
+
+// With multi-column search (requires search_columns on the model)
+const searched = await users.list({ search: "alice", page: 0 });
 ```
 
 ### remove(idOrFilter)
@@ -705,6 +719,36 @@ When using `GET /` (list endpoint), query parameters are automatically parsed in
 - `%` must be URL-encoded as `%25` in query strings. After URL decoding, the `%` character triggers `LIKE` detection.
 - `=` in `>=` and `<=` must be URL-encoded as `%3D` (e.g. `>%3D25` for `>=25`).
 - `LIKE` patterns follow SQL conventions: `%25john%25` → contains "john", `%25john` → ends with "john", `john%25` → starts with "john".
+
+### Multi-Column Search (`?search=`)
+
+`search` is a reserved query parameter for free-text matching across multiple columns at once. It is enabled per-model via the `search_columns` option (an array of column names). When present, the term is matched as a substring (`LIKE %term%`) against **any** of the configured columns, OR-joined, and **AND-combined** with any other filters in the same request.
+
+```js
+// Enable search on the model (programmatic or via dbmr.schema.json)
+const users = model(db, "users", structure, "id", ["id"], {
+  search_columns: ["name", "description", "email"],
+});
+```
+
+```bash
+# Match rows where (name OR description OR email) contains "alice" AND status = 'active'
+GET /users/?search=alice&status=active
+
+# Pure search across columns
+GET /users/?search=alice
+```
+
+**Semantics:**
+
+- `search` is OR-joined across `search_columns`: `(col0 LIKE %term% OR col1 LIKE %term% OR ...)`.
+- `search` is AND-combined with other query filters: the above matches rows that satisfy the search **and** `status = 'active'`.
+- Works on `find`, `findOne`, and `list` (and their `GET /:id` and `GET /` routes). `findOne` returns the first matching row.
+- Matching is **contains** (substring) in every adapter. Case sensitivity is adapter-native: PostgreSQL (`ILIKE`), MongoDB (`$regex i`), and Redis (`String.includes`) are case-insensitive; MySQL depends on column collation; DynamoDB `contains()` is case-sensitive; SQLite3 `LIKE` is case-insensitive for ASCII.
+- Empty/whitespace `search` is ignored (normal filter behavior). If `search` is sent but `search_columns` is not configured, `search` is silently dropped (never treated as a column filter, never causes a 422).
+- `search_columns` is **config-only** — it is set on the model option / in `dbmr.schema.json` and cannot be overridden per request (clients cannot target arbitrary columns).
+- Multi-term search (`search=alice bob`) matches the literal substring `alice bob` per column. Tokenized/word-boundary search is not supported.
+- In SQL adapters, `%` and `_` in the search term act as `LIKE` wildcards; MongoDB/Redis/DynamoDB match the term literally (MongoDB also escapes regex metacharacters).
 - `IN` and `NOT IN` values are comma-separated inside parentheses.
   Operators are detected in order of specificity: `!in(...)` → `in(...)` → `!%...%` → `%...%` → `>=` → `<=` → `>` → `<` → `!value` → `=` (default).
 
