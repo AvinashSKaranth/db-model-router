@@ -393,7 +393,7 @@ async function remove(table, filter, safeDelete = null) {
   let sql;
   let params;
   if (safeDelete != null) {
-    sql = `UPDATE ${escapeId(table)} SET ${escapeId(safeDelete)} = 1 ${whereData.query}`;
+    sql = `UPDATE ${escapeId(table)} SET ${escapeId(safeDelete)} = TRUE ${whereData.query}`;
     params = whereData.value;
   } else {
     sql = `DELETE FROM ${escapeId(table)} ${whereData.query}`;
