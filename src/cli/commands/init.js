@@ -132,9 +132,6 @@ async function init(args, flags, ctx) {
   updatePackageJson(answers, outputDir);
 
   const installed = !flags.noInstall;
-  if (installed) {
-    runInstall();
-  }
 
   // Build init's JSON result first so it lands at ctx._results[0] (buildSchemaArtifacts
   // pushes its own result afterward).
@@ -153,9 +150,16 @@ async function init(args, flags, ctx) {
     });
   }
 
-  // Schema-driven artifacts: models, routes, migrations, openapi, tests, SaaS
+  // Schema-driven artifacts: models, routes, migrations, openapi, tests, SaaS.
+  // Generated BEFORE npm install so all files exist on disk first; bail skips
+  // install if the build reported an error.
   await buildSchemaArtifacts({ schema, baseDir, ctx, flags });
   if (process.exitCode) return; // bail if build reported an error
+
+  // Install dependencies only after every project file has been written.
+  if (installed) {
+    runInstall();
+  }
 
   // Human-readable summary (non-json only)
   if (!flags.json) {

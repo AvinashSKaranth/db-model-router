@@ -1,0 +1,360 @@
+{
+  "adapter": "mysql",
+  "framework": "express",
+  "options": {
+    "session": "memory",
+    "rateLimiting": true,
+    "helmet": true,
+    "logger": true,
+    "loki": false,
+    "saasStructure": false,
+    "apiBasePath": "/api",
+    "output": "backend",
+    "port": 6000
+  },
+  "tables": {
+    "languages": {
+      "columns": {
+        "language_id": "auto_increment",
+        "name": "required|string|maxLength:100",
+        "slug": "required|string|regex:^[a-z0-9-]+$|maxLength:100",
+        "file_extension": "required|string|maxLength:20",
+        "runtime_family": "string|maxLength:50",
+        "package_registry": "string|maxLength:50",
+        "is_active": "boolean",
+        "created_at": "datetime"
+      },
+      "pk": "language_id",
+      "unique": ["slug"],
+      "timestamps": {
+        "created_at": "created_at"
+      },
+      "parent": null
+    },
+
+    "frameworks": {
+      "columns": {
+        "framework_id": "auto_increment",
+        "language_id": "required|integer:unsigned",
+        "name": "required|string|maxLength:150",
+        "slug": "required|string|regex:^[a-z0-9-]+$|maxLength:150",
+        "package_name": "string|maxLength:150",
+        "homepage_url": "string|maxLength:500",
+        "latest_version": "string|maxLength:50",
+        "weekly_downloads": "integer:unsigned",
+        "popularity_index": "numeric:decimal(5,2)",
+        "popularity_updated_at": "datetime",
+        "created_at": "datetime"
+      },
+      "pk": "framework_id",
+      "unique": ["slug"],
+      "search_columns": ["name", "package_name"],
+      "timestamps": {
+        "created_at": "created_at"
+      },
+      "parent": null
+    },
+
+    "libraries": {
+      "columns": {
+        "library_id": "auto_increment",
+        "language_id": "required|integer:unsigned",
+        "framework_id": "integer:unsigned",
+        "name": "required|string|maxLength:150",
+        "slug": "required|string|regex:^[a-z0-9-]+$|maxLength:150",
+        "package_name": "string|maxLength:150",
+        "homepage_url": "string|maxLength:500",
+        "latest_version": "string|maxLength:50",
+        "weekly_downloads": "integer:unsigned",
+        "popularity_index": "numeric:decimal(5,2)",
+        "popularity_updated_at": "datetime",
+        "created_at": "datetime"
+      },
+      "pk": "library_id",
+      "unique": ["slug"],
+      "search_columns": ["name", "package_name"],
+      "timestamps": {
+        "created_at": "created_at"
+      },
+      "parent": null
+    },
+
+    "tasks": {
+      "columns": {
+        "task_id": "auto_increment",
+        "name": "required|string|maxLength:150",
+        "slug": "required|string|regex:^[a-z0-9-]+$|maxLength:150",
+        "category": "required|string|in:auth,storage,networking,data-processing,messaging,payments,caching,middleware,ai-integration,database,validation,integration,utility",
+        "description": "string:text",
+        "created_at": "datetime"
+      },
+      "pk": "task_id",
+      "unique": ["slug"],
+      "search_columns": ["name", "description"],
+      "timestamps": {
+        "created_at": "created_at"
+      },
+      "parent": null
+    },
+
+    "tags": {
+      "columns": {
+        "tag_id": "auto_increment",
+        "name": "required|string|maxLength:100",
+        "slug": "required|string|regex:^[a-z0-9-]+$|maxLength:100"
+      },
+      "pk": "tag_id",
+      "unique": [["name"], ["slug"]],
+      "parent": null
+    },
+
+    "popularity_snapshots": {
+      "columns": {
+        "snapshot_id": "auto_increment",
+        "entity_type": "required|string|in:framework,library",
+        "entity_id": "required|integer:unsigned",
+        "weekly_downloads": "required|integer:unsigned",
+        "source": "string|maxLength:50",
+        "snapshot_date": "required|datetime"
+      },
+      "pk": "snapshot_id",
+      "parent": null
+    },
+
+    "sandbox_images": {
+      "columns": {
+        "image_id": "auto_increment",
+        "language_id": "required|integer:unsigned",
+        "image_name": "required|string|maxLength:255",
+        "os_base": "string|maxLength:100",
+        "installed_toolchain": "string:text",
+        "is_active": "boolean",
+        "created_at": "datetime"
+      },
+      "pk": "image_id",
+      "unique": ["image_name"],
+      "timestamps": {
+        "created_at": "created_at"
+      },
+      "parent": null
+    },
+
+    "snippets": {
+      "columns": {
+        "snippet_id": "required|string:uuid",
+        "title": "required|string|maxLength:255",
+        "description": "string:text",
+        "usecase": "string:text",
+        "task_id": "required|integer:unsigned",
+        "language_id": "required|integer:unsigned",
+        "framework_id": "integer:unsigned",
+        "status": "required|string|in:draft,in_verification,verified,failed,deprecated",
+        "current_stage": "required|string|in:execution,lint,static_analysis,security_scan,performance,published",
+        "verified": "boolean",
+        "quality_score": "numeric:decimal(5,2)",
+        "source": "required|string|in:ai-generated,human-curated,imported",
+        "generation_provider": "string|maxLength:64",
+        "generation_model": "string|maxLength:128",
+        "enrichment_model": "string|maxLength:128",
+        "usage_count": "integer:unsigned",
+        "last_tested_at": "datetime",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "snippet_id",
+      "search_columns": ["title", "description", "usecase"],
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": null
+    },
+
+    "snippet_files": {
+      "columns": {
+        "file_id": "auto_increment",
+        "snippet_id": "required|string:uuid",
+        "file_role": "required|string|in:code,test,dependency,readme",
+        "file_name": "required|string|maxLength:255",
+        "content": "required|string:longtext",
+        "sort_order": "integer:unsigned",
+        "created_at": "datetime",
+        "modified_at": "datetime"
+      },
+      "pk": "file_id",
+      "timestamps": {
+        "created_at": "created_at",
+        "modified_at": "modified_at"
+      },
+      "parent": "snippets"
+    },
+
+    "snippet_dependencies": {
+      "columns": {
+        "dependency_id": "auto_increment",
+        "snippet_id": "required|string:uuid",
+        "library_id": "required|integer:unsigned",
+        "version_constraint": "string|maxLength:50",
+        "is_primary": "boolean",
+        "created_at": "datetime"
+      },
+      "pk": "dependency_id",
+      "unique": [["snippet_id", "library_id"]],
+      "timestamps": {
+        "created_at": "created_at"
+      },
+      "parent": "snippets"
+    },
+
+    "snippet_tags": {
+      "columns": {
+        "snippet_id": "required|string:uuid",
+        "tag_id": "required|integer:unsigned"
+      },
+      "pk": "snippet_id",
+      "unique": [["snippet_id", "tag_id"]],
+      "parent": "snippets"
+    },
+
+    "testing_logs": {
+      "columns": {
+        "testing_id": "auto_increment",
+        "snippet_id": "required|string:uuid",
+        "queue_id": "integer:bigint",
+        "language_id": "required|integer:unsigned",
+        "framework_id": "integer:unsigned",
+        "code_snapshot": "required|string:longtext",
+        "test_snapshot": "required|string:longtext",
+        "dependency_snapshot": "required|string:longtext",
+        "result": "required|string|in:pass,fail,error,timeout",
+        "exit_code": "integer",
+        "stdout": "string:longtext",
+        "stderr": "string:longtext",
+        "response_time_ms": "integer",
+        "sandbox_image": "string|maxLength:128",
+        "tested_at": "datetime"
+      },
+      "pk": "testing_id",
+      "timestamps": {
+        "tested_at": "tested_at"
+      },
+      "parent": "snippets"
+    },
+
+    "verification_stage_results": {
+      "columns": {
+        "result_id": "auto_increment",
+        "snippet_id": "required|string:uuid",
+        "queue_id": "integer:bigint",
+        "stage": "required|string|in:lint,static_analysis,security_scan,performance",
+        "status": "required|string|in:pass,fail,warning",
+        "score": "numeric:decimal(5,2)",
+        "tool_used": "string|maxLength:64",
+        "findings": "object",
+        "executed_at": "datetime"
+      },
+      "pk": "result_id",
+      "timestamps": {
+        "executed_at": "executed_at"
+      },
+      "parent": "snippets"
+    },
+
+    "enrichment_jobs": {
+      "columns": {
+        "job_id": "auto_increment",
+        "snippet_id": "required|string:uuid",
+        "provider": "required|string|maxLength:64",
+        "model": "required|string|maxLength:128",
+        "prompt_version": "string|maxLength:50",
+        "status": "required|string|in:pending,success,failed",
+        "raw_response": "string:longtext",
+        "tokens_used": "integer",
+        "latency_ms": "integer",
+        "created_at": "datetime"
+      },
+      "pk": "job_id",
+      "timestamps": {
+        "created_at": "created_at"
+      },
+      "parent": "snippets"
+    },
+
+    "generation_attempts": {
+      "columns": {
+        "attempt_id": "auto_increment",
+        "snippet_id": "required|string:uuid",
+        "attempt_number": "required|integer|min:1",
+        "previous_attempt_id": "integer:unsigned",
+        "prompt": "required|string:longtext",
+        "generated_code": "required|string:longtext",
+        "generated_test": "required|string:longtext",
+        "generated_dependency_manifest": "required|string:longtext",
+        "failure_stage": "string|in:execution,lint,static_analysis,security_scan",
+        "error_output": "string:longtext",
+        "outcome": "required|string|in:failed,succeeded",
+        "generation_provider": "string|maxLength:64",
+        "generation_model": "string|maxLength:128",
+        "created_at": "datetime"
+      },
+      "pk": "attempt_id",
+      "timestamps": {
+        "created_at": "created_at"
+      },
+      "parent": "snippets"
+    },
+
+    "execution_queue": {
+      "columns": {
+        "queue_id": "auto_increment",
+        "snippet_id": "required|string:uuid",
+        "stage": "required|string|in:execution,lint,static_analysis,security_scan,performance",
+        "status": "required|string|in:pending,locked,completed,failed",
+        "locked_by": "string|maxLength:100",
+        "locked_at": "datetime",
+        "lease_expires_at": "datetime",
+        "attempt_count": "integer:unsigned",
+        "max_attempts": "integer:unsigned",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "pk": "queue_id",
+      "timestamps": {
+        "created_at": "created_at",
+        "updated_at": "updated_at"
+      },
+      "parent": "snippets"
+    },
+
+    "search_query_log": {
+      "columns": {
+        "log_id": "auto_increment",
+        "queries_json": "required|object",
+        "results_snippet_ids": "required|object",
+        "agent_session_id": "string|maxLength:100",
+        "created_at": "datetime"
+      },
+      "pk": "log_id",
+      "timestamps": {
+        "created_at": "created_at"
+      },
+      "parent": null
+    },
+
+    "snippet_feedback": {
+      "columns": {
+        "feedback_id": "auto_increment",
+        "snippet_id": "required|string:uuid",
+        "outcome": "required|string|in:used-success,used-failure,rejected-irrelevant",
+        "notes": "string:text",
+        "agent_session_id": "string|maxLength:100",
+        "created_at": "datetime"
+      },
+      "pk": "feedback_id",
+      "timestamps": {
+        "created_at": "created_at"
+      },
+      "parent": "snippets"
+    }
+  }
+}

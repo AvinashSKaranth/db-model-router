@@ -29,20 +29,26 @@ const run = (cmd, cwd) => {
 };
 
 // 2. Copy schema into the demo folder
-const schemaPath =
-  ADAPTER === "postgres"
-    ? path.join(ROOT, "dbmr.postgres.test.schema.json")
-    : path.join(ROOT, "dbmr.schema.json");
+const SCHEMA_BY_ADAPTER = {
+  postgres: "dbmr.postgres.test.schema.json",
+  mysql: "dbmr.schema.mysql.json",
+  mariadb: "dbmr.schema.mysql.json",
+  sqlite3: "dbmr.schema.json",
+};
+const schemaPath = path.join(ROOT, SCHEMA_BY_ADAPTER[ADAPTER]);
 
 const schema = JSON.parse(fs.readFileSync(schemaPath, "utf8"));
 
-// Patch adapter-specific options for the sqlite3 demo
+// Patch adapter for sqlite3/mariadb demos. mysql/postgres use dedicated
+// schemas with adapter already set; mariadb reuses the mysql schema.
 if (ADAPTER === "sqlite3") {
   schema.adapter = "sqlite3";
   if (schema.options) {
     delete schema.options.session;
     delete schema.options.loki;
   }
+} else if (ADAPTER === "mariadb") {
+  schema.adapter = "mariadb";
 }
 
 const schemaDest = path.join(DEMO, "dbmr.schema.json");

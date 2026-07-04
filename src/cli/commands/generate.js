@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { schemaToModelMeta } = require("../../schema/schema-to-meta");
-const { generateModelFile } = require("../generate-model");
+const { generateModelFile, generateIndexFile } = require("../generate-model");
 const {
   generateRouteFile,
   generateParentRouteFile,
@@ -104,6 +104,14 @@ async function buildSchemaArtifacts({ schema, baseDir, ctx, flags }) {
         content: generateModelFile(m),
       });
     }
+
+    // Barrel re-exporting all schema models. When SaaS is enabled, the SaaS
+    // generator emits a combined barrel (SaaS + schema tables) and replaces
+    // this one below; without SaaS, this barrel is the final models/index.js.
+    planned.push({
+      relPath: "models/index.js",
+      content: generateIndexFile(meta),
+    });
   }
 
   // --- Route files ---
@@ -258,14 +266,15 @@ async function buildSchemaArtifacts({ schema, baseDir, ctx, flags }) {
       baseDir,
     });
 
-    // The SaaS generator produces a combined routes/index.js that includes
-    // both SaaS routes and dbmr schema-generated routes. Remove any previously
-    // planned routes/index.js from the schema generator.
-    const existingIndexIdx = planned.findIndex(
-      (p) => p.relPath === "routes/index.js",
-    );
-    if (existingIndexIdx !== -1) {
-      planned.splice(existingIndexIdx, 1);
+    // The SaaS generator produces a combined routes/index.js and models/index.js
+    // that include both SaaS and dbmr schema-generated entries. Remove the
+    // plain barrels previously planned by the schema generator so the combined
+    // SaaS versions win.
+    for (const barrel of ["routes/index.js", "models/index.js"]) {
+      const existingIdx = planned.findIndex((p) => p.relPath === barrel);
+      if (existingIdx !== -1) {
+        planned.splice(existingIdx, 1);
+      }
     }
 
     for (const entry of saasFiles) {
