@@ -1,6 +1,6 @@
 ---
 name: db-model-router
-description: Use this skill whenever the user wants to build a REST API with Node.js/Express backed by any database — including MySQL, PostgreSQL, SQLite, MongoDB, MSSQL, Oracle, Redis, DynamoDB, or CockroachDB. Trigger on any mention of db-model-router, or when the user asks to scaffold, generate, or wire up a CRUD API, models, or routes for a Node/Express backend. Also trigger when the user asks about connecting to a specific database with db-model-router, model definitions, filter syntax, bulk operations, schema-driven generation, or CLI commands like init/generate/inspect/doctor/diff.
+description: Use this skill whenever the user wants to build a REST API with Node.js/Express backed by any database — including MySQL, PostgreSQL, SQLite, MongoDB, MSSQL, Oracle, Redis, DynamoDB, or CockroachDB. Trigger on any mention of db-model-router, or when the user asks to scaffold, generate, or wire up a CRUD API, models, or routes for a Node/Express backend. Also trigger when the user asks about connecting to a specific database with db-model-router, model definitions, filter syntax, bulk operations, schema-driven generation, or CLI commands like init/inspect/doctor/diff/db-manager.
 ---
 
 # db-model-router — LLM Skill Reference
@@ -28,21 +28,21 @@ MySQL/MariaDB use `mysql2` — no separate reference file needed (see Connection
 
 ## LLM Workflow (follow this order for new projects)
 
-1. **Scaffold**: `db-model-router init --framework express --database postgres --session redis --rateLimiting --helmet --logger --yes`
-2. **Start infra**: `npm run docker:up`
-3. **Migrations**: Write SQL/JS files into `migrations/`, then `npm run migrate`
-4. **Generate models**: `db-model-router generate --from dbmr.schema.json --models`
-5. **Generate routes + tests**: `db-model-router generate --from dbmr.schema.json --routes --tests`
-6. **Generate SaaS structure** (if multi-tenant): `db-model-router generate --from dbmr.schema.json --saas-structure`
-7. **Run**: `npm run dev`
+1. **Write `dbmr.schema.json`** — adapter, framework, `options` (session, rateLimiting, helmet, logger, loki, output, saasStructure, apiBasePath, port), `tables`, `relationships`.
+2. **Build the whole project (first buildout only)**: `db-model-router init` (reads `./dbmr.schema.json` → app.js + models + routes + migrations + tests + OpenAPI + optional SaaS). Add `--no-install` to skip npm install, `--dry-run` to preview.
+3. **Start infra**: `npm run docker:up`
+4. **Migrate**: `npm run migrate`
+5. **Run**: `npm run dev`
 
-> When using `--saas-structure`, skip defining `users`, `tenants`, `roles`, `role_permissions` in your schema — they're auto-generated with auth middleware, permission system, and tenant isolation.
+> `init` is **first-buildout only**. It refuses to run if `app.js` already exists in cwd. To add new tables/models/routes after buildout, do it manually — add a migration (`node commons/add_migration.js <name>`), add `models/<table>.js`, mount `routes/<table>/index.js` in `routes/index.js`. See `db-model-router help init`.
+> When `options.saasStructure` is `true` (default), skip defining `users`, `tenants`, `roles`, `role_permissions` in your schema — they're auto-generated with auth middleware, permission system, and tenant isolation.
 
-For existing databases, use `inspect` first:
+For existing databases, use `inspect` first, then `init`:
 
 ```bash
 db-model-router inspect --type postgres --env .env   # → writes dbmr.schema.json
-db-model-router generate --from dbmr.schema.json      # → models, routes, tests, OpenAPI
+# edit dbmr.schema.json (set options, parents, etc.) then:
+db-model-router init                                  # → full project from schema
 ```
 
 ---
@@ -252,56 +252,61 @@ db-model-router <command> [options]
 db-model-router help <command>
 ```
 
-### `init` — Scaffold project
+### `init` — First-buildout-only project scaffold
 
 ```bash
-# Fully non-interactive (LLM-friendly)
-db-model-router init --framework express --database postgres --session redis \
-  --rateLimiting --helmet --logger --yes
+# Build the full project from ./dbmr.schema.json (first buildout only)
+db-model-router init
 
-# With Loki/Grafana logging
-db-model-router init --database postgres --logger --loki --yes
+# Specific schema path
+db-model-router init ./my.schema.json
 
-# From schema file
-db-model-router init --from dbmr.schema.json --yes --no-install
+# Preview / skip install
+db-model-router init --dry-run
+db-model-router init --no-install
 ```
 
-Key flags: `--framework`, `--database` (or `--db`), `--session`, `--output`, `--rateLimiting`, `--helmet`, `--logger`, `--loki`, `--yes`, `--no-install`
+**First buildout only** — refuses if `app.js` already exists in cwd. No config flags; all config lives in `options` of `dbmr.schema.json`:
+
+| Option           | Default     | Description                                                                 |
+| --------------- | ----------- | --------------------------------------------------------------------------- |
+| `output`        | `null` (cwd)| Directory for backend source files (package.json/app.js stay in root)      |
+| `saasStructure` | `true`      | Generate the multi-tenant SaaS backend (tables, middleware, routes, seeds)|
+| `apiBasePath`   | `"/api"`    | API mount path (→ `.env` `API_BASE_PATH`)                                  |
+| `port`          | `3000`      | Server port (→ `.env` `PORT`)                                              |
+| `session`       | `"memory"`  | `memory` / `redis` / `database`                                             |
+| `rateLimiting`  | `true`      | Enable `express-rate-limit`                                                 |
+| `helmet`        | `true`      | Enable Helmet security headers                                              |
+| `logger`        | `true`      | Enable Winston request logger                                               |
+| `loki`          | `false`     | Enable Grafana Loki transport + Loki/Grafana in docker-compose              |
 
 Generated structure (ESM, `"type":"module"`):
 
 ```
 app.js                             Express entry point
-.env / .env.example                Env config (random passwords)
+.env / .env.example                Env config (PORT, API_BASE_PATH, random passwords)
 docker-compose.yml                 DB + optional Loki/Grafana
 <output>/commons/db.js             Database init + global.db
-<output>/commons/migrate.js        Migration runner
-<output>/route/index.js            Central route mounting
-<output>/route/health.js           GET /health endpoint
-<output>/migrations/               Initial migration files
+<output>/commons/migrate.js         Migration runner
+<output>/commons/add_migration.js   Migration creator helper
+<output>/routes/index.js            Central route mounting (SaaS + product routes)
+<output>/routes/health.js           GET /health endpoint
+<output>/routes/docs.js             Swagger UI at /docs
+<output>/routes/<table>/index.js    CRUD route per table (nested by parent)
+<output>/models/<table>.js          Model per table
+<output>/migrations/                CREATE TABLE migrations
+<output>/test/<table>.test.js       CRUD endpoint tests
+<output>/openapi.json               OpenAPI 3.0 spec
+<output>/seeds/saas-seed.js         (when saasStructure=true)
 ```
 
-Docker services auto-generated: database, Redis (if session=redis), Loki + Grafana (if --loki).
+Docker services auto-generated: database, Redis (if session=redis), Loki + Grafana (if options.loki).
 
 Scripts: `start`, `dev`, `test`, `migrate`, `add_migration`, `docker:build`, `docker:up`, `docker:down`.
 
-### `inspect` — Introspect existing DB → schema
+#### `options.saasStructure` (default: enabled)
 
-```bash
-db-model-router inspect --type postgres --env .env [--out schema.json] [--tables t1,t2]
-```
-
-### `generate` — Generate code from schema
-
-```bash
-db-model-router generate --from dbmr.schema.json [--output <dir>] [--models=false] [--routes=false] [--openapi=false] [--tests=false] [--migrations=false] [--saas-structure=false]
-```
-
-All artifact types are **enabled by default**. Use `--flag=false` to disable specific ones.
-
-#### `--saas-structure` (default: enabled)
-
-SaaS structure is always generated unless explicitly disabled with `--saas-structure=false`. It produces a complete multi-tenant SaaS backend on top of schema-generated code:
+SaaS structure is generated unless `options.saasStructure` is `false`. It produces a complete multi-tenant SaaS backend on top of schema-generated code:
 
 - **Tables**: `tenants`, `users`, `roles`, `role_permissions`, `webhooks`, `webhook_logs`
 - **Middleware**: `authenticate.js`, `tenantIsolation.js`, `hasPermission.js`
@@ -310,9 +315,30 @@ SaaS structure is always generated unless explicitly disabled with `--saas-struc
 - **Seeds**: Super Admin (all permissions, global scope) + Tenant Admin role template
 - **Migrations**: Single consolidated `.sql` file with all SaaS tables
 
-> **Critical**: Since `--saas-structure` is on by default, `users`, `tenants`, `roles`, and `role_permissions` are already generated. **Do NOT add these tables to `dbmr.schema.json`** — only define your product/domain tables (e.g., `products`, `orders`, `invoices`).
+> **Critical**: Since `saasStructure` defaults to `true`, `users`, `tenants`, `roles`, and `role_permissions` are already generated. **Do NOT add these tables to `dbmr.schema.json`** — only define your product/domain tables (e.g., `products`, `orders`, `invoices`).
 
 The generated `routes/index.js` combines SaaS routes (`/api/auth`, `/api/users`, `/api/tenants`, `/api/roles`, `/api/roles/:role_id/permissions`) with schema-generated product routes. Swagger docs include all SaaS endpoints first, then product endpoints.
+
+#### Adding tables/models/routes after buildout (manual — do NOT re-run `init`)
+
+1. **Migration**: `node commons/add_migration.js <name>` → write `CREATE TABLE` (SQL) or `create_<table>.js` (NoSQL) inside the new timestamped file.
+2. **Model**: add `models/<table>.js` mirroring an existing model:
+   ```js
+   const model = require('#commons/model');
+   const db = require('#commons/db');
+   module.exports = model(db, '<table>', structure, '<pk>', uniqueKeys, option);
+   ```
+3. **Route**: add `routes/<table>/index.js` via `route(model)`, then mount in `routes/index.js`:
+   ```js
+   router.use('/<endpoint>', require('./<table>/index.js'));
+   ```
+4. Run the new migration, then restart the server.
+
+### `inspect` — Introspect existing DB → schema
+
+```bash
+db-model-router inspect --type postgres --env .env [--out schema.json] [--tables t1,t2]
+```
 
 ### `doctor` — Validate schema + check file sync
 
@@ -326,7 +352,7 @@ db-model-router doctor [--from dbmr.schema.json] [--json]
 db-model-router diff [--from dbmr.schema.json] [--json]
 ```
 
-Universal flags (all commands): `--yes`, `--json`, `--dry-run`, `--no-install`, `--help`
+Universal flags (all commands): `--json`, `--dry-run`, `--no-install`, `--help`
 
 ### `db-manager` — Launch database management UI
 
@@ -357,7 +383,12 @@ Requires a `.env` file with `DB_TYPE` and connection variables.
     "session": "redis",
     "rateLimiting": true,
     "helmet": true,
-    "logger": true
+    "logger": true,
+    "loki": false,
+    "output": null,
+    "saasStructure": true,
+    "apiBasePath": "/api",
+    "port": 3000
   },
   "tables": {
     "users": {
@@ -644,6 +675,6 @@ Topic: `{KAFKA_TOPIC_PREFIX}.{table_name}` (e.g. `dbmr.users`)
 12. Docker passwords are randomly generated and shared between `.env` and `docker-compose.yml`.
 13. PK convention: `<table>_id` (e.g. `user_id`, `post_id`). Include ALL columns in schema.
 14. Use `parent` only for domain hierarchies (e.g. `posts → comments`), not system tables.
-15. When `--saas-structure` is active, do NOT define `users`, `tenants`, `roles`, or `role_permissions` in `dbmr.schema.json` — they are already generated with models, routes, middleware, and migrations. Only add your product-specific tables to the schema.
+15. When `options.saasStructure` is `true` (default), do NOT define `users`, `tenants`, `roles`, or `role_permissions` in `dbmr.schema.json` — they are already generated with models, routes, middleware, and migrations. Only add your product-specific tables to the schema. `init` is first-buildout only (refuses if `app.js` exists) — add new tables/models/routes manually (migration + model + route mount in `routes/index.js`).
 16. Kafka is opt-in via `KAFKA_BROKER` env var. Call `kafka.init()` after `db.connect()`. Each write op produces one event per row to `{prefix}.{table}` topic.
 17. `search` is a **reserved** query param — never a column filter. It only takes effect when the model has `option.search_columns` set (config-only). It OR-joins a `LIKE %term%` across those columns and AND-combines with other filters. Works on `find`/`findOne`/`list` and the `GET /:id` + `GET /` routes.

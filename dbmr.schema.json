@@ -6,7 +6,11 @@
     "rateLimiting": true,
     "helmet": true,
     "logger": true,
-    "loki": false
+    "loki": false,
+    "output": null,
+    "saasStructure": true,
+    "apiBasePath": "/api",
+    "port": 3000
   },
   "tables": {
     "addresses": {

@@ -113,12 +113,29 @@ function parseSchema(input) {
     }
   }
 
+  // Normalize options with defaults for buildout config.
+  // output defaults to null (caller resolves to cwd); saasStructure defaults on;
+  // apiBasePath defaults to "/api"; port defaults to 3000.
+  const rawOptions = raw.options ? { ...raw.options } : {};
+  const options = {
+    ...rawOptions,
+    session: rawOptions.session || "memory",
+    rateLimiting: rawOptions.rateLimiting !== undefined ? !!rawOptions.rateLimiting : true,
+    helmet: rawOptions.helmet !== undefined ? !!rawOptions.helmet : true,
+    logger: rawOptions.logger !== undefined ? !!rawOptions.logger : true,
+    loki: rawOptions.loki !== undefined ? !!rawOptions.loki : false,
+    output: rawOptions.output !== undefined ? rawOptions.output : null,
+    saasStructure: rawOptions.saasStructure !== undefined ? !!rawOptions.saasStructure : true,
+    apiBasePath: rawOptions.apiBasePath || "/api",
+    port: rawOptions.port !== undefined ? rawOptions.port : 3000,
+  };
+
   return {
     adapter: raw.adapter,
     framework: raw.framework,
     tables,
     relationships: derivedRelationships,
-    options: raw.options ? { ...raw.options } : {},
+    options,
   };
 }
 

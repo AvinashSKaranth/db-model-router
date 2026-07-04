@@ -5,7 +5,6 @@ const { parseFlags, OutputContext } = require("./flags");
 
 const initCmd = require("./commands/init");
 const inspectCmd = require("./commands/inspect");
-const generateCmd = require("./commands/generate");
 const doctorCmd = require("./commands/doctor");
 const diffCmd = require("./commands/diff");
 const helpCmd = require("./commands/help");
@@ -17,7 +16,6 @@ const dbManagerCmd = require("./commands/db-manager");
 const COMMANDS = {
   init: initCmd,
   inspect: inspectCmd,
-  generate: generateCmd,
   doctor: doctorCmd,
   diff: diffCmd,
   "db-manager": dbManagerCmd,
@@ -28,9 +26,8 @@ const COMMANDS = {
  * Descriptions for each subcommand, used in help output.
  */
 const COMMAND_DESCRIPTIONS = {
-  init: "Scaffold a new project from a schema file or interactively",
+  init: "First-buildout only: scaffold a full project from dbmr.schema.json",
   inspect: "Introspect a live database and produce a schema file",
-  generate: "Generate models, routes, tests, and OpenAPI spec from a schema",
   doctor: "Validate schema, check dependencies, and verify file sync",
   diff: "Preview changes between current files and what the schema would produce",
   "db-manager": "Start a live database management UI",
@@ -42,33 +39,15 @@ const COMMAND_DESCRIPTIONS = {
  */
 const COMMAND_FLAGS = {
   init: [
-    ["--from <path>", "Read config from a schema file"],
-    ["--framework <name>", "express, ultimate-express"],
-    [
-      "--database <name>",
-      "mysql, mariadb, postgres, sqlite3, mongodb, mssql, cockroachdb, oracle, redis, dynamodb",
-    ],
-    ["--db <name>", "Alias for --database"],
-    ["--session <type>", "memory, redis, database"],
-    ["--output <dir>", "Directory for backend source files"],
-    ["--rateLimiting", "Enable rate limiting (default: yes)"],
-    ["--helmet", "Enable Helmet security headers (default: yes)"],
-    ["--logger", "Enable Winston + Loki logger (default: yes)"],
+    ["[schemaPath]", "Path to schema file (default: ./dbmr.schema.json)"],
+    ["--dry-run", "Preview planned files without writing"],
+    ["--no-install", "Skip npm install after scaffolding"],
   ],
   inspect: [
     ["--type <adapter>", "Database adapter (required)"],
     ["--env <path>", "Path to .env file"],
     ["--out <path>", "Output file (default: dbmr.schema.json)"],
     ["--tables <list>", "Comma-separated table filter"],
-  ],
-  generate: [
-    ["--from <path>", "Schema file (default: dbmr.schema.json)"],
-    ["--output <dir>", "Directory for generated files (default: cwd)"],
-    ["--models", "Generate only model files"],
-    ["--routes", "Generate only route files"],
-    ["--openapi", "Generate only OpenAPI spec"],
-    ["--tests", "Generate only test files"],
-    ["--db-manager", "Generate DB Manager UI (SQL adapters only)"],
   ],
   doctor: [["--from <path>", "Schema file (default: dbmr.schema.json)"]],
   diff: [["--from <path>", "Schema file (default: dbmr.schema.json)"]],

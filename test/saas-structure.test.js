@@ -23,11 +23,12 @@ describe("SaaS Structure Generator", function () {
   // 10.1 — CLI Integration
   // =========================================================================
   describe("CLI Integration", function () {
-    it("generate command supports --saas-structure flag", function () {
-      // The generate command module imports generateSaasStructure and checks
-      // args["saas-structure"]. Verify the function exists and is callable.
-      const generate = require("../src/cli/commands/generate");
-      assert.strictEqual(typeof generate, "function");
+    it("buildSchemaArtifacts supports saasStructure option", function () {
+      // The generate module exports buildSchemaArtifacts (used by init) which
+      // gates SaaS generation on schema.options.saasStructure. Verify both
+      // the builder and generateSaasStructure are callable.
+      const { buildSchemaArtifacts } = require("../src/cli/commands/generate");
+      assert.strictEqual(typeof buildSchemaArtifacts, "function");
       assert.strictEqual(typeof generateSaasStructure, "function");
     });
 

@@ -104,10 +104,85 @@ function validateSchema(raw) {
       Array.isArray(raw.options)
     ) {
       errors.push({ path: "options", message: "options must be an object" });
+    } else {
+      validateOptions(raw.options, errors);
     }
   }
 
   return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Validate the buildout-config keys inside `options`.
+ * Only the known keys are type-checked; unknown keys are passed through silently.
+ *  - output: string (relative or absolute path)
+ *  - saasStructure: boolean
+ *  - apiBasePath: string starting with "/"
+ *  - port: positive integer
+ *  - session: "memory" | "redis" | "database"
+ *  - rateLimiting / helmet / logger / loki: boolean
+ */
+function validateOptions(options, errors) {
+  if (options.output !== undefined && options.output !== null) {
+    if (typeof options.output !== "string" || options.output.length === 0) {
+      errors.push({
+        path: "options.output",
+        message: "options.output must be a non-empty string path or null",
+      });
+    }
+  }
+
+  if (options.saasStructure !== undefined) {
+    if (typeof options.saasStructure !== "boolean") {
+      errors.push({
+        path: "options.saasStructure",
+        message: "options.saasStructure must be a boolean",
+      });
+    }
+  }
+
+  if (options.apiBasePath !== undefined) {
+    if (
+      typeof options.apiBasePath !== "string" ||
+      !options.apiBasePath.startsWith("/")
+    ) {
+      errors.push({
+        path: "options.apiBasePath",
+        message: 'options.apiBasePath must be a string starting with "/" (e.g. "/api")',
+      });
+    }
+  }
+
+  if (options.port !== undefined) {
+    if (
+      typeof options.port !== "number" ||
+      !Number.isInteger(options.port) ||
+      options.port <= 0
+    ) {
+      errors.push({
+        path: "options.port",
+        message: "options.port must be a positive integer",
+      });
+    }
+  }
+
+  if (options.session !== undefined) {
+    if (!["memory", "redis", "database"].includes(options.session)) {
+      errors.push({
+        path: "options.session",
+        message: 'options.session must be one of: memory, redis, database',
+      });
+    }
+  }
+
+  for (const key of ["rateLimiting", "helmet", "logger", "loki"]) {
+    if (options[key] !== undefined && typeof options[key] !== "boolean") {
+      errors.push({
+        path: `options.${key}`,
+        message: `options.${key} must be a boolean`,
+      });
+    }
+  }
 }
 
 /**

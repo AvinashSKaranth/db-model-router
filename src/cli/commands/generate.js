@@ -2,7 +2,6 @@
 
 const fs = require("fs");
 const path = require("path");
-const { parseSchema } = require("../../schema/schema-parser");
 const { schemaToModelMeta } = require("../../schema/schema-to-meta");
 const { generateModelFile } = require("../generate-model");
 const {
@@ -37,64 +36,23 @@ const SUPPORTED_ADAPTERS = [
 ];
 
 /**
- * Generate command handler for the unified CLI.
+ * Build all schema-driven artifacts (models, routes, tests, OpenAPI spec,
+ * migrations, docs route, and optional SaaS structure) from an already-parsed
+ * schema, writing them under `baseDir`.
  *
- * Reads a schema file, converts to ModelMeta[], and generates
- * models, routes, tests, OpenAPI spec, migrations, and docs route.
+ * This is the internal buildout engine invoked by the `init` command. It is
+ * NOT registered as a CLI subcommand. All artifact types are always generated;
+ * the SaaS structure is gated by `schema.options.saasStructure` (default true).
  *
- * Supported flags:
- *   --from        Path to schema file (default: dbmr.schema.json)
- *   --models      Generate only model files
- *   --routes      Generate only route files (including child routes and index)
- *   --openapi     Generate only OpenAPI spec + docs route
- *   --tests       Generate only test files
- *   --migrations  Generate only migration files
- *   --dry-run     Report planned files without writing
- *   --json        Output JSON result via ctx
- *
- * When no artifact flags are provided, all artifact types are generated.
- *
- * @param {object} args - Parsed key-value args
- * @param {object} flags - Universal flags: { yes, json, dryRun, noInstall, help }
- * @param {import('../flags').OutputContext} ctx - Output context
+ * @param {object} opts
+ * @param {object} opts.schema - Parsed schema from parseSchema()
+ * @param {string} opts.baseDir - Absolute directory to write artifacts into
+ * @param {import('../flags').OutputContext} opts.ctx - Output context for --json support
+ * @param {object} opts.flags - Universal flags: { json, dryRun, ... }
+ * @returns {Promise<{ files: Array<{ path: string, status: string }> }>}
  */
-async function generate(args, flags, ctx) {
-  // --- Standard schema-based generation ---
-  const schemaPath = path.resolve(args.from || "dbmr.schema.json");
-
-  if (!fs.existsSync(schemaPath)) {
-    const msg = `Schema file not found: ${args.from || "dbmr.schema.json"}`;
-    if (flags.json) {
-      ctx.result({ error: true, code: "SCHEMA_NOT_FOUND", message: msg });
-    } else {
-      ctx.log(`Error: ${msg}`);
-    }
-    process.exitCode = 1;
-    return;
-  }
-
-  let schema;
-  try {
-    const raw = fs.readFileSync(schemaPath, "utf8");
-    schema = parseSchema(raw);
-  } catch (err) {
-    const msg = `Schema parse error: ${err.message}`;
-    if (flags.json) {
-      ctx.result({
-        error: true,
-        code: "SCHEMA_VALIDATION",
-        message: msg,
-        errors: err.errors || [],
-      });
-    } else {
-      ctx.log(`Error: ${msg}`);
-    }
-    process.exitCode = 1;
-    return;
-  }
-
+async function buildSchemaArtifacts({ schema, baseDir, ctx, flags }) {
   const meta = schemaToModelMeta(schema);
-  const relationships = schema.relationships || [];
   const tableNames = meta.map((m) => m.table).sort();
 
   // For route generation, only use parent-derived relationships.
@@ -126,37 +84,13 @@ async function generate(args, flags, ctx) {
     ancestors[m.table] = chain;
   }
 
-  // Determine which artifact types to generate.
-  // If any specific artifact flag is explicitly set to true, only generate those.
-  // Otherwise, all artifact types are generated (unless explicitly set to false).
-  const hasExplicitTrue =
-    args.models === true ||
-    args.routes === true ||
-    args.openapi === true ||
-    args.tests === true ||
-    args.migrations === true;
-
-  let genModels, genRoutes, genOpenapi, genTests, genMigrations, genSaas;
-
-  if (hasExplicitTrue) {
-    // Selective mode: only generate what was explicitly requested
-    genModels = args.models === true;
-    genRoutes = args.routes === true;
-    genOpenapi = args.openapi === true;
-    genTests = args.tests === true;
-    genMigrations = args.migrations === true;
-    genSaas = args["saas-structure"] === true;
-  } else {
-    // Default mode: generate all unless explicitly disabled
-    genModels = args.models !== false;
-    genRoutes = args.routes !== false;
-    genOpenapi = args.openapi !== false;
-    genTests = args.tests !== false;
-    genMigrations = args.migrations !== false;
-    genSaas = args["saas-structure"] !== false;
-  }
-
-  const baseDir = path.resolve(args.output || process.cwd());
+  // Always generate every artifact type. SaaS gated by schema.options.saasStructure.
+  const genModels = true;
+  const genRoutes = true;
+  const genOpenapi = true;
+  const genTests = true;
+  const genMigrations = true;
+  const genSaas = !(schema.options && schema.options.saasStructure === false);
 
   // Collect all planned files: { relPath, content }
   const planned = [];
@@ -179,9 +113,6 @@ async function generate(args, flags, ctx) {
       childrenByParent[rel.parent].push(rel);
     }
 
-    // Generate exactly ONE route file per table at its correct nested path.
-    // Intermediate tables (both child and parent) get a hybrid route file
-    // that scopes their own CRUD by an ancestor FK and mounts their children.
     for (const m of meta) {
       const tableName = m.table;
       const chain = ancestors[tableName];
@@ -194,7 +125,6 @@ async function generate(args, flags, ctx) {
       if (hasChildren) {
         const children = childrenByParent[tableName];
         if (hasParent) {
-          // Intermediate node: own CRUD scoped by parent PK + mounts children
           const immediateParent = chain[chain.length - 1];
           const parentFk = schema.tables[immediateParent].pk;
           planned.push({
@@ -202,14 +132,12 @@ async function generate(args, flags, ctx) {
             content: generateParentRouteFile(tableName, children, parentFk),
           });
         } else {
-          // Root parent: own CRUD unscoped + mounts children
           planned.push({
             relPath,
             content: generateParentRouteFile(tableName, children),
           });
         }
       } else if (hasParent) {
-        // Leaf child
         const immediateParent = chain[chain.length - 1];
         const parentFk = schema.tables[immediateParent].pk;
         planned.push({
@@ -217,7 +145,6 @@ async function generate(args, flags, ctx) {
           content: generateChildRouteFile(tableName, immediateParent, parentFk),
         });
       } else {
-        // Root leaf
         planned.push({
           relPath,
           content: generateRouteFile(tableName),
@@ -225,7 +152,6 @@ async function generate(args, flags, ctx) {
       }
     }
 
-    // Routes index file (include docs route when openapi is being generated)
     planned.push({
       relPath: "routes/index.js",
       content: generateRoutesIndexFile(tableNames, routeRelationships, {
@@ -238,19 +164,12 @@ async function generate(args, flags, ctx) {
   if (genOpenapi) {
     const spec = generateOpenAPISpec(meta, { relationships: routeRelationships });
 
-    // Merge SaaS routes into the OpenAPI spec when saas-structure is active
-    // SaaS routes appear BEFORE product routes in the docs
     if (genSaas) {
       const saasApi = generateSaasOpenAPIPaths();
-
-      // Prepend SaaS paths before product paths
       const productPaths = spec.paths;
       spec.paths = { ...saasApi.paths, ...productPaths };
-
-      // Prepend SaaS schemas before product schemas
       const productSchemas = spec.components.schemas;
       spec.components.schemas = { ...saasApi.schemas, ...productSchemas };
-
       if (!spec.components.securitySchemes) {
         spec.components.securitySchemes = {};
       }
@@ -261,8 +180,6 @@ async function generate(args, flags, ctx) {
       relPath: "openapi.json",
       content: JSON.stringify(spec, null, 2) + "\n",
     });
-
-    // Generate Swagger UI docs route
     planned.push({
       relPath: "routes/docs.js",
       content: generateDocsRoute(),
@@ -315,20 +232,19 @@ async function generate(args, flags, ctx) {
 
   // --- SaaS structure files (additive, on top of schema-based generation) ---
   if (genSaas) {
-    // Determine adapter: from --adapter flag, or from the schema's adapter field
-    const adapter = args.adapter || schema.adapter;
+    const adapter = schema.adapter;
 
     if (!adapter || !SUPPORTED_ADAPTERS.includes(adapter)) {
       const msg = adapter
         ? `Invalid adapter: ${adapter}. Supported: ${SUPPORTED_ADAPTERS.join(", ")}`
-        : `Adapter is required for saas-structure generation. Provide --adapter or set adapter in schema.`;
+        : `Adapter is required for saas-structure generation. Set adapter in schema.`;
       if (flags.json) {
         ctx.result({ error: true, code: "INVALID_ADAPTER", message: msg });
       } else {
         ctx.log(`Error: ${msg}`);
       }
       process.exitCode = 1;
-      return;
+      return { files: [] };
     }
 
     const saasFiles = generateSaasStructure(adapter, {
@@ -342,8 +258,8 @@ async function generate(args, flags, ctx) {
     });
 
     // The SaaS generator produces a combined routes/index.js that includes
-    // both SaaS routes and dbmr schema-generated routes. Remove any
-    // previously-planned routes/index.js from the schema generator.
+    // both SaaS routes and dbmr schema-generated routes. Remove any previously
+    // planned routes/index.js from the schema generator.
     const existingIndexIdx = planned.findIndex(
       (p) => p.relPath === "routes/index.js",
     );
@@ -384,25 +300,23 @@ async function generate(args, flags, ctx) {
         ctx.log(`  unchanged ${relPath}`);
         continue;
       }
-      // File exists but content differs — overwrite
       fs.mkdirSync(path.dirname(fullPath), { recursive: true });
       fs.writeFileSync(fullPath, content, "utf8");
       results.push({ path: relPath, status: "overwritten" });
       ctx.log(`  overwritten ${relPath}`);
     } else {
-      // File does not exist — create
       fs.mkdirSync(path.dirname(fullPath), { recursive: true });
       fs.writeFileSync(fullPath, content, "utf8");
       results.push({ path: relPath, status: "created" });
       ctx.log(`  created ${relPath}`);
     }
   }
-  // --- Output ---
+
   if (flags.dryRun) {
     if (flags.json) {
       ctx.result({ files: results });
     } else {
-      ctx.log("Dry run — the following files would be generated:");
+      ctx.log("Dry run — the following schema artifacts would be generated:");
       for (const r of results) {
         ctx.log(`  ${r.path}`);
       }
@@ -417,9 +331,11 @@ async function generate(args, flags, ctx) {
     ).length;
     const unchanged = results.filter((r) => r.status === "unchanged").length;
     ctx.log(
-      `\nDone. ${created} created, ${overwritten} overwritten, ${unchanged} unchanged.`,
+      `\nSchema artifacts: ${created} created, ${overwritten} overwritten, ${unchanged} unchanged.`,
     );
   }
+
+  return { files: results };
 }
 
-module.exports = generate;
+module.exports = { buildSchemaArtifacts, SUPPORTED_ADAPTERS };

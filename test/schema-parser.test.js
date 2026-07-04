@@ -34,7 +34,17 @@ describe("Schema Parser", function () {
       assert.strictEqual(result.adapter, "postgres");
       assert.strictEqual(result.framework, "express");
       assert.deepStrictEqual(result.relationships, []);
-      assert.deepStrictEqual(result.options, {});
+      assert.deepStrictEqual(result.options, {
+        session: "memory",
+        rateLimiting: true,
+        helmet: true,
+        logger: true,
+        loki: false,
+        output: null,
+        saasStructure: true,
+        apiBasePath: "/api",
+        port: 3000,
+      });
       assert.ok(result.tables.users);
       assert.strictEqual(result.tables.users.name, "users");
       assert.deepStrictEqual(result.tables.users.columns, {
@@ -219,13 +229,20 @@ describe("Schema Parser", function () {
       });
     });
 
-    it("preserves options from the schema", function () {
+    it("preserves options from the schema and applies buildout defaults", function () {
       const schema = validSchema();
       schema.options = { session: "redis", helmet: true };
       const result = parseSchema(schema);
       assert.deepStrictEqual(result.options, {
         session: "redis",
         helmet: true,
+        rateLimiting: true,
+        logger: true,
+        loki: false,
+        output: null,
+        saasStructure: true,
+        apiBasePath: "/api",
+        port: 3000,
       });
     });
   });

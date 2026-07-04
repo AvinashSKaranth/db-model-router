@@ -119,82 +119,37 @@ describe("CLI Init - src/cli/init.js orchestration", function () {
   });
 
   // ---------------------------------------------------------------
-  // Prompt configuration tests
+  // Schema-driven configuration (replaces former interactive prompts)
   // ---------------------------------------------------------------
-  describe("Prompt configuration", function () {
-    it("should have correct prompt options and defaults (Req 2.1, 2.4, 3.1, 4.1)", function () {
-      const promptSrc = fs.readFileSync(
-        path.join(__dirname, "..", "src", "cli", "init", "prompt.js"),
-        "utf8",
+  describe("Schema-driven configuration", function () {
+    it("prompt.js has been removed; config now lives in schema options", function () {
+      assert.ok(
+        !fs.existsSync(
+          path.join(__dirname, "..", "src", "cli", "init", "prompt.js"),
+        ),
+        "src/cli/init/prompt.js should no longer exist",
       );
+    });
 
-      // Framework prompt: list type, default ultimate-express
-      assert.ok(
-        promptSrc.includes('"ultimate-express"'),
-        "Should include ultimate-express option",
-      );
-      assert.ok(
-        promptSrc.includes('"express"'),
-        "Should include express option",
-      );
-      assert.ok(
-        promptSrc.includes('default: "ultimate-express"'),
-        "Default framework should be ultimate-express",
-      );
-
-      // Database prompt: all 9 databases
-      const databases = [
-        "mysql",
-        "postgres",
-        "sqlite3",
-        "mongodb",
-        "mssql",
-        "cockroachdb",
-        "oracle",
-        "redis",
-        "dynamodb",
-      ];
-      for (const db of databases) {
-        assert.ok(
-          promptSrc.includes(`"${db}"`),
-          `Should include ${db} database option`,
-        );
-      }
-
-      // Session prompt: 3 options
-      assert.ok(
-        promptSrc.includes('"memory"'),
-        "Should include memory session option",
-      );
-      assert.ok(
-        promptSrc.includes('"redis"'),
-        "Should include redis session option",
-      );
-      assert.ok(
-        promptSrc.includes('"database"'),
-        "Should include database session option",
-      );
-
-      // Confirm prompts for rateLimiting, helmet, logger
-      assert.ok(
-        promptSrc.includes('"rateLimiting"'),
-        "Should have rateLimiting prompt",
-      );
-      assert.ok(promptSrc.includes('"helmet"'), "Should have helmet prompt");
-      assert.ok(promptSrc.includes('"logger"'), "Should have logger prompt");
-
-      // All confirm prompts should be type: "confirm"
-      // 3 in main questions (rateLimiting, helmet, logger) + 1 follow-up (loki)
-      const confirmCount = (promptSrc.match(/type:\s*"confirm"/g) || []).length;
-      assert.strictEqual(
-        confirmCount,
-        4,
-        "Should have exactly 4 confirm prompts",
-      );
-
-      // List prompts count
-      const listCount = (promptSrc.match(/type:\s*"list"/g) || []).length;
-      assert.strictEqual(listCount, 3, "Should have exactly 3 list prompts");
+    it("parseSchema applies buildout config defaults in options", function () {
+      const { parseSchema } = require("../src/schema/schema-parser");
+      const schema = parseSchema({
+        adapter: "sqlite3",
+        framework: "express",
+        tables: {
+          users: { columns: { name: "required|string" } },
+        },
+        options: {},
+      });
+      assert.strictEqual(schema.options.session, "memory");
+      assert.strictEqual(schema.options.rateLimiting, true);
+      assert.strictEqual(schema.options.helmet, true);
+      assert.strictEqual(schema.options.logger, true);
+      assert.strictEqual(schema.options.loki, false);
+      assert.strictEqual(schema.options.saasStructure, true);
+      assert.strictEqual(schema.options.apiBasePath, "/api");
+      assert.strictEqual(schema.options.port, 3000);
+      assert.ok(schema.options.output === null, "output defaults to null (cwd)");
     });
   });
 
@@ -495,27 +450,26 @@ describe("CLI Init - src/cli/init.js orchestration", function () {
   });
 
   // ---------------------------------------------------------------
-  // Ctrl+C handling tests
+  // Legacy direct-entry redirect (init.js no longer prompts)
   // ---------------------------------------------------------------
-  describe("Ctrl+C handling", function () {
-    it("should handle prompt cancellation cleanly (Req 1.3)", function () {
+  describe("legacy direct-entry redirect", function () {
+    it("main() points users at the unified CLI instead of prompting", function () {
       const initSrc = fs.readFileSync(
         path.join(__dirname, "..", "src", "cli", "init.js"),
         "utf8",
       );
 
-      // Verify the try/catch around promptUser exists
       assert.ok(
-        initSrc.includes("try") && initSrc.includes("promptUser"),
-        "main() should have try/catch around promptUser",
+        !initSrc.includes("promptUser"),
+        "legacy init.js should no longer reference promptUser",
       );
       assert.ok(
-        initSrc.includes("Aborted"),
-        "Should print Aborted message on Ctrl+C",
+        initSrc.includes("db-model-router init"),
+        "legacy main() should point users at the unified CLI",
       );
       assert.ok(
         initSrc.includes("process.exit(1)"),
-        "Should call process.exit(1) on Ctrl+C",
+        "legacy main() should exit non-zero",
       );
     });
   });

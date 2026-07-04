@@ -168,8 +168,8 @@ function buildEnvContent(answers, mode, secrets) {
   const pick = mode === "placeholder" ? "placeholder" : "defaultValue";
   const lines = [];
   lines.push("# Server");
-  lines.push("PORT=3000");
-  lines.push("API_BASE_PATH=/api");
+  lines.push(`PORT=${answers.port != null ? answers.port : 3000}`);
+  lines.push(`API_BASE_PATH=${answers.apiBasePath || "/api"}`);
   lines.push("");
   lines.push("# Database");
   lines.push(`DB_TYPE=${answers.database}`);

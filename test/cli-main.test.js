@@ -51,7 +51,6 @@ describe("CLI Entry Point (src/cli/main.js)", function () {
       assert.ok(output.includes("Commands:"), "Should list commands");
       assert.ok(output.includes("init"), "Should mention init");
       assert.ok(output.includes("inspect"), "Should mention inspect");
-      assert.ok(output.includes("generate"), "Should mention generate");
       assert.ok(output.includes("doctor"), "Should mention doctor");
       assert.ok(output.includes("diff"), "Should mention diff");
     });
@@ -70,7 +69,7 @@ describe("CLI Entry Point (src/cli/main.js)", function () {
 
     it("should display help when --help is provided with a subcommand", async function () {
       // --help takes precedence and shows top-level help
-      const { logs } = await captureOutput(() => main(["generate", "--help"]));
+      const { logs } = await captureOutput(() => main(["init", "--help"]));
       const output = logs.join("\n");
       assert.ok(output.includes("Usage:"), "Should show usage line");
     });
@@ -94,7 +93,6 @@ describe("CLI Entry Point (src/cli/main.js)", function () {
       );
       assert.ok(output.includes("init"), "Should list init as valid");
       assert.ok(output.includes("inspect"), "Should list inspect as valid");
-      assert.ok(output.includes("generate"), "Should list generate as valid");
       assert.ok(output.includes("doctor"), "Should list doctor as valid");
       assert.ok(output.includes("diff"), "Should list diff as valid");
     });
@@ -109,10 +107,6 @@ describe("CLI Entry Point (src/cli/main.js)", function () {
       assert.ok(
         typeof COMMANDS.inspect === "function",
         "inspect handler exists",
-      );
-      assert.ok(
-        typeof COMMANDS.generate === "function",
-        "generate handler exists",
       );
       assert.ok(typeof COMMANDS.doctor === "function", "doctor handler exists");
       assert.ok(typeof COMMANDS.diff === "function", "diff handler exists");
@@ -131,7 +125,7 @@ describe("CLI Entry Point (src/cli/main.js)", function () {
       }
 
       try {
-        for (const name of ["init", "inspect", "generate", "doctor", "diff"]) {
+        for (const name of ["init", "inspect", "doctor", "diff"]) {
           dispatched.length = 0;
           await captureOutput(() => main([name]));
           assert.deepStrictEqual(

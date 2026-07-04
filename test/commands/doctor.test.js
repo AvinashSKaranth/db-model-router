@@ -75,13 +75,17 @@ function writePkg(dir, deps) {
  */
 async function generateSyncedFiles(dir, schemaPath) {
   delete require.cache[require.resolve("../../src/cli/commands/generate")];
-  const generateCmd = require("../../src/cli/commands/generate");
+  const { buildSchemaArtifacts } = require("../../src/cli/commands/generate");
+  const { parseSchema } = require("../../src/schema/schema-parser");
+  const schema = parseSchema(fs.readFileSync(schemaPath, "utf8"));
+  schema.options.saasStructure = false; // avoid SaaS conflicts with diff-engine expectations
   const ctx = new OutputContext({ json: true });
-  await generateCmd(
-    { from: schemaPath, "saas-structure": false },
-    { yes: false, json: true, dryRun: false, noInstall: false, help: false },
+  await buildSchemaArtifacts({
+    schema,
+    baseDir: dir,
     ctx,
-  );
+    flags: { json: true, dryRun: false },
+  });
 }
 
 describe("CLI Commands - doctor (src/cli/commands/doctor.js)", function () {

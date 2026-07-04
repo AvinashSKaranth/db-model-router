@@ -10,70 +10,99 @@ const {
   printSummary,
   ensurePackageJson,
 } = require("../init");
-const { promptUser } = require("../init/prompt");
-const generateCmd = require("./generate");
-
-/**
- * Default answers used when --yes is provided and no schema is available.
- */
-const DEFAULT_ANSWERS = {
-  framework: "express",
-  database: "postgres",
-  session: "memory",
-  rateLimiting: true,
-  helmet: true,
-  logger: true,
-  loki: false,
-};
+const { buildSchemaArtifacts } = require("./generate");
 
 /**
  * Init command handler for the unified CLI.
  *
- * Scaffolds a new project from a schema file or interactively.
+ * First-buildout ONLY. Scaffolds a full project (app.js, commons/, routes/,
+ * migrations/, models/, tests, OpenAPI spec, optional SaaS structure) from a
+ * single `dbmr.schema.json` file. All project config lives in the schema's
+ * `options` block — no config flags here. Refuses to run if a project already
+ * exists (app.js or package.json present in cwd).
  *
- * @param {object} args - Parsed positional/key-value args (e.g. { from, framework, database })
+ * To add new tables/models/routes after buildout, do it manually — see
+ * `db-model-router help init` for the procedure.
+ *
+ * @param {object} args - Parsed args; args._[0] or args.from may hold schema path
  * @param {object} flags - Universal flags: { yes, json, dryRun, noInstall, help }
  * @param {import('../flags').OutputContext} ctx - Output context for --json support
  */
 async function init(args, flags, ctx) {
-  let answers;
+  // Resolve schema path: positional arg, --from, or default ./dbmr.schema.json
+  const schemaPathArg =
+    (args._ && args._[0]) || args.from || "./dbmr.schema.json";
+  const schemaPath = path.resolve(schemaPathArg);
 
-  if (args.from) {
-    // --from points to a schema file: read adapter/framework from it
-    const schemaPath = path.resolve(args.from);
-    if (!fs.existsSync(schemaPath)) {
-      throw new Error(`Schema file not found: ${args.from}`);
+  if (!fs.existsSync(schemaPath)) {
+    const msg = `Schema file not found: ${schemaPathArg}`;
+    if (flags.json) {
+      ctx.result({ error: true, code: "SCHEMA_NOT_FOUND", message: msg });
+    } else {
+      ctx.log(`Error: ${msg}`);
     }
-    const raw = fs.readFileSync(schemaPath, "utf8");
-    const schema = parseSchema(raw);
-
-    answers = {
-      framework: schema.framework,
-      database: schema.adapter,
-      session: (schema.options && schema.options.session) || "memory",
-      rateLimiting: !!(schema.options && schema.options.rateLimiting),
-      helmet: !!(schema.options && schema.options.helmet),
-      logger: !!(schema.options && schema.options.logger),
-      loki: !!(schema.options && schema.options.loki),
-    };
-  } else if (flags.yes) {
-    // --yes with no schema: use defaults, but allow CLI overrides
-    answers = Object.assign({}, DEFAULT_ANSWERS);
-    if (args.framework) answers.framework = args.framework;
-    if (args.database) answers.database = args.database;
-  } else {
-    // Interactive: build prefilled from CLI args, prompt for the rest
-    const prefilled = {};
-    if (args.framework) prefilled.framework = args.framework;
-    if (args.database) prefilled.database = args.database;
-    answers = await promptUser(prefilled);
+    process.exitCode = 1;
+    return;
   }
 
-  // Resolve --output directory (relative to cwd)
-  // CLI --output flag takes precedence, then interactive prompt answer
-  const outputDir = args.output || answers.output || "";
+  let schema;
+  try {
+    const raw = fs.readFileSync(schemaPath, "utf8");
+    schema = parseSchema(raw);
+  } catch (err) {
+    const msg = `Schema parse error: ${err.message}`;
+    if (flags.json) {
+      ctx.result({
+        error: true,
+        code: "SCHEMA_VALIDATION",
+        message: msg,
+        errors: err.errors || [],
+      });
+    } else {
+      ctx.log(`Error: ${msg}`);
+    }
+    process.exitCode = 1;
+    return;
+  }
 
-  // --dry-run: report planned files without writing
+  // All config comes from schema.options.
+  const outputDir = (schema.options && schema.options.output) || "";
+  const baseDir = path.resolve(outputDir || process.cwd());
+
+  const answers = {
+    framework: schema.framework,
+    database: schema.adapter,
+    session: (schema.options && schema.options.session) || "memory",
+    rateLimiting: !!(schema.options && schema.options.rateLimiting),
+    helmet: !!(schema.options && schema.options.helmet),
+    logger: !!(schema.options && schema.options.logger),
+    loki: !!(schema.options && schema.options.loki),
+    port: schema.options && schema.options.port,
+    apiBasePath: schema.options && schema.options.apiBasePath,
+    output: outputDir,
+  };
+
+  // First-buildout-only guard: refuse if a project already exists in cwd.
+  // app.js is the db-model-router project marker (package.json may pre-exist
+  // as a legit npm project, so it alone does not block a first buildout).
+  if (!flags.dryRun) {
+    const cwd = process.cwd();
+    if (fs.existsSync(path.join(cwd, "app.js"))) {
+      const msg =
+        `init is first-buildout only; a project already exists in ${cwd} ` +
+        `(app.js present). To add new tables, models, or routes, do it ` +
+        `manually — see: db-model-router help init`;
+      if (flags.json) {
+        ctx.result({ error: true, code: "PROJECT_EXISTS", message: msg });
+      } else {
+        ctx.log(`Error: ${msg}`);
+      }
+      process.exitCode = 1;
+      return;
+    }
+  }
+
+  // --- dry-run: report planned files without writing ---
   if (flags.dryRun) {
     const planned = planFiles(answers, outputDir);
     if (flags.json) {
@@ -83,43 +112,32 @@ async function init(args, flags, ctx) {
         actions: ["dry-run"],
       });
     } else {
-      ctx.log("Dry run — the following files would be created:");
+      ctx.log("Dry run — the following scaffold files would be created:");
       for (const f of planned) {
         ctx.log(`  ${f}`);
       }
     }
-    // Also preview schema-generated artifacts when --from is used
-    if (args.from) {
-      await generateCmd(args, flags, ctx);
-    }
+    // Preview schema-driven artifacts too (non-writing)
+    await buildSchemaArtifacts({ schema, baseDir, ctx, flags });
     if (!flags.json) {
       ctx.log("\nNo files were written.");
     }
     return;
   }
 
-  // Ensure package.json exists
+  // --- real run ---
   ensurePackageJson();
 
-  // Generate project files
   const generated = generateFiles(answers, outputDir);
-
-  // Update package.json with deps and scripts
   updatePackageJson(answers, outputDir);
 
-  // npm install (unless --no-install)
   const installed = !flags.noInstall;
   if (installed) {
     runInstall();
   }
 
-  // When --from points to a schema, also generate models, routes, tests, etc.
-  if (args.from) {
-    await generateCmd(args, flags, ctx);
-    if (process.exitCode) return; // bail if generate reported an error
-  }
-
-  // Output
+  // Build init's JSON result first so it lands at ctx._results[0] (buildSchemaArtifacts
+  // pushes its own result afterward).
   const allFiles = [
     ...generated.files,
     ...generated.migrationFiles.map((m) => {
@@ -127,14 +145,20 @@ async function init(args, flags, ctx) {
       return base === "." ? `migrations/${m}` : `${base}/migrations/${m}`;
     }),
   ];
-
   if (flags.json) {
     ctx.result({
       files: allFiles,
       dependencies: { installed },
       actions: installed ? ["scaffolded", "installed"] : ["scaffolded"],
     });
-  } else {
+  }
+
+  // Schema-driven artifacts: models, routes, migrations, openapi, tests, SaaS
+  await buildSchemaArtifacts({ schema, baseDir, ctx, flags });
+  if (process.exitCode) return; // bail if build reported an error
+
+  // Human-readable summary (non-json only)
+  if (!flags.json) {
     printSummary(generated);
     if (!installed) {
       ctx.log(
@@ -145,8 +169,8 @@ async function init(args, flags, ctx) {
 }
 
 /**
- * Compute the list of files that would be created (for --dry-run).
- * This mirrors the file list from generateFiles() without writing anything.
+ * Compute the list of scaffold files that would be created (for --dry-run).
+ * Mirrors generateFiles() without writing anything.
  *
  * @param {object} answers
  * @param {string} [outputDir] - relative output directory for source files
@@ -166,7 +190,6 @@ function planFiles(answers, outputDir) {
     ".dockerignore",
   ];
 
-  // docker-compose.yml for databases that need Docker
   if (answers.database !== "sqlite3") {
     files.push("docker-compose.yml");
   }

@@ -829,8 +829,9 @@ describe("Feature: schema-driven-cli, Property 17: Dry-Run Prevents Side Effects
   it("generate with --dry-run does not modify the file system", async function () {
     this.timeout(60000);
 
-    // We test this by calling the generate command handler directly with dryRun flag
-    const generate = require("../../src/cli/commands/generate");
+    // We test this by calling buildSchemaArtifacts directly with dryRun flag
+    const { buildSchemaArtifacts } = require("../../src/cli/commands/generate");
+    const { parseSchema } = require("../../src/schema/schema-parser");
 
     await fc.assert(
       fc.asyncProperty(arbSchema, async (rawSchema) => {
@@ -847,19 +848,23 @@ describe("Feature: schema-driven-cli, Property 17: Dry-Run Prevents Side Effects
             JSON.stringify({ name: "test", version: "1.0.0" }),
           );
 
-          // Change to temp dir so generate resolves paths correctly
+          // Change to temp dir so paths resolve correctly
           process.chdir(tmpDir);
 
           // Snapshot before
           const before = snapshotHashes(tmpDir);
 
-          // Run generate with --dry-run
-          const ctx = new OutputContext({ json: true });
-          await generate(
-            { from: "dbmr.schema.json" },
-            { json: true, dryRun: true },
-            ctx,
+          // Run buildSchemaArtifacts with --dry-run
+          const schema = parseSchema(
+            fs.readFileSync("dbmr.schema.json", "utf8"),
           );
+          const ctx = new OutputContext({ json: true });
+          await buildSchemaArtifacts({
+            schema,
+            baseDir: tmpDir,
+            ctx,
+            flags: { json: true, dryRun: true },
+          });
 
           // Snapshot after
           const after = snapshotHashes(tmpDir);

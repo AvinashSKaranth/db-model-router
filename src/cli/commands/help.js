@@ -5,25 +5,33 @@
  * Each key matches a subcommand name from main.js.
  */
 const COMMAND_HELP = {
-  init: `Usage: db-model-router init [options]
+  init: `Usage: db-model-router init [schemaPath] [options]
 
-Scaffold a new project from a schema file or interactively.
-Creates app.js, .env, commons/, routes/, middleware/, and migrations/.
+First-buildout ONLY. Scaffolds a complete project (app.js, commons/, routes/,
+middleware/, migrations/, models/, tests, OpenAPI spec, and optional SaaS
+structure) from a single dbmr.schema.json file.
+
+ALL project configuration lives in the schema's "options" block. There are no
+config flags on this command — set everything in dbmr.schema.json:
+
+  options:
+    output          Relative/absolute dir for source files (null = cwd root)
+    saasStructure   boolean (default: true) — generate multi-tenant SaaS scaffold
+    apiBasePath     string starting with "/" (default: "/api")
+    port            positive integer (default: 3000)
+    session         "memory" | "redis" | "database" (default: "memory")
+    rateLimiting    boolean (default: true)
+    helmet          boolean (default: true)
+    logger          boolean (default: true)
+    loki            boolean (default: false)
+
+refuses to run if a project already exists in cwd (app.js or package.json
+present). init is NOT for adding new tables, models, or routes — see below.
+
+Arguments:
+  schemaPath             Path to schema file (default: ./dbmr.schema.json)
 
 Options:
-  --from <path>          Read adapter, framework, and options from a schema file
-  --framework <name>     Express framework: express, ultimate-express
-  --database <name>      Database adapter: mysql, mariadb, postgres, sqlite3, mongodb,
-                         mssql, cockroachdb, oracle, redis, dynamodb
-  --db <name>            Alias for --database
-  --session <type>       Session store: memory, redis, database
-  --output <dir>         Directory for backend source files (relative to cwd).
-                         package.json and app.js stay in root; commons/, routes/,
-                         middleware/, and migrations/ go inside this folder.
-  --rateLimiting         Enable rate limiting (default: yes)
-  --helmet               Enable Helmet security headers (default: yes)
-  --logger               Enable Winston + Loki logger for Grafana (default: yes)
-  --yes                  Accept all defaults without prompting
   --json                 Output machine-readable JSON
   --dry-run              Preview planned files without writing
   --no-install           Skip npm install after scaffolding
@@ -31,23 +39,45 @@ Options:
 
 Generated files:
   app.js                              Express app entry point
-  .env / .env.example                 Environment configuration
+  .env / .env.example                 Environment configuration (PORT, API_BASE_PATH)
   .gitignore                          Git ignore rules
   <output>/commons/db.js              Database init, connect, and global.db
   <output>/commons/session.js         Session configuration
   <output>/commons/migrate.js         Migration runner (also runs as script)
   <output>/commons/add_migration.js   Migration creation helper (also runs as script)
   <output>/commons/security.js        Helmet, rate limiting, custom headers
-  <output>/middleware/logger.js        Winston + Loki request logger
-  <output>/routes/index.js             Central route mounting
-  <output>/routes/health.js            GET /health endpoint
-  <output>/migrations/                Initial migration files
+  <output>/middleware/logger.js       Winston + Loki request logger
+  <output>/routes/index.js            Central route mounting
+  <output>/routes/health.js           GET /health endpoint
+  <output>/routes/docs.js             Swagger UI at /docs
+  <output>/routes/<table>/index.js    CRUD route per table (nested by parent)
+  <output>/models/<table>.js          Model with CRUD operations per table
+  <output>/migrations/                CREATE TABLE migrations (SQL) or per-table (NoSQL)
+  <output>/test/<table>.test.js       CRUD endpoint tests per table
+  <output>/openapi.json               OpenAPI 3.0 spec
+  SaaS files (when saasStructure=true): tenants/users/roles middleware + routes + seeds
 
 Examples:
-  db-model-router init --from dbmr.schema.json --yes --no-install
-  db-model-router init --framework express --database postgres --output backend --yes
-  db-model-router init --database mysql --session redis --helmet --rateLimiting
-  db-model-router init --dry-run`,
+  db-model-router init                          # uses ./dbmr.schema.json
+  db-model-router init ./my.schema.json
+  db-model-router init --dry-run
+  db-model-router init --no-install --json
+
+ADDING NEW TABLES / MODELS / ROUTES AFTER BUILDOUT (manual — do NOT re-run init):
+  1. Migration: create a new timestamped migration under migrations/ with the
+     CREATE TABLE (SQL) or create_<table>.js (NoSQL). Use the scaffold helper:
+       node commons/add_migration.js <name>
+     then write your CREATE TABLE SQL / collection setup inside it.
+  2. Model: add models/<table>.js mirroring an existing model:
+       const model = require('#commons/model');
+       const db = require('#commons/db');
+       module.exports = model(db, '<table>', structure, '<pk>', uniqueKeys, option);
+  3. Route: add routes/<table>/index.js via route(model):
+       const route = require('#commons/route');
+       module.exports = route(require('#models/<table>'));
+     then mount it in routes/index.js at the desired endpoint:
+       router.use('/<endpoint>', require('./<table>/index.js'));
+  4. Run the new migration, then restart the server.`,
 
   inspect: `Usage: db-model-router inspect [options]
 
@@ -69,43 +99,6 @@ Examples:
   db-model-router inspect --type postgres --env .env
   db-model-router inspect --type sqlite3 --out schema.json --tables users,posts
   db-model-router inspect --type mysql --json`,
-
-  generate: `Usage: db-model-router generate [options]
-
-Generate models, routes, tests, OpenAPI spec, and LLM docs from a schema file.
-When no artifact flags are provided, all artifact types are generated.
-
-Options:
-  --from <path>          Path to schema file (default: dbmr.schema.json)
-  --models               Generate only model files
-  --routes               Generate only route files (including child routes and index)
-  --openapi              Generate only OpenAPI spec + Swagger UI docs route
-  --tests                Generate only test files
-  --migrations           Generate only database migration files
-  --yes                  Accept all defaults without prompting
-  --json                 Output machine-readable JSON
-  --dry-run              Report planned files without writing
-  --help                 Show this help message
-
-Generated files:
-  models/<table>.js                        Model with CRUD operations
-  routes/<table>.js                        Express route handlers
-  routes/<parent>/<child>.js               Child route (scoped by FK)
-  routes/docs.js                           Swagger UI at /docs
-  routes/index.js                          Route mounting index
-  migrations/<timestamp>_create_tables.sql Database migration (SQL adapters)
-  migrations/<timestamp>_create_<t>.js     Database migration (NoSQL adapters)
-  test/<table>.test.js                     CRUD endpoint tests
-  openapi.json                             OpenAPI 3.0 spec
-  llms.txt                                 LLM quick reference
-  docs/llm.md                              Full LLM reference
-
-Examples:
-  db-model-router generate --from dbmr.schema.json
-  db-model-router generate --models --dry-run
-  db-model-router generate --routes --tests
-  db-model-router generate --migrations
-  db-model-router generate --from dbmr.schema.json --json`,
 
   doctor: `Usage: db-model-router doctor [options]
 

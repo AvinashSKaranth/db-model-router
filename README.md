@@ -79,12 +79,9 @@ Both `express` and `ultimate-express` are optional peer dependencies. The librar
 The fastest way to start a new project:
 
 ```bash
-# Scaffold a project interactively
+# Build a full project from a schema file (first buildout only)
 npx db-model-router init
-
-# Or fully non-interactive from a schema file
-db-model-router init --from dbmr.schema.json --yes --no-install
-db-model-router generate --from dbmr.schema.json
+# → reads ./dbmr.schema.json, scaffolds app.js + models + routes + migrations + tests + OpenAPI + SaaS
 ```
 
 After scaffolding:
@@ -137,7 +134,11 @@ Examples of tables that should stay top-level (not be parents of feature modules
     "rateLimiting": true,
     "helmet": true,
     "logger": true,
-    "loki": false
+    "loki": false,
+    "output": null,
+    "saasStructure": true,
+    "apiBasePath": "/api",
+    "port": 3000
   },
   "tables": {
     "users": {
@@ -247,19 +248,20 @@ For the full column rule specification including all sub-types and validators, s
 
 ### Unified CLI: `db-model-router`
 
-The `db-model-router` command is the unified entry point with five subcommands:
+The `db-model-router` command is the unified entry point. `init` is the only buildout command — it reads `dbmr.schema.json` and produces the whole project. The other subcommands are introspection, validation, and a DB manager UI.
 
 ```bash
 db-model-router <subcommand> [flags]
 ```
 
-| Subcommand | Description                                                         |
-| ---------- | ------------------------------------------------------------------- |
-| `init`     | Scaffold a new project (optionally from a schema file)              |
-| `inspect`  | Introspect a live database and produce a `dbmr.schema.json`         |
-| `generate` | Generate models, routes, tests, and OpenAPI spec from the schema    |
-| `doctor`   | Validate schema, check dependencies, verify generated files in sync |
-| `diff`     | Preview what changes regeneration would make (read-only)            |
+| Subcommand    | Description                                                          |
+| ------------- | -------------------------------------------------------------------- |
+| `init`        | **First buildout only.** Scaffold the full project from `dbmr.schema.json` |
+| `inspect`     | Introspect a live database and produce a `dbmr.schema.json`          |
+| `doctor`      | Validate schema, check dependencies, verify generated files in sync  |
+| `diff`        | Preview what changes regeneration would make (read-only)             |
+| `db-manager`  | Start a live database management UI                                   |
+| `help`        | Show help for a command                                               |
 
 #### Universal Flags
 
@@ -267,10 +269,9 @@ All subcommands accept these flags:
 
 | Flag           | Description                                                 |
 | -------------- | ----------------------------------------------------------- |
-| `--yes`        | Accept all defaults, suppress interactive prompts           |
 | `--json`       | Output machine-readable JSON instead of human-readable text |
 | `--dry-run`    | Preview actions without writing files or running commands   |
-| `--no-install` | Skip `npm install` (applies to commands that would run it)  |
+| `--no-install` | Skip `npm install` (applies to `init`)                     |
 | `--help`       | Show usage information for the subcommand                   |
 
 #### Quick Workflow Example
@@ -279,10 +280,11 @@ All subcommands accept these flags:
 # 1. Introspect an existing database into a schema file
 db-model-router inspect --type postgres --env .env
 
-# 2. (Optional) Edit dbmr.schema.json to tweak columns, set parent for nesting, etc.
+# 2. (Optional) Edit dbmr.schema.json — tweak columns, set parent for nesting,
+#    set options.output / options.saasStructure / options.apiBasePath / options.port
 
-# 3. Generate all artifacts from the schema
-db-model-router generate --from dbmr.schema.json
+# 3. Build the full project (first buildout only)
+db-model-router init
 
 # 4. Check everything is in sync
 db-model-router doctor --from dbmr.schema.json
@@ -291,58 +293,101 @@ db-model-router doctor --from dbmr.schema.json
 db-model-router diff --from dbmr.schema.json
 ```
 
-Or start a brand-new project from a schema file:
-
-```bash
-# Scaffold project + generate everything in one go
-db-model-router init --from dbmr.schema.json --yes --no-install
-db-model-router generate --from dbmr.schema.json
-```
-
 ### Command Reference
 
 #### `init`
 
-Scaffold a new project from a schema file or interactively. Generates an ESM-based project (`"type": "module"` in package.json) with Docker support.
+**First buildout only.** Scaffolds the full project from `dbmr.schema.json`: `app.js`, `commons/`, `routes/`, `middleware/`, `migrations/`, `models/`, `tests/`, `openapi.json`, and the optional SaaS structure. All project config lives in the schema's `options` block — `init` takes no config flags. `init` refuses to run if a project already exists in cwd (`app.js` present); to add new tables/models/routes after buildout, do it manually (see below).
 
-| Flag / Arg           | Description                                                                                                                                                               |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--from <path>`      | Read adapter, framework, and options from a `dbmr.schema.json` file                                                                                                       |
-| `--framework <name>` | Express framework: `express` or `ultimate-express`                                                                                                                        |
-| `--database <name>`  | Database adapter: `mysql`, `mariadb`, `postgres`, `sqlite3`, `mongodb`, `mssql`, `cockroachdb`, `oracle`, `redis`, `dynamodb`                                             |
-| `--db <name>`        | Alias for `--database`                                                                                                                                                    |
-| `--session <type>`   | Session store: `memory`, `redis`, `database`                                                                                                                              |
-| `--output <dir>`     | Directory for backend source files (relative to cwd). `package.json` and `app.js` stay in root; `commons/`, `route/`, `middleware/`, `migrations/` go inside this folder. |
-| `--rateLimiting`     | Enable rate limiting via `express-rate-limit` (default: yes)                                                                                                              |
-| `--helmet`           | Enable Helmet security headers (default: yes)                                                                                                                             |
-| `--logger`           | Enable Winston request logger (default: yes)                                                                                                                              |
-| `--loki`             | Enable Grafana Loki log transport + Loki/Grafana in docker-compose (default: no, only asked when `--logger` is enabled)                                                   |
+Generates an ESM-based project (`"type": "module"` in package.json) with Docker support.
+
+| Arg / Flag       | Description                                                          |
+| ---------------- | -------------------------------------------------------------------- |
+| `[schemaPath]`   | Path to schema file (default: `./dbmr.schema.json`)                  |
+| `--dry-run`      | Preview planned files without writing                                |
+| `--no-install`   | Skip `npm install` after scaffolding                                 |
+| `--json`         | Machine-readable JSON output                                         |
+| `--help`         | Show detailed help (includes the manual add procedure)               |
+
+All configuration is read from `options` in `dbmr.schema.json`:
+
+| Option           | Default     | Description                                                                                       |
+| ---------------- | ----------- | ------------------------------------------------------------------------------------------------- |
+| `output`         | `null` (cwd)| Directory for backend source files. `package.json`/`app.js` stay in root; the rest go inside it.  |
+| `saasStructure`  | `true`      | Generate the multi-tenant SaaS backend (tables, middleware, routes, seeds).                      |
+| `apiBasePath`    | `"/api"`    | Base path the API is mounted at (written to `.env` as `API_BASE_PATH`).                           |
+| `port`           | `3000`      | Server port (written to `.env` as `PORT`).                                                        |
+| `session`        | `"memory"`  | Session store: `memory`, `redis`, `database`.                                                     |
+| `rateLimiting`   | `true`      | Enable `express-rate-limit`.                                                                      |
+| `helmet`         | `true`      | Enable Helmet security headers.                                                                   |
+| `logger`         | `true`      | Enable Winston request logger.                                                                    |
+| `loki`           | `false`     | Enable Grafana Loki log transport + Loki/Grafana in docker-compose.                               |
 
 ```bash
-# Non-interactive with output directory
-db-model-router init --framework express --database postgres --output backend --yes
+# Build the full project from ./dbmr.schema.json
+db-model-router init
 
-# With Loki logging
-db-model-router init --database postgres --logger --loki --yes
+# Use a specific schema file
+db-model-router init ./my.schema.json
 
-# From schema, skip install
-db-model-router init --from dbmr.schema.json --yes --no-install
+# Preview without writing
+db-model-router init --dry-run
 
-# Dry run to preview files
-db-model-router init --from dbmr.schema.json --dry-run
+# Skip npm install
+db-model-router init --no-install
 ```
 
-Generated project structure (with `--output backend`):
+##### `options.saasStructure` — SaaS Multi-Tenant Architecture (default: enabled)
+
+The SaaS structure is generated unless `options.saasStructure` is `false`. It scaffolds a complete multi-tenant SaaS backend on top of your schema-generated code:
+
+- **Tables**: `tenants`, `users`, `roles`, `role_permissions`, `webhooks`, `webhook_logs`
+- **Middleware**: `authenticate`, `tenantIsolation`, `hasPermission`
+- **Routes**: CRUD for users/tenants/roles/permissions + auth (login/logout)
+- **Utilities**: password hashing (crypto.scrypt), modules registry, webhook delivery with retry
+- **Seeds**: Super Admin user + Tenant Admin role template
+- **Migrations**: Single consolidated migration file for all SaaS tables
+
+> **Important**: Since `saasStructure` is on by default, the tables `users`, `tenants`, `roles`, and `role_permissions` are already generated with their models, routes, and migrations. **Do not add these tables to your `dbmr.schema.json`** — they will be duplicated. Only define your product/domain-specific tables in the schema (e.g., `products`, `orders`, `invoices`).
+
+The generated `routes/index.js` automatically combines both SaaS routes (under `/api/auth`, `/api/users`, `/api/tenants`, `/api/roles`) and your schema-generated product routes. The OpenAPI/Swagger docs include all SaaS endpoints with security annotations.
+
+##### Adding new tables / models / routes after buildout (manual)
+
+`init` is first-buildout only. Do not re-run it to add tables. Instead:
+
+1. **Migration** — create a new timestamped migration under `migrations/` with the `CREATE TABLE` (SQL) or `create_<table>.js` (NoSQL):
+   ```bash
+   node commons/add_migration.js <name>
+   # then write your CREATE TABLE SQL / collection setup inside the new file
+   ```
+2. **Model** — add `models/<table>.js` mirroring an existing model:
+   ```js
+   const model = require('#commons/model');
+   const db = require('#commons/db');
+   module.exports = model(db, '<table>', structure, '<pk>', uniqueKeys, option);
+   ```
+3. **Route** — add `routes/<table>/index.js` via `route(model)`, then mount it in `routes/index.js` at the desired endpoint:
+   ```js
+   // routes/<table>/index.js
+   const route = require('#commons/route');
+   module.exports = route(require('#models/<table>'));
+   // routes/index.js
+   router.use('/<endpoint>', require('./<table>/index.js'));
+   ```
+4. Run the new migration, then restart the server.
+
+Generated project structure (with `options.output = "backend"`):
 
 ```
 ├── package.json              # root (type: "module")
 ├── app.js                    # ESM entry point
-├── .env / .env.example
+├── .env / .env.example       # PORT, API_BASE_PATH, DB creds
 ├── .gitignore
 ├── Dockerfile                # node:alpine production image
 ├── .dockerignore
 ├── docker-compose.yml        # database + optional Loki/Grafana
-├── .grafana/                 # (only when --loki)
+├── .grafana/                 # (only when options.loki)
 │   └── datasources.yml       # auto-connects Grafana to Loki
 └── backend/
     ├── commons/
@@ -353,21 +398,30 @@ Generated project structure (with `--output backend`):
     │   └── add_migration.js  # migration creator (importable + standalone script)
     ├── middleware/
     │   └── logger.js         # Winston logger (+ Loki transport when LOKI_HOST is set)
-    ├── route/
-    │   ├── index.js          # central route mounting
-    │   └── health.js         # GET /health with DB connectivity check
-    └── migrations/
-        └── <timestamp>_create_migrations_table.sql
+    ├── routes/
+    │   ├── index.js          # central route mounting (SaaS + product routes)
+    │   ├── health.js         # GET /health with DB connectivity check
+    │   ├── docs.js           # Swagger UI at /docs
+    │   └── <table>/index.js  # CRUD route per table (nested by parent)
+    ├── models/
+    │   └── <table>.js        # model per table
+    ├── migrations/
+    │   └── <timestamp>_create_tables.sql  # all tables (SQL) or per-table (NoSQL)
+    ├── test/
+    │   └── <table>.test.js   # CRUD endpoint tests per table
+    ├── seeds/                # (when saasStructure=true)
+    │   └── saas-seed.js
+    └── openapi.json
 ```
 
 Docker services included automatically:
 
-| Service     | When                                  | Port   | Description                            |
-| ----------- | ------------------------------------- | ------ | -------------------------------------- |
-| Database    | Always (except sqlite3)               | Varies | Selected database with random password |
-| Redis       | `--session redis` (if DB isn't redis) | 6379   | Session store                          |
-| Loki        | `--loki`                              | 3100   | Log aggregation                        |
-| Grafana     | `--loki`                              | 3001   | Log visualization, Loki pre-configured |
+| Service     | When                                          | Port   | Description                            |
+| ----------- | --------------------------------------------- | ------ | -------------------------------------- |
+| Database    | Always (except sqlite3)                       | Varies | Selected database with random password |
+| Redis       | `options.session = "redis"` (if DB isn't redis) | 6379   | Session store                          |
+| Loki        | `options.loki = true`                         | 3100   | Log aggregation                        |
+| Grafana     | `options.loki = true`                         | 3001   | Log visualization, Loki pre-configured |
 
 npm scripts added: `start`, `dev`, `test`, `migrate`, `add_migration`, `docker:build`, `docker:up`, `docker:down`.
 
@@ -386,47 +440,6 @@ Introspect a live database and produce a `dbmr.schema.json` file.
 db-model-router inspect --type postgres --env .env
 db-model-router inspect --type sqlite3 --out schema.json --tables users,posts
 db-model-router inspect --type mysql --json
-```
-
-#### `generate`
-
-Generate models, routes, tests, OpenAPI spec, and LLM docs from a schema file. All generated code is ESM (`import`/`export`).
-
-| Flag / Arg               | Description                                       |
-| ------------------------ | ------------------------------------------------- |
-| `--from <path>`          | Path to schema file (default: `dbmr.schema.json`) |
-| `--output <dir>`         | Directory for generated files (default: cwd)      |
-| `--models=false`         | Disable model file generation                     |
-| `--routes=false`         | Disable route file generation                     |
-| `--openapi=false`        | Disable OpenAPI spec generation                   |
-| `--tests=false`          | Disable test file generation                      |
-| `--migrations=false`     | Disable migration file generation                 |
-| `--saas-structure=false` | Disable SaaS multi-tenant generation              |
-
-All artifact types are **enabled by default**. Use `--flag=false` to disable specific ones.
-
-##### `--saas-structure` — SaaS Multi-Tenant Architecture (default: enabled)
-
-The SaaS structure is always generated unless explicitly disabled with `--saas-structure=false`. It scaffolds a complete multi-tenant SaaS backend on top of your schema-generated code:
-
-- **Tables**: `tenants`, `users`, `roles`, `role_permissions`, `webhooks`, `webhook_logs`
-- **Middleware**: `authenticate`, `tenantIsolation`, `hasPermission`
-- **Routes**: CRUD for users/tenants/roles/permissions + auth (login/logout)
-- **Utilities**: password hashing (crypto.scrypt), modules registry, webhook delivery with retry
-- **Seeds**: Super Admin user + Tenant Admin role template
-- **Migrations**: Single consolidated migration file for all SaaS tables
-
-> **Important**: Since `--saas-structure` is on by default, the tables `users`, `tenants`, `roles`, and `role_permissions` are already generated with their models, routes, and migrations. **Do not add these tables to your `dbmr.schema.json`** — they will be duplicated. Only define your product/domain-specific tables in the schema (e.g., `products`, `orders`, `invoices`).
-
-The generated `routes/index.js` automatically combines both SaaS routes (under `/api/auth`, `/api/users`, `/api/tenants`, `/api/roles`) and your schema-generated product routes. The OpenAPI/Swagger docs include all SaaS endpoints with security annotations.
-
-```bash
-db-model-router generate --from dbmr.schema.json
-db-model-router generate --tests=false --dry-run       # skip tests
-db-model-router generate --saas-structure=false        # skip SaaS generation
-db-model-router generate --openapi=false --tests=false # skip OpenAPI and tests
-db-model-router generate --from dbmr.schema.json --json
-db-model-router generate --from dbmr.schema.json --output ./backend
 ```
 
 #### `doctor`

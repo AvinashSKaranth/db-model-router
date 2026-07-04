@@ -28,7 +28,6 @@ const {
 } = require("./init/generators");
 
 const { collectDependencies, getScripts } = require("./init/dependencies");
-const { promptUser, parseInitArgs } = require("./init/prompt");
 
 /**
  * Ensure a package.json exists in the current directory.
@@ -304,84 +303,21 @@ function printSummary(generated) {
 }
 
 /**
- * Main orchestrator.
+ * Legacy direct-entry orchestrator.
+ *
+ * This module is no longer a user-facing entry point. The unified CLI
+ * (`src/cli/main.js` → `db-model-router init`) drives project buildout via
+ * `dbmr.schema.json` and calls `generateFiles` / `updatePackageJson` /
+ * `runInstall` / `printSummary` directly. This stub kept only so that running
+ * `node src/cli/init.js` points users at the unified CLI instead of silently
+ * doing nothing.
  */
 async function main() {
-  const cliArgs = parseInitArgs(process.argv.slice(2));
-
-  // If --help flag, print usage and exit
-  if (process.argv.includes("--help")) {
-    printUsage();
-    process.exit(0);
-  }
-
-  ensurePackageJson();
-
-  let answers;
-  try {
-    answers = await promptUser(cliArgs);
-  } catch (err) {
-    // Handle Ctrl+C (inquirer throws on user cancel)
-    console.log("\nAborted.");
-    process.exit(1);
-  }
-
-  let generated;
-  try {
-    generated = generateFiles(answers);
-  } catch (err) {
-    if (err.code === "EACCES" || err.code === "EPERM") {
-      console.error(
-        `Error: Permission denied writing files. Check directory permissions.\n  ${err.message}`,
-      );
-    } else {
-      console.error(`Error: Failed to generate files.\n  ${err.message}`);
-    }
-    process.exit(1);
-  }
-
-  updatePackageJson(answers);
-  runInstall();
-  printSummary(generated);
-}
-
-/**
- * Print CLI usage information.
- */
-function printUsage() {
-  console.log(`
-Usage: db-model-router-init [options]
-
-Scaffolds a complete Express-based REST API project. When all options are
-provided, runs non-interactively (no prompts). Missing options are prompted.
-
-Options:
-  --framework <name>    Express framework: ultimate-express, express
-  --database <name>     Database: mysql, postgres, sqlite3, mongodb, mssql,
-                        cockroachdb, oracle, redis, dynamodb
-  --db <name>           Alias for --database
-  --session <type>      Session store: memory, redis, database
-  --output <dir>        Directory for backend source files (e.g. --output backend).
-                        package.json stays in root; index.js, commons/, routes/,
-                        middleware/, and migrations/ go inside the output folder.
-  --rateLimiting        Enable rate limiting (express-rate-limit)
-  --helmet              Enable Helmet security headers
-  --logger              Enable request/response logger (express-mung)
-  --help                Show this help message
-
-Examples:
-  # Fully non-interactive (LLM-friendly)
-  db-model-router-init --framework express --database postgres --session redis --rateLimiting --helmet --logger
-
-  # With output directory
-  db-model-router-init --framework express --database postgres --output backend --yes
-
-  # Partial — only prompts for missing values
-  db-model-router-init --database mysql --session memory
-
-  # Interactive (no flags)
-  db-model-router-init
-`);
+  console.error(
+    "db-model-router init is now the unified entry point.\n" +
+      "Run: db-model-router init [schemaPath]   (default: ./dbmr.schema.json)",
+  );
+  process.exit(1);
 }
 
 if (require.main === module) {

@@ -25,7 +25,7 @@ function parseFlags(argv) {
     help: false,
   };
 
-  const args = {};
+  const args = { _: [] };
   let subcommand = null;
 
   for (let i = 0; i < argv.length; i++) {
@@ -53,6 +53,9 @@ function parseFlags(argv) {
       }
     } else if (subcommand === null) {
       subcommand = arg;
+    } else {
+      // Extra positional args after the subcommand
+      args._.push(arg);
     }
   }
 

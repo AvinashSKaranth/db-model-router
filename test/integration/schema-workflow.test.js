@@ -49,7 +49,7 @@ function testSchema() {
       },
     },
     relationships: [],
-    options: {},
+    options: { saasStructure: false },
   };
 }
 
@@ -59,7 +59,7 @@ function testSchema() {
 //   Requirements: 3.1, 5.1, 6.4
 // =========================================================================
 
-describe("Integration: full workflow (init → generate → doctor)", function () {
+describe("Integration: full workflow (init → doctor)", function () {
   let tmpDir, origCwd, origLog;
 
   beforeEach(function () {
@@ -100,18 +100,18 @@ describe("Integration: full workflow (init → generate → doctor)", function (
     process.exitCode = 0;
   });
 
-  it("init → generate → doctor should all succeed", async function () {
+  it("init → doctor should all succeed", async function () {
     this.timeout(15000);
 
     const schemaPath = path.join(tmpDir, "dbmr.schema.json");
 
-    // ---- Step 1: init --from schema.json --no-install --yes ----
+    // ---- Step 1: init from schema.json (folds in all schema-artifact generation) ----
     delete require.cache[require.resolve("../../src/cli/commands/init")];
     const initCmd = require("../../src/cli/commands/init");
     const initCtx = new OutputContext({ json: true });
 
     await initCmd(
-      { from: schemaPath, "saas-structure": false },
+      { _: [], from: schemaPath },
       { yes: true, json: true, dryRun: false, noInstall: true, help: false },
       initCtx,
     );
@@ -130,25 +130,7 @@ describe("Integration: full workflow (init → generate → doctor)", function (
       "app.js should exist after init",
     );
 
-    // ---- Step 2: generate --from schema.json ----
-    delete require.cache[require.resolve("../../src/cli/commands/generate")];
-    const generateCmd = require("../../src/cli/commands/generate");
-    const genCtx = new OutputContext({ json: true });
-
-    await generateCmd(
-      { from: schemaPath, "saas-structure": false },
-      { yes: false, json: true, dryRun: false, noInstall: false, help: false },
-      genCtx,
-    );
-
-    assert.ok(genCtx._results.length > 0, "generate should produce a result");
-    const genResult = genCtx._results[0];
-    assert.ok(
-      Array.isArray(genResult.files),
-      "generate result should have files array",
-    );
-
-    // Verify generated artifacts exist
+    // Verify generated artifacts exist (init now generates all schema artifacts)
     assert.ok(
       fs.existsSync(path.join(tmpDir, "models/users.js")),
       "users model should exist",
@@ -166,7 +148,7 @@ describe("Integration: full workflow (init → generate → doctor)", function (
       "openapi.json should exist",
     );
 
-    // ---- Step 3: doctor ----
+    // ---- Step 2: doctor ----
     delete require.cache[require.resolve("../../src/cli/commands/doctor")];
     const doctorCmd = require("../../src/cli/commands/doctor");
     const docCtx = new OutputContext({ json: true });
@@ -279,25 +261,27 @@ describe("Integration: inspect round-trip (SQLite3 → inspect → generate)", f
 
     // ---- Step 4: Generate models from the schema ----
     delete require.cache[require.resolve("../../src/cli/commands/generate")];
-    const generateCmd = require("../../src/cli/commands/generate");
+    const { buildSchemaArtifacts } = require("../../src/cli/commands/generate");
+    const { parseSchema } = require("../../src/schema/schema-parser");
+    const parsedSchema = parseSchema(schemaJson);
+    parsedSchema.options.saasStructure = false; // models-only comparison; skip SaaS
     const genCtx = new OutputContext({ json: true });
 
-    await generateCmd(
-      { from: schemaPath, models: true },
-      { yes: false, json: true, dryRun: false, noInstall: false, help: false },
-      genCtx,
-    );
+    await buildSchemaArtifacts({
+      schema: parsedSchema,
+      baseDir: tmpDir,
+      ctx: genCtx,
+      flags: { json: true, dryRun: false },
+    });
 
-    assert.ok(genCtx._results.length > 0, "generate should produce a result");
+    assert.ok(genCtx._results.length > 0, "build should produce a result");
     const genResult = genCtx._results[0];
     assert.ok(Array.isArray(genResult.files), "should have files array");
 
     // ---- Step 5: Compare generated model files with direct generation ----
     const { generateModelFile } = require("../../src/cli/generate-model");
-    const { parseSchema } = require("../../src/schema/schema-parser");
     const { schemaToModelMeta } = require("../../src/schema/schema-to-meta");
 
-    const parsedSchema = parseSchema(schemaJson);
     const schemaMeta = schemaToModelMeta(parsedSchema);
 
     // Sort both by table name for comparison
@@ -441,7 +425,9 @@ describe("Integration: existing generator equivalence", function () {
     for (const table of tableNames) {
       oldRoutes[table] = generateRouteFile(table, modelsRelPath);
     }
-    const oldRoutesIndex = generateRoutesIndexFile(tableNames, []);
+    const oldRoutesIndex = generateRoutesIndexFile(tableNames, [], {
+      includeDocs: true,
+    });
 
     // ---- Step 3: Convert introspection to schema, write it ----
     const { modelMetaToSchema } = require("../../src/cli/commands/inspect");
@@ -453,18 +439,22 @@ describe("Integration: existing generator equivalence", function () {
     const schemaPath = path.join(tmpDir, "dbmr.schema.json");
     fs.writeFileSync(schemaPath, schemaJson, "utf8");
 
-    // ---- Step 4: Run new generate --from on the schema ----
+    // ---- Step 4: Run buildSchemaArtifacts on the schema (always all artifacts) ----
     delete require.cache[require.resolve("../../src/cli/commands/generate")];
-    const generateCmd = require("../../src/cli/commands/generate");
+    const { buildSchemaArtifacts } = require("../../src/cli/commands/generate");
+    const { parseSchema } = require("../../src/schema/schema-parser");
+    const parsedSchema = parseSchema(schemaJson);
+    parsedSchema.options.saasStructure = false; // skip SaaS so routes/index.js stays schema-generated
     const genCtx = new OutputContext({ json: true });
 
-    await generateCmd(
-      { from: schemaPath, "saas-structure": false, openapi: false },
-      { yes: false, json: true, dryRun: false, noInstall: false, help: false },
-      genCtx,
-    );
+    await buildSchemaArtifacts({
+      schema: parsedSchema,
+      baseDir: tmpDir,
+      ctx: genCtx,
+      flags: { json: true, dryRun: false },
+    });
 
-    assert.ok(genCtx._results.length > 0, "generate should produce a result");
+    assert.ok(genCtx._results.length > 0, "build should produce a result");
 
     // ---- Step 5: Compare model files ----
     for (const table of tableNames) {

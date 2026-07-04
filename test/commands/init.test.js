@@ -42,6 +42,7 @@ function writeSchemaFile(dir, overrides) {
         rateLimiting: false,
         helmet: false,
         logger: false,
+        saasStructure: false,
       },
     },
     overrides,
@@ -49,6 +50,18 @@ function writeSchemaFile(dir, overrides) {
   const filePath = path.join(dir, "dbmr.schema.json");
   fs.writeFileSync(filePath, JSON.stringify(schema, null, 2));
   return filePath;
+}
+
+/**
+ * Stub console.log to suppress noisy generator output during a test body.
+ * Returns a restore function.
+ */
+function silenceLog() {
+  const orig = console.log;
+  console.log = function () {};
+  return () => {
+    console.log = orig;
+  };
 }
 
 describe("CLI Commands - init (src/cli/commands/init.js)", function () {
@@ -60,11 +73,15 @@ describe("CLI Commands - init (src/cli/commands/init.js)", function () {
     tmpDir = makeTmpDir();
     origCwd = process.cwd();
     process.chdir(tmpDir);
-    // Seed a package.json so ensurePackageJson() doesn't shell out
+    // Seed a package.json so ensurePackageJson() doesn't shell out.
+    // (app.js is NOT seeded — it is the first-buildout marker the guard checks.)
     fs.writeFileSync(
       path.join(tmpDir, "package.json"),
       JSON.stringify({ name: "test-project", version: "1.0.0" }, null, 2),
     );
+    delete require.cache[
+      require.resolve("../../src/cli/commands/init")
+    ];
     initCmd = require("../../src/cli/commands/init");
   });
 
@@ -74,10 +91,10 @@ describe("CLI Commands - init (src/cli/commands/init.js)", function () {
   });
 
   // -------------------------------------------------------------------
-  // Requirement 3.1: --from reads schema file for adapter/framework
+  // Schema-driven buildout
   // -------------------------------------------------------------------
-  describe("--from flag (Req 3.1)", function () {
-    it("should read adapter and framework from schema file", async function () {
+  describe("schema-driven buildout", function () {
+    it("reads adapter/framework/options from schema via --from", async function () {
       const schemaPath = writeSchemaFile(tmpDir, {
         adapter: "postgres",
         framework: "ultimate-express",
@@ -86,68 +103,94 @@ describe("CLI Commands - init (src/cli/commands/init.js)", function () {
           rateLimiting: true,
           helmet: true,
           logger: true,
+          saasStructure: false,
         },
       });
 
-      // Stub runInstall to avoid actual npm install
-      const childProcess = require("child_process");
-      const origExecSync = childProcess.execSync;
-      childProcess.execSync = function () {};
-
-      const origLog = console.log;
-      console.log = function () {};
-
+      const restore = silenceLog();
       const ctx = new OutputContext({ json: true });
-
       try {
         await initCmd(
-          { from: schemaPath },
-          {
-            yes: false,
-            json: true,
-            dryRun: false,
-            noInstall: true,
-            help: false,
-          },
+          { _: [], from: schemaPath },
+          { yes: false, json: true, dryRun: false, noInstall: true, help: false },
           ctx,
         );
       } finally {
-        childProcess.execSync = origExecSync;
-        console.log = origLog;
+        restore();
       }
 
-      // Verify the result contains generated files
       assert.ok(ctx._results.length > 0, "Should have a result");
       const result = ctx._results[0];
       assert.ok(Array.isArray(result.files), "Result should have files array");
 
-      // Verify app.js was generated with the correct framework
       const appJs = fs.readFileSync(path.join(tmpDir, "app.js"), "utf8");
       assert.ok(
         appJs.includes("ultimate-express"),
         "app.js should use ultimate-express framework from schema",
       );
 
-      // Verify .env was generated with postgres config
       const envFile = fs.readFileSync(path.join(tmpDir, ".env"), "utf8");
       assert.ok(
         envFile.includes("5432"),
         ".env should contain postgres default port from schema adapter",
       );
 
-      // Verify schema artifacts (models, routes) were also generated
       assert.ok(
         fs.existsSync(path.join(tmpDir, "models/users.js")),
-        "users model should be generated when --from is provided",
+        "users model should be generated from schema",
       );
       assert.ok(
         fs.existsSync(path.join(tmpDir, "routes/users/index.js")),
-        "users route should be generated when --from is provided",
+        "users route should be generated from schema",
       );
     });
 
-    it("should prefix imports in package.json when --output is provided", async function () {
-      const schemaPath = writeSchemaFile(tmpDir, {
+    it("reads schema via positional arg", async function () {
+      const schemaPath = writeSchemaFile(tmpDir);
+
+      const restore = silenceLog();
+      const ctx = new OutputContext({ json: true });
+      try {
+        await initCmd(
+          { _: [schemaPath] },
+          { yes: false, json: true, dryRun: false, noInstall: true, help: false },
+          ctx,
+        );
+      } finally {
+        restore();
+      }
+
+      const result = ctx._results[0];
+      assert.ok(Array.isArray(result.files), "Should have files array");
+      assert.ok(
+        fs.existsSync(path.join(tmpDir, "models/users.js")),
+        "users model should be generated via positional schema arg",
+      );
+    });
+
+    it("defaults to ./dbmr.schema.json when no path given", async function () {
+      writeSchemaFile(tmpDir); // writes dbmr.schema.json in cwd (tmpDir)
+
+      const restore = silenceLog();
+      const ctx = new OutputContext({ json: true });
+      try {
+        await initCmd(
+          { _: [] },
+          { yes: false, json: true, dryRun: false, noInstall: true, help: false },
+          ctx,
+        );
+      } finally {
+        restore();
+      }
+
+      assert.ok(
+        fs.existsSync(path.join(tmpDir, "models/users.js")),
+        "users model should be generated from default ./dbmr.schema.json",
+      );
+    });
+
+    it("writes apiBasePath and port from schema options into .env", async function () {
+      writeSchemaFile(tmpDir, {
         adapter: "sqlite3",
         framework: "express",
         options: {
@@ -155,30 +198,58 @@ describe("CLI Commands - init (src/cli/commands/init.js)", function () {
           rateLimiting: false,
           helmet: false,
           logger: false,
+          saasStructure: false,
+          apiBasePath: "/v1",
+          port: 4000,
         },
       });
 
-      const childProcess = require("child_process");
-      const origExecSync = childProcess.execSync;
-      childProcess.execSync = function () {};
-      const origLog = console.log;
-      console.log = function () {};
-
+      const restore = silenceLog();
+      const ctx = new OutputContext({ json: true });
       try {
         await initCmd(
-          { from: schemaPath, output: "backend" },
-          {
-            yes: true,
-            json: true,
-            dryRun: false,
-            noInstall: true,
-            help: false,
-          },
+          { _: [] },
+          { yes: false, json: true, dryRun: false, noInstall: true, help: false },
+          ctx,
+        );
+      } finally {
+        restore();
+      }
+
+      const envFile = fs.readFileSync(path.join(tmpDir, ".env"), "utf8");
+      assert.ok(
+        envFile.includes("PORT=4000"),
+        ".env should contain PORT from schema options",
+      );
+      assert.ok(
+        envFile.includes("API_BASE_PATH=/v1"),
+        ".env should contain API_BASE_PATH from schema options",
+      );
+    });
+
+    it("prefixes imports in package.json when options.output is set", async function () {
+      writeSchemaFile(tmpDir, {
+        adapter: "sqlite3",
+        framework: "express",
+        options: {
+          session: "memory",
+          rateLimiting: false,
+          helmet: false,
+          logger: false,
+          saasStructure: false,
+          output: "backend",
+        },
+      });
+
+      const restore = silenceLog();
+      try {
+        await initCmd(
+          { _: [] },
+          { yes: false, json: true, dryRun: false, noInstall: true, help: false },
           new OutputContext({ json: true }),
         );
       } finally {
-        childProcess.execSync = origExecSync;
-        console.log = origLog;
+        restore();
       }
 
       const pkg = JSON.parse(
@@ -200,95 +271,160 @@ describe("CLI Commands - init (src/cli/commands/init.js)", function () {
         "./backend/commons/*.js",
         "#commons should point into the output directory",
       );
-      assert.strictEqual(
-        pkg.imports["#middleware/*.js"],
-        "./backend/middleware/*.js",
-        "#middleware should point into the output directory",
+      assert.ok(
+        fs.existsSync(path.join(tmpDir, "backend", "models", "users.js")),
+        "model should be written under the output directory",
       );
     });
-  });
 
-  // -------------------------------------------------------------------
-  // Requirement 3.2: --yes skips prompts
-  // -------------------------------------------------------------------
-  describe("--yes flag (Req 3.2)", function () {
-    it("should accept defaults without prompting when --yes is provided", async function () {
-      const origLog = console.log;
-      console.log = function () {};
+    it("generates SaaS structure when options.saasStructure is true", async function () {
+      writeSchemaFile(tmpDir, {
+        adapter: "sqlite3",
+        framework: "express",
+        options: {
+          session: "memory",
+          rateLimiting: false,
+          helmet: false,
+          logger: false,
+          saasStructure: true,
+        },
+      });
 
+      const restore = silenceLog();
       const ctx = new OutputContext({ json: true });
-
       try {
         await initCmd(
-          {},
-          {
-            yes: true,
-            json: true,
-            dryRun: false,
-            noInstall: true,
-            help: false,
-          },
+          { _: [] },
+          { yes: false, json: true, dryRun: false, noInstall: true, help: false },
           ctx,
         );
       } finally {
-        console.log = origLog;
+        restore();
       }
 
-      assert.ok(ctx._results.length > 0, "Should have a result");
-      const result = ctx._results[0];
-      assert.ok(Array.isArray(result.files), "Result should have files array");
-      assert.ok(result.files.length > 0, "Should have generated files");
-
-      // Default is postgres + express — verify app.js exists
       assert.ok(
-        fs.existsSync(path.join(tmpDir, "app.js")),
-        "app.js should be created with defaults",
+        fs.existsSync(path.join(tmpDir, "seeds", "saas-seed.js")),
+        "SaaS seed file should be generated when saasStructure=true",
+      );
+    });
+
+    it("skips SaaS structure when options.saasStructure is false", async function () {
+      writeSchemaFile(tmpDir, {
+        adapter: "sqlite3",
+        framework: "express",
+        options: {
+          session: "memory",
+          rateLimiting: false,
+          helmet: false,
+          logger: false,
+          saasStructure: false,
+        },
+      });
+
+      const restore = silenceLog();
+      const ctx = new OutputContext({ json: true });
+      try {
+        await initCmd(
+          { _: [] },
+          { yes: false, json: true, dryRun: false, noInstall: true, help: false },
+          ctx,
+        );
+      } finally {
+        restore();
+      }
+
+      assert.ok(
+        !fs.existsSync(path.join(tmpDir, "seeds", "saas-seed.js")),
+        "SaaS seed file should NOT exist when saasStructure=false",
       );
     });
   });
 
   // -------------------------------------------------------------------
-  // Requirement 3.3: --no-install skips npm install
+  // First-buildout-only guard
   // -------------------------------------------------------------------
-  describe("--no-install flag (Req 3.3)", function () {
-    it("should skip npm install when --no-install is provided", async function () {
+  describe("first-buildout-only guard", function () {
+    it("refuses to run if app.js already exists in cwd", async function () {
+      writeSchemaFile(tmpDir);
+      // Seed an existing app.js — simulates a prior buildout
+      fs.writeFileSync(path.join(tmpDir, "app.js"), "// existing project");
+
+      const restore = silenceLog();
+      const ctx = new OutputContext({ json: true });
+      let exitCode;
+      const origExitCode = process.exitCode;
+      process.exitCode = undefined;
+      try {
+        await initCmd(
+          { _: [] },
+          { yes: false, json: true, dryRun: false, noInstall: true, help: false },
+          ctx,
+        );
+        exitCode = process.exitCode;
+      } finally {
+        restore();
+        process.exitCode = origExitCode;
+      }
+
+      assert.strictEqual(exitCode, 1, "Should set exitCode 1 when project exists");
+      const result = ctx._results[0];
+      assert.strictEqual(result.code, "PROJECT_EXISTS");
+      assert.ok(
+        !fs.existsSync(path.join(tmpDir, "models", "users.js")),
+        "No artifacts should be written when guard refuses",
+      );
+    });
+
+    it("errors when schema file is missing", async function () {
+      const restore = silenceLog();
+      const ctx = new OutputContext({ json: true });
+      let exitCode;
+      const origExitCode = process.exitCode;
+      process.exitCode = undefined;
+      try {
+        await initCmd(
+          { _: [], from: "nope.schema.json" },
+          { yes: false, json: true, dryRun: false, noInstall: true, help: false },
+          ctx,
+        );
+        exitCode = process.exitCode;
+      } finally {
+        restore();
+        process.exitCode = origExitCode;
+      }
+
+      assert.strictEqual(exitCode, 1, "Should set exitCode 1 on missing schema");
+      assert.strictEqual(ctx._results[0].code, "SCHEMA_NOT_FOUND");
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // --no-install
+  // -------------------------------------------------------------------
+  describe("--no-install flag", function () {
+    it("skips npm install when --no-install is provided", async function () {
+      writeSchemaFile(tmpDir);
       let npmInstallCalled = false;
       const childProcess = require("child_process");
       const origExecSync = childProcess.execSync;
       childProcess.execSync = function (cmd) {
-        if (cmd === "npm install") {
-          npmInstallCalled = true;
-        }
+        if (cmd === "npm install") npmInstallCalled = true;
       };
 
-      const origLog = console.log;
-      console.log = function () {};
-
+      const restore = silenceLog();
       const ctx = new OutputContext({ json: true });
-
       try {
         await initCmd(
-          {},
-          {
-            yes: true,
-            json: true,
-            dryRun: false,
-            noInstall: true,
-            help: false,
-          },
+          { _: [] },
+          { yes: false, json: true, dryRun: false, noInstall: true, help: false },
           ctx,
         );
       } finally {
+        restore();
         childProcess.execSync = origExecSync;
-        console.log = origLog;
       }
 
-      assert.strictEqual(
-        npmInstallCalled,
-        false,
-        "npm install should NOT be called when --no-install is set",
-      );
-
+      assert.strictEqual(npmInstallCalled, false, "npm install should NOT be called");
       const result = ctx._results[0];
       assert.strictEqual(
         result.dependencies.installed,
@@ -299,37 +435,33 @@ describe("CLI Commands - init (src/cli/commands/init.js)", function () {
   });
 
   // -------------------------------------------------------------------
-  // Requirement 3.5: --dry-run produces no file writes
+  // --dry-run
   // -------------------------------------------------------------------
-  describe("--dry-run flag (Req 3.5)", function () {
-    it("should report planned files without writing any", async function () {
+  describe("--dry-run flag", function () {
+    it("reports planned files without writing any", async function () {
+      writeSchemaFile(tmpDir);
+
+      const restore = silenceLog();
       const ctx = new OutputContext({ json: true });
-
-      const origLog = console.log;
-      console.log = function () {};
-
       try {
         await initCmd(
-          {},
-          {
-            yes: true,
-            json: true,
-            dryRun: true,
-            noInstall: false,
-            help: false,
-          },
+          { _: [] },
+          { yes: false, json: true, dryRun: true, noInstall: false, help: false },
           ctx,
         );
       } finally {
-        console.log = origLog;
+        restore();
       }
 
       assert.ok(ctx._results.length > 0, "Should have a result");
       const result = ctx._results[0];
       assert.ok(Array.isArray(result.files), "Result should have files array");
       assert.ok(result.files.length > 0, "Should list planned files");
+      assert.ok(
+        result.actions.includes("dry-run"),
+        "Actions should include dry-run",
+      );
 
-      // Verify no project files were actually written (only package.json from setup)
       assert.ok(
         !fs.existsSync(path.join(tmpDir, "app.js")),
         "app.js should NOT exist in dry-run mode",
@@ -339,62 +471,34 @@ describe("CLI Commands - init (src/cli/commands/init.js)", function () {
         ".env should NOT exist in dry-run mode",
       );
       assert.ok(
-        !fs.existsSync(path.join(tmpDir, "migrate.js")),
-        "root migrate.js should NOT exist in dry-run mode",
-      );
-      assert.ok(
-        !fs.existsSync(path.join(tmpDir, "commons", "migrate.js")),
-        "commons/migrate.js should NOT exist in dry-run mode",
-      );
-    });
-
-    it("should include dry-run action in result", async function () {
-      const ctx = new OutputContext({ json: true });
-
-      await initCmd(
-        {},
-        { yes: true, json: true, dryRun: true, noInstall: false, help: false },
-        ctx,
-      );
-
-      const result = ctx._results[0];
-      assert.ok(
-        result.actions.includes("dry-run"),
-        "Actions should include dry-run",
+        !fs.existsSync(path.join(tmpDir, "models", "users.js")),
+        "models/users.js should NOT exist in dry-run mode",
       );
     });
   });
 
   // -------------------------------------------------------------------
-  // Requirement 3.4: --json outputs valid JSON result
+  // --json
   // -------------------------------------------------------------------
-  describe("--json flag (Req 3.4)", function () {
-    it("should output a JSON object with files, dependencies, and actions", async function () {
-      const origLog = console.log;
-      console.log = function () {};
+  describe("--json flag", function () {
+    it("outputs a JSON object with files, dependencies, and actions", async function () {
+      writeSchemaFile(tmpDir);
 
+      const restore = silenceLog();
       const ctx = new OutputContext({ json: true });
-
       try {
         await initCmd(
-          {},
-          {
-            yes: true,
-            json: true,
-            dryRun: false,
-            noInstall: true,
-            help: false,
-          },
+          { _: [] },
+          { yes: false, json: true, dryRun: false, noInstall: true, help: false },
           ctx,
         );
       } finally {
-        console.log = origLog;
+        restore();
       }
 
       assert.ok(ctx._results.length > 0, "Should have accumulated a result");
       const result = ctx._results[0];
 
-      // Validate structure
       assert.ok(Array.isArray(result.files), "Result should have files array");
       assert.ok(
         typeof result.dependencies === "object",
@@ -409,10 +513,8 @@ describe("CLI Commands - init (src/cli/commands/init.js)", function () {
         "Result should have actions array",
       );
 
-      // Verify it's valid JSON when serialized
-      const jsonStr = JSON.stringify(result);
       assert.doesNotThrow(
-        () => JSON.parse(jsonStr),
+        () => JSON.parse(JSON.stringify(result)),
         "Result should be serializable to valid JSON",
       );
     });
