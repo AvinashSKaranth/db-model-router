@@ -8,7 +8,7 @@
     "logger": true,
     "loki": false,
     "output": null,
-    "saasStructure": true,
+    "saasStructure": false,
     "apiBasePath": "/api",
     "port": 3000
   },

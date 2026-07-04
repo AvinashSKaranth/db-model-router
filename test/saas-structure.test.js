@@ -96,6 +96,7 @@ describe("SaaS Structure Generator", function () {
       const SUPPORTED_ADAPTERS = [
         "postgres",
         "mysql",
+        "mariadb",
         "sqlite3",
         "mssql",
         "oracle",
@@ -110,6 +111,7 @@ describe("SaaS Structure Generator", function () {
       assert.ok(!SUPPORTED_ADAPTERS.includes("POSTGRES")); // case-sensitive
       assert.ok(SUPPORTED_ADAPTERS.includes("postgres"));
       assert.ok(SUPPORTED_ADAPTERS.includes("mysql"));
+      assert.ok(SUPPORTED_ADAPTERS.includes("mariadb"));
     });
   });
 

@@ -5,7 +5,7 @@
  *
  * Generates CREATE TABLE migration files for all SaaS tables with proper
  * column types, foreign key constraints, and unique constraints per adapter.
- * Supports SQL adapters (postgres, mysql, sqlite3, mssql, oracle, cockroachdb)
+ * Supports SQL adapters (postgres, mysql, mariadb, sqlite3, mssql, oracle, cockroachdb)
  * and NoSQL adapters (mongodb, dynamodb, redis).
  */
 
@@ -17,6 +17,7 @@ const { mapColumnType } = require("../generate-migration");
 
 const SQL_ADAPTERS = [
   "mysql",
+  "mariadb",
   "postgres",
   "sqlite3",
   "mssql",

@@ -26,6 +26,7 @@ const { generateSaasOpenAPIPaths } = require("../saas/generate-saas-openapi");
 const SUPPORTED_ADAPTERS = [
   "postgres",
   "mysql",
+  "mariadb",
   "sqlite3",
   "mssql",
   "oracle",
