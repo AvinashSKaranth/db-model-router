@@ -7,6 +7,12 @@ function connect(credentails) {
   // Force UTC timezone so timestamps are consistent
   // dateStrings: true returns raw strings without JS Date conversion
   credentails.timezone = "+00:00";
+  // Enable multiple statements by default so multi-query migration files
+  // (e.g. a single .sql with many CREATE TABLE statements) run in one call.
+  // Applied to mysql and mariadb (both use this adapter).
+  if (credentails.multipleStatements === undefined) {
+    credentails.multipleStatements = true;
+  }
   pool = mysql.createPool(credentails);
   return pool;
 }

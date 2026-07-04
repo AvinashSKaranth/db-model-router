@@ -2,7 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { generateModelFile } = require("./generate-model.js");
+const { generateModelFile, generateIndexFile } = require("./generate-model.js");
 const {
   generateRouteFile,
   generateParentRouteFile,
@@ -86,6 +86,10 @@ function buildExpectedFiles(meta, relationships, options = {}) {
   for (const m of meta) {
     expected.set(`models/${m.table}.js`, generateModelFile(m));
   }
+
+  // Model barrel. SaaS mode overwrites this with the combined SaaS+dbmr
+  // barrel when saasFiles are merged below.
+  expected.set("models/index.js", generateIndexFile(meta));
 
   // Route files: exactly one per table at its correct nested path
   for (const m of meta) {

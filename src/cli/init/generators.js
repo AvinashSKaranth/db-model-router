@@ -704,8 +704,16 @@ function generateInitialMigration(answers, date) {
   checksum VARCHAR2(64) NOT NULL
 );
 `;
+    } else if (answers.database === "mysql" || answers.database === "mariadb") {
+      content = `CREATE TABLE IF NOT EXISTS _migrations (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  filename VARCHAR(255) NOT NULL UNIQUE,
+  executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  checksum VARCHAR(64) NOT NULL
+);
+`;
     } else {
-      // mysql, sqlite3
+      // sqlite3
       content = `CREATE TABLE IF NOT EXISTS _migrations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   filename VARCHAR(255) NOT NULL UNIQUE,
