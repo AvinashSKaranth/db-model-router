@@ -333,7 +333,7 @@ function getChangeParameter(row, uniqueKeys, onDuplicate = true) {
         if (queryEnd !== " ON DUPLICATE KEY UPDATE ") {
           queryEnd += ",";
         }
-        queryEnd += "??=DATA.??";
+        queryEnd += "??=VALUES(??)";
         updateColumn.push(column);
         updateColumn.push(column);
       }
@@ -341,7 +341,7 @@ function getChangeParameter(row, uniqueKeys, onDuplicate = true) {
   }
   queryEnd += ";";
   return [
-    `${queryStart} VALUES ? AS DATA ${queryEnd}`,
+    `${queryStart} VALUES ? ${queryEnd}`,
     insertColumn,
     updateColumn,
   ];
