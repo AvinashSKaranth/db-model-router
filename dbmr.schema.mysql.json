@@ -10,7 +10,14 @@
     "saasStructure": false,
     "apiBasePath": "/api",
     "output": "backend",
-    "port": 6000
+    "port": 6000,
+    "encryption": {
+      "key": "env:ENC_KEY",
+      "version": 1,
+      "keys": {
+        "1": "env:ENC_KEY"
+      }
+    }
   },
   "tables": {
     "languages": {
@@ -19,9 +26,9 @@
         "name": "required|string|maxLength:100",
         "slug": "required|string|regex:^[a-z0-9-]+$|maxLength:100",
         "file_extension": "required|string|maxLength:20",
-        "runtime_family": "string|maxLength:50",
-        "package_registry": "string|maxLength:50",
-        "is_active": "boolean",
+        "runtime_family": "encrypted|string|maxLength:50",
+        "package_registry": "encrypted|string|maxLength:50",
+        "is_active": "encrypted|boolean",
         "created_at": "datetime"
       },
       "pk": "language_id",
@@ -251,6 +258,7 @@
         "score": "numeric:decimal(5,2)",
         "tool_used": "string|maxLength:64",
         "findings": "object",
+        "findings.details": "encrypted|string",
         "executed_at": "datetime"
       },
       "pk": "result_id",
@@ -268,7 +276,7 @@
         "model": "required|string|maxLength:128",
         "prompt_version": "string|maxLength:50",
         "status": "required|string|in:pending,success,failed",
-        "raw_response": "string:longtext",
+        "raw_response": "encrypted|string:longtext",
         "tokens_used": "integer",
         "latency_ms": "integer",
         "created_at": "datetime"

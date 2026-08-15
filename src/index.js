@@ -1,6 +1,7 @@
 const model = require("./commons/model.js");
 const route = require("./commons/route.js");
 const kafka = require("./commons/kafka.js");
+const encryption = require("./commons/encryption.js");
 const routers = {
   mysql: "./mysql/db.js",
   mariadb: "./mysql/db.js",
@@ -16,8 +17,9 @@ const routers = {
 };
 
 let db = null;
+let initConfig = null;
 
-function init(DB_TYPE) {
+function init(DB_TYPE, config) {
   const dbType = (DB_TYPE || "mysql").toLowerCase();
   const routerPath = routers[dbType];
   if (!routerPath) {
@@ -48,6 +50,18 @@ function init(DB_TYPE) {
     }
     throw err;
   }
+  // Resolve the active encryption configuration once at initialization.
+  // Only override when a config object is explicitly provided. A bare
+  // re-init (e.g. the CLI's connectDb) must preserve an already-resolved
+  // keyring so backfill/rotation work without nulling out the active key.
+  if (config !== undefined && config !== null) {
+    initConfig = config;
+    if (config.encryption) {
+      encryption.setConfig(config.encryption);
+    }
+  } else if (initConfig === null) {
+    initConfig = null;
+  }
 }
 
 module.exports = {
@@ -55,7 +69,11 @@ module.exports = {
   get db() {
     return db;
   },
+  get initConfig() {
+    return initConfig;
+  },
   model,
   route,
   kafka,
+  encryption,
 };

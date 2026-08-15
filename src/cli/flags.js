@@ -43,7 +43,9 @@ function parseFlags(argv) {
       flags.help = true;
     } else if (arg.startsWith("--")) {
       // Key-value flag: --from schema.json → { from: "schema.json" }
-      const key = arg.slice(2);
+      // Hyphenated flags are normalized to camelCase: --new-key → newKey
+      let key = arg.slice(2);
+      key = key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
       const next = argv[i + 1];
       if (next !== undefined && !next.startsWith("--")) {
         args[key] = next;

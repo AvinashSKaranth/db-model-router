@@ -35,6 +35,7 @@ function generateOpenAPISpec(models, options = {}) {
     // Add PK
     properties[pk] = { type: "integer", description: "Primary key" };
     for (const [col, rule] of Object.entries(m.structure)) {
+      if (col.includes(".")) continue;
       const parsed = parseRule(rule);
       properties[col] = { type: parsed.type };
       if (parsed.required) required.push(col);

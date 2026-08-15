@@ -139,6 +139,70 @@ Output shows:
 Examples:
   db-model-router diff --from dbmr.schema.json
   db-model-router diff --json`,
+
+  "encrypt:scan": `Usage: db-model-router encrypt:scan [options]
+
+Scan one or more tables for unencrypted values in fields marked encrypted
+in the schema, and optionally backfill them (--apply).
+
+Fields are encrypted at write time by the runtime when db.init() is given an
+encryption config. Values written before encryption was enabled remain in
+plaintext; encrypt:scan finds and (with --apply) encrypts them.
+
+Encryption config comes from options.encryption in the schema:
+  options:
+    encryption:
+      key: "env:ENC_KEY"     # key reference (env:VAR or base64 key)
+      version: 1             # active key version
+      keys: { 1: "env:ENC_KEY" }  # optional rotation history
+
+Options:
+  --type <adapter>       Database adapter (required): mysql, postgres, sqlite3, ...
+  --from <path>          Schema file (default: dbmr.schema.json)
+  --env <path>           Path to .env file for DB credentials
+  --tables <list>        Comma-separated table filter (default: all)
+  --key <ref>            Override encryption key reference
+  --version <n>          Override active key version
+  --keys <json>          Override keyring map (JSON)
+  --apply                Encrypt unencrypted values found (default: report only)
+  --dry-run              Preview what --apply would change without writing
+  --json                 Output machine-readable JSON
+  --help                 Show this help message
+
+Examples:
+  db-model-router encrypt:scan --type sqlite3 --env .env
+  db-model-router encrypt:scan --type postgres --env .env --tables users,orders
+  db-model-router encrypt:scan --type sqlite3 --env .env --apply --dry-run
+  db-model-router encrypt:scan --type sqlite3 --env .env --apply --json`,
+
+  "encrypt:rotate-key": `Usage: db-model-router encrypt:rotate-key [options]
+
+Re-encrypt every value in every encrypted field under a new key version.
+Reads decrypt with the existing keyring (old keys) and writes use the new
+key. After rotation, bump options.encryption in the schema:
+  options:
+    encryption:
+      key: "env:NEW_ENC_KEY"
+      version: 2
+      keys: { 1: "env:OLD_ENC_KEY", 2: "env:NEW_ENC_KEY" }
+
+Options:
+  --type <adapter>       Database adapter (required): mysql, postgres, sqlite3, ...
+  --to <n>               Target key version (required)
+  --new-key <ref>        New key reference (default: options.encryption.key)
+  --key <ref>            Old/active key reference (default: options.encryption.key)
+  --keys <json>          Override OLD keyring map (must include keys currently
+                         encrypting data; default: options.encryption.keys)
+  --from <path>          Schema file (default: dbmr.schema.json)
+  --env <path>           Path to .env file for DB credentials
+  --tables <list>        Comma-separated table filter (default: all)
+  --dry-run              Preview what would change without writing
+  --json                 Output machine-readable JSON
+  --help                 Show this help message
+
+Examples:
+  db-model-router encrypt:rotate-key --type sqlite3 --env .env --to 2 --new-key env:NEW_ENC_KEY
+  db-model-router encrypt:rotate-key --type postgres --env .env --to 3 --dry-run --json`,
 };
 
 /**

@@ -107,6 +107,42 @@ async function doctor(args, flags, ctx) {
     }
   }
 
+  // --- 2b. Encryption config check ---
+  // If any table declares an encrypted field, options.encryption must exist.
+  const encryptionCheck = { ok: true, missing: [], errors: [] };
+
+  if (schema) {
+    const hasEncryptedFields = Object.values(schema.tables || {}).some(
+      (tableDef) =>
+        Object.values(tableDef.columns || {}).some(
+          (rule) =>
+            typeof rule === "string" && rule.split("|").includes("encrypted"),
+        ),
+    );
+    if (hasEncryptedFields) {
+      const encOpts = (schema.options && schema.options.encryption) || null;
+      if (!encOpts) {
+        encryptionCheck.ok = false;
+        encryptionCheck.missing.push(
+          "Schema uses encrypted fields but options.encryption is not set",
+        );
+      } else {
+        if (typeof encOpts.key !== "string" || !encOpts.key) {
+          encryptionCheck.ok = false;
+          encryptionCheck.errors.push(
+            "options.encryption.key must be a string (env:VAR or base64 key)",
+          );
+        }
+        if (!Number.isInteger(encOpts.version) || encOpts.version < 1) {
+          encryptionCheck.ok = false;
+          encryptionCheck.errors.push(
+            "options.encryption.version must be a positive integer",
+          );
+        }
+      }
+    }
+  }
+
   // --- 3. Sync check ---
   const sync = { ok: true, outOfSync: [] };
 
@@ -174,8 +210,9 @@ async function doctor(args, flags, ctx) {
   }
 
   // --- 4. Report results ---
-  const allPass = validation.valid && dependencies.ok && sync.ok;
-  const report = { validation, dependencies, sync };
+  const allPass =
+    validation.valid && dependencies.ok && sync.ok && encryptionCheck.ok;
+  const report = { validation, dependencies, sync, encryption: encryptionCheck };
 
   if (flags.json) {
     ctx.result(report);
@@ -198,6 +235,19 @@ async function doctor(args, flags, ctx) {
       ctx.log("✗ Missing dependencies:");
       for (const m of dependencies.missing) {
         ctx.log(`    ${m.adapter} requires "${m.driver}" in package.json`);
+      }
+    }
+
+    // Encryption config
+    if (encryptionCheck.ok) {
+      ctx.log("✓ Encryption config OK");
+    } else {
+      ctx.log("✗ Encryption config problems:");
+      for (const m of encryptionCheck.missing) {
+        ctx.log(`    ${m}`);
+      }
+      for (const e of encryptionCheck.errors) {
+        ctx.log(`    ${e}`);
       }
     }
 

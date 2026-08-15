@@ -5,8 +5,135 @@ const {
   dataToFilter,
   RemoveUnknownData,
 } = require("./validator");
-const { getType, jsonStringify, jsonSafeParse } = require("./function");
+const {
+  getType,
+  jsonStringify,
+  jsonSafeParse,
+  getByPath,
+  setByPath,
+} = require("./function");
+const encryption = require("./encryption");
 const { produce } = require("./kafka");
+
+/**
+ * Build a validation-safe copy of the model structure by stripping the
+ * internal `encrypted` flag token (node-input-validator rejects unknown rules).
+ */
+function buildValidatorStructure(modelStructure) {
+  const out = {};
+  for (const [k, v] of Object.entries(modelStructure || {})) {
+    out[k] = encryption.sanitizeRule(v);
+  }
+  return out;
+}
+
+/**
+ * Encrypt configured fields on a payload (single object or array of rows)
+ * using the active key/version. Null and already-encrypted values are skipped.
+ */
+function encryptPayload(payload, meta, keyring, version) {
+  if (!meta || !meta.hasEncrypted || payload == null) return payload;
+  const rows = Array.isArray(payload) ? payload : [payload];
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    for (const [col, def] of Object.entries(meta.columns)) {
+      if (!Object.prototype.hasOwnProperty.call(row, col)) continue;
+      const val = row[col];
+      if (val === null || val === undefined) continue;
+      if (encryption.parseEnvelope(val) !== null) continue;
+      row[col] = encryption.encrypt(
+        encryption.serializeValue(val, def.type),
+        keyring[version],
+        version,
+      );
+    }
+    for (const [parent, defs] of Object.entries(meta.jsonKeys)) {
+      const obj = row[parent];
+      if (!obj || typeof obj !== "object") continue;
+      for (const { path, type } of defs) {
+        const val = getByPath(obj, path);
+        if (val === null || val === undefined) continue;
+        if (encryption.parseEnvelope(val) !== null) continue;
+        setByPath(
+          obj,
+          path,
+          encryption.encrypt(
+            encryption.serializeValue(val, type),
+            keyring[version],
+            version,
+          ),
+        );
+      }
+    }
+  }
+  return payload;
+}
+
+/**
+ * Decrypt configured fields on a record or array of records. Legacy plaintext
+ * values pass through unchanged; reads remain side-effect-free.
+ */
+function decryptRows(rows, meta, keyring) {
+  if (!meta || !meta.hasEncrypted || rows == null) return rows;
+  const items = Array.isArray(rows) ? rows : [rows];
+  for (const row of items) {
+    if (!row || typeof row !== "object") continue;
+    for (const [col, def] of Object.entries(meta.columns)) {
+      if (!Object.prototype.hasOwnProperty.call(row, col)) continue;
+      const val = row[col];
+      if (val === null || val === undefined) continue;
+      if (encryption.parseEnvelope(val) !== null) {
+        row[col] = encryption.deserializeValue(
+          encryption.decrypt(val, keyring),
+          def.type,
+        );
+      }
+    }
+    for (const [parent, defs] of Object.entries(meta.jsonKeys)) {
+      const obj = row[parent];
+      if (!obj || typeof obj !== "object") continue;
+      for (const { path, type } of defs) {
+        const val = getByPath(obj, path);
+        if (val === null || val === undefined) continue;
+        if (encryption.parseEnvelope(val) !== null) {
+          setByPath(
+            obj,
+            path,
+            encryption.deserializeValue(encryption.decrypt(val, keyring), type),
+          );
+        }
+      }
+    }
+  }
+  return rows;
+}
+
+/**
+ * Build a plaintext payload for Kafka events from the encrypted, stringified
+ * rows produced by a bulk write path. Object columns holding encrypted dotted
+ * keys are restored to objects (jsonStringify turned them into JSON strings)
+ * so decryptRows can reach the envelopes, matching single-record events which
+ * emit decrypted plaintext. The data handed to the adapter is untouched.
+ */
+function payloadForProduce(data, meta, keyring) {
+  if (!meta || !meta.hasEncrypted || data == null) return data;
+  const rows = Array.isArray(data) ? data : [data];
+  if (meta.jsonKeys && Object.keys(meta.jsonKeys).length > 0) {
+    for (const row of rows) {
+      if (!row || typeof row !== "object") continue;
+      for (const parent of Object.keys(meta.jsonKeys)) {
+        if (typeof row[parent] === "string") {
+          try {
+            row[parent] = JSON.parse(row[parent]);
+          } catch (_) {
+            // Leave non-JSON values untouched.
+          }
+        }
+      }
+    }
+  }
+  return decryptRows(data, meta, keyring);
+}
 
 /**
  * Extract and remove reserved params from a data/payload object.
@@ -248,6 +375,18 @@ module.exports = function model(
   const { createdKeys, modifiedKeys } = buildTimestampKeys(option);
   const allTimestampKeys = [...createdKeys, ...modifiedKeys];
 
+  // Compile encryption metadata once per model from the structure rules.
+  const encryptionMeta = encryption.compileEncryptionMeta(modelStructure);
+  const validatorStructure = buildValidatorStructure(modelStructure);
+  const activeEncryption = encryption.getConfig();
+
+  if (encryptionMeta.hasEncrypted && !activeEncryption) {
+    throw new Error(
+      `Model "${table}" declares encrypted fields but no encryption config was provided to db.init(). ` +
+        `Pass { encryption: { key, version } } to db.init(adapter, config).`,
+    );
+  }
+
   return {
     insert: async (data) => {
       let isBulk = false;
@@ -257,7 +396,7 @@ module.exports = function model(
         stripTimestampFields(data.data, allTimestampKeys);
         await validateInput(
           data,
-          getPayloadValidator("CREATE", modelStructure, primary_key, true),
+          getPayloadValidator("CREATE", validatorStructure, primary_key, true),
         );
         data = data.data;
       } else {
@@ -265,9 +404,10 @@ module.exports = function model(
         stripTimestampFields(data, allTimestampKeys);
         await validateInput(
           data,
-          getPayloadValidator("CREATE", modelStructure, primary_key, false),
+          getPayloadValidator("CREATE", validatorStructure, primary_key, false),
         );
       }
+      encryptPayload(data, encryptionMeta, activeEncryption?.keyring, activeEncryption?.version);
       data = jsonStringify(data);
       const insertResult = await db.insert(table, data, unique);
       if (!isBulk && insertResult.hasOwnProperty("id")) {
@@ -275,11 +415,14 @@ module.exports = function model(
           [[primary_key, "=", insertResult.id]],
         ]);
         const record = getResult.count > 0 ? getResult["data"][0] : null;
-        if (record) produce(table, "insert", record);
+        if (record) {
+          decryptRows(record, encryptionMeta, activeEncryption?.keyring);
+          produce(table, "insert", record);
+        }
         return record;
       }
       //TODO: Bulk Insert -> Return inserted objects
-      produce(table, "insert", data);
+      produce(table, "insert", payloadForProduce(data, encryptionMeta, activeEncryption?.keyring));
       return insertResult;
     },
     update: async (data) => {
@@ -288,21 +431,23 @@ module.exports = function model(
         stripTimestampFields(data.data, allTimestampKeys);
         await validateInput(
           data,
-          getPayloadValidator("UPDATE", modelStructure, primary_key, true),
+          getPayloadValidator("UPDATE", validatorStructure, primary_key, true),
         );
         data = data.data;
         data = RemoveUnknownData(modelStructure, data);
+        encryptPayload(data, encryptionMeta, activeEncryption?.keyring, activeEncryption?.version);
         data = jsonStringify(data);
         updateResult = await db.upsert(table, data, unique);
         //TODO: Bulk Update -> Return updated objects
-        produce(table, "update", data);
+        produce(table, "update", payloadForProduce(data, encryptionMeta, activeEncryption?.keyring));
       } else {
         stripTimestampFields(data, allTimestampKeys);
         await validateInput(
           data,
-          getPayloadValidator("UPDATE", modelStructure, primary_key, false),
+          getPayloadValidator("UPDATE", validatorStructure, primary_key, false),
         );
         data = RemoveUnknownData(modelStructure, [data]);
+        encryptPayload(data, encryptionMeta, activeEncryption?.keyring, activeEncryption?.version);
         data = jsonStringify(data);
         updateResult = await db.upsert(table, data, unique);
         if (updateResult.hasOwnProperty("id") && updateResult.id > 0) {
@@ -310,7 +455,10 @@ module.exports = function model(
             [[primary_key, "=", updateResult.id]],
           ]);
           const record = getResult.count > 0 ? getResult["data"][0] : null;
-          if (record) produce(table, "update", record);
+          if (record) {
+            decryptRows(record, encryptionMeta, activeEncryption?.keyring);
+            produce(table, "update", record);
+          }
           return record;
         } else if (data[0].hasOwnProperty(primary_key)) {
           const result = await db.get(
@@ -320,6 +468,7 @@ module.exports = function model(
             option.safeDelete,
           );
           if (result.count > 0) {
+            decryptRows(result["data"], encryptionMeta, activeEncryption?.keyring);
             produce(table, "update", result["data"][0]);
             return result["data"][0];
           } else return null;
@@ -334,22 +483,24 @@ module.exports = function model(
         stripTimestampFields(data.data, allTimestampKeys);
         await validateInput(
           data,
-          getPayloadValidator("CREATE", modelStructure, primary_key, true),
+          getPayloadValidator("CREATE", validatorStructure, primary_key, true),
         );
         data = data.data;
         data = RemoveUnknownData(modelStructure, data);
+        encryptPayload(data, encryptionMeta, activeEncryption?.keyring, activeEncryption?.version);
         data = jsonStringify(data);
         updateResult = await db.upsert(table, data, unique);
         //TODO: Bulk Upsert -> Return Inserted/Updated objects
-        produce(table, "upsert", data);
+        produce(table, "upsert", payloadForProduce(data, encryptionMeta, activeEncryption?.keyring));
       } else {
         stripTimestampFields(data, allTimestampKeys);
         await validateInput(
           data,
-          getPayloadValidator("CREATE", modelStructure, primary_key, false),
+          getPayloadValidator("CREATE", validatorStructure, primary_key, false),
         );
         const originalData = { ...data };
         data = RemoveUnknownData(modelStructure, [data]);
+        encryptPayload(data, encryptionMeta, activeEncryption?.keyring, activeEncryption?.version);
         data = jsonStringify(data);
         updateResult = await db.upsert(table, data, unique);
         if (updateResult.hasOwnProperty("id")) {
@@ -357,13 +508,17 @@ module.exports = function model(
             [[primary_key, "=", updateResult.id]],
           ]);
           const record = getResult.count > 0 ? getResult["data"][0] : null;
-          if (record) produce(table, "upsert", record);
+          if (record) {
+            decryptRows(record, encryptionMeta, activeEncryption?.keyring);
+            produce(table, "upsert", record);
+          }
           return record;
         } else if (originalData.hasOwnProperty(primary_key)) {
           const result = await db.get(table, [
             [[primary_key, "=", originalData[primary_key]]],
           ]);
           if (result.count > 0) {
+            decryptRows(result["data"], encryptionMeta, activeEncryption?.keyring);
             produce(table, "upsert", result["data"][0]);
             return result["data"][0];
           } else return null;
@@ -389,6 +544,7 @@ module.exports = function model(
         );
         if (result.count > 0) {
           let record = result["data"][0];
+          decryptRows(record, encryptionMeta, activeEncryption?.keyring);
           if (options.select_columns)
             record = applySelect(record, options.select_columns);
           return record;
@@ -409,6 +565,7 @@ module.exports = function model(
       let filter = dataToFilter(jsonSafeParse(data), primary_key);
       filter = applySearch(filter, option.search_columns, search);
       const result = await db.get(table, filter, sort, option.safeDelete);
+      decryptRows(result.data, encryptionMeta, activeEncryption?.keyring);
       if (select_columns)
         result.data = applySelect(result.data, select_columns);
       return result;
@@ -426,6 +583,7 @@ module.exports = function model(
       let result = await db.get(table, filter, sort, option.safeDelete);
       if (result.count > 0) {
         let record = result["data"][0];
+        decryptRows(record, encryptionMeta, activeEncryption?.keyring);
         if (select_columns) record = applySelect(record, select_columns);
         return record;
       } else {
@@ -463,6 +621,7 @@ module.exports = function model(
         page,
         size,
       );
+      decryptRows(result.data, encryptionMeta, activeEncryption?.keyring);
       if (select_columns)
         result.data = applySelect(result.data, select_columns);
       return result;
@@ -484,6 +643,8 @@ module.exports = function model(
         option.safeDelete,
       );
       if (existing.count === 0) return null;
+      // Decrypt the stored record so the merged payload stays plaintext
+      decryptRows(existing.data, encryptionMeta, activeEncryption?.keyring);
       // Merge: start with existing, overlay only known fields from patch
       const merged = { ...existing.data[0] };
       for (const key of Object.keys(data)) {
@@ -493,6 +654,7 @@ module.exports = function model(
         }
       }
       const pkOrig = merged[primary_key];
+      encryptPayload([merged], encryptionMeta, activeEncryption?.keyring, activeEncryption?.version);
       const mergedArray = jsonStringify([merged]);
       // Restore the primary key value in case jsonStringify converted it
       // (e.g., MongoDB ObjectId gets stringified to a JSON string)
@@ -506,6 +668,7 @@ module.exports = function model(
         option.safeDelete,
       );
       if (result.count > 0) {
+        decryptRows(result.data, encryptionMeta, activeEncryption?.keyring);
         produce(table, "update", result["data"][0]);
         return result["data"][0];
       }

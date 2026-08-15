@@ -47,6 +47,15 @@ All project configuration lives in `options`. `db-model-router init` reads these
 | `helmet`         | No       | `true`      | Enable Helmet security headers.                                                                   |
 | `logger`         | No       | `true`      | Enable Winston request logger.                                                                    |
 | `loki`           | No       | `false`     | Enable Grafana Loki log transport + Loki/Grafana in docker-compose.                               |
+| `encryption`     | No       | _(disabled)_| Field-level encryption config `{ key, version, keys? }` — see [Field-Level Encryption](#field-level-encryption). Required when any column uses the `encrypted` flag. |
+
+#### `options.encryption`
+
+| Field     | Required | Description                                                                                    |
+| --------- | -------- | ---------------------------------------------------------------------------------------------- |
+| `key`     | Yes      | Reference to the **active** encryption key: `env:VAR_NAME` (recommended) or a raw base64 key.  |
+| `version` | Yes      | Positive integer version tag embedded in every envelope (bump on key rotation).                |
+| `keys`    | No       | Keyring for reading older data: `{ "1": "env:OLD_KEY", "2": "env:NEW_KEY" }`. Required when historical envelopes exist. |
 
 ---
 
@@ -90,17 +99,20 @@ Column rules are pipe-delimited strings that describe the data type, sub-type, a
 ### Syntax
 
 ```
-[required|]<type>[:<subtype>][|<validator>[|<validator>...]]
+[encrypted|][required|]<type>[:<subtype>][|<validator>[|<validator>...]]
 ```
 
 **Parts:**
 
 | Part        | Required | Description                                          |
 | ----------- | -------- | ---------------------------------------------------- |
+| `encrypted` | No       | Prefix — enables field-level encryption for this column. **Must come before `required`.** |
 | `required`  | No       | Prefix — marks column as NOT NULL                    |
 | `type`      | Yes      | Base data type (see Base Types table)                |
 | `:subtype`  | No       | Refines the SQL column type for migrations           |
 | `validator` | No       | Runtime validation rules (node-input-validator)        |
+
+> **Note:** `encrypted` **must precede** `required` (e.g. `encrypted|required|string`). The reverse order is rejected by validation.
 
 ### Base Types
 
@@ -112,7 +124,34 @@ Column rules are pipe-delimited strings that describe the data type, sub-type, a
 | `numeric`        | DECIMAL(12,2)    | Decimal/floating-point columns       |
 | `boolean`        | BOOLEAN          | True/false columns                   |
 | `datetime`       | TIMESTAMP        | Date and time columns                |
-| `object`         | JSON / JSONB     | JSON data columns                    |
+| `object`         | JSON / JSONB     | JSON data columns (cannot be encrypted directly; use dotted keys) |
+
+### Encrypted Fields (Field-Level Encryption)
+
+Prefix a column rule with `encrypted` to encrypt that field at rest (AES-256-GCM). Only these base types are encryptable:
+
+```json
+"ssn": "encrypted|required|string",
+"salary": "encrypted|numeric",
+"birth_date": "encrypted|datetime",
+"is_pii": "encrypted|boolean"
+```
+
+Inside an `object` column, individual JSON keys can be encrypted via dot notation:
+
+```json
+"profile": "object",
+"profile.dob": "encrypted|required|datetime",
+"profile.ssn": "encrypted|string"
+```
+
+Behavior:
+
+- Encryption happens automatically at the model layer: plaintext on write, decrypted + type-restored on read.
+- `NULL`/missing values and legacy plaintext pass through unchanged.
+- Encrypted fields **cannot** be filtered, searched, sorted, or constrained unique.
+- Requires matching `options.encryption` (schema/runtime) or the model factory throws.
+- Full guide (key management, rotation, CLI backfill): see [`docs/encryption.md`](encryption.md).
 
 ### Sub-Types (colon syntax)
 
@@ -213,19 +252,21 @@ Validation rules are appended after the type (and optional sub-type) using the p
 
 The parser distinguishes between **type/sub-type tokens** and **validation tokens**:
 
-1. `required` — always a modifier (NOT NULL)
-2. First non-`required` token — the **base type** (string, integer, numeric, boolean, object, datetime, auto_increment)
-3. If the base type contains a colon `:` — the part after `:` is the **sub-type**
-4. All remaining pipe-separated tokens — **validation rules**
+1. `encrypted` — always a modifier (enables field-level encryption)
+2. `required` — always a modifier (NOT NULL)
+3. First non-modifier token — the **base type** (string, integer, numeric, boolean, object, datetime, auto_increment)
+4. If the base type contains a colon `:` — the part after `:` is the **sub-type**
+5. All remaining pipe-separated tokens — **validation rules**
 
 **Parsing example:**
 
 ```
-"required|string:text|minLength:10|maxLength:5000"
+"encrypted|required|string:text|minLength:10|maxLength:5000"
 ```
 
 | Token            | Role       |
 | ---------------- | ---------- |
+| `encrypted`      | Modifier   |
 | `required`       | Modifier   |
 | `string:text`    | Type + Sub |
 | `minLength:10`   | Validator  |
@@ -234,7 +275,8 @@ The parser distinguishes between **type/sub-type tokens** and **validation token
 Result:
 
 - SQL: `TEXT NOT NULL`
-- Validation: `{ required: true, minLength: 10, maxLength: 5000 }`
+- Encryption: stored as `enc:v<N>:...` envelope (plaintext never touches disk)
+- Validation: `{ required: true, minLength: 10, maxLength: 5000 }` (applied to the plaintext)
 
 ### Full Column Rule Examples
 
@@ -247,8 +289,19 @@ Result:
   "price": "required|numeric:decimal(10,2)|min:0",
   "stock": "required|integer:unsigned|min:0",
   "is_active": "boolean",
+  "ssn_owner": "encrypted|string",
   "metadata": "object",
   "created_at": "datetime"
+}
+```
+
+Encrypted dotted keys inside an object column:
+
+```json
+{
+  "customer": "object",
+  "customer.card_number": "encrypted|string",
+  "customer.card_expiry": "encrypted|datetime"
 }
 ```
 
@@ -322,6 +375,8 @@ In the schema file, this is expressed by placing dot-notation keys alongside the
 3. Sub-key rules follow the same syntax as top-level column rules (`required|`, type, validators), but the **type** is still required for validation clarity even though the DB column is already JSON.
 4. You can nest arbitrarily deep: `settings.theme.dark_mode.primary_color`.
 5. Sub-keys are **never** created as separate SQL columns. They are validation-only entries.
+6. Sub-keys can be marked `encrypted` (e.g. `profile.ssn: "encrypted|string"`) to encrypt just that JSON key. Encrypted sub-keys must use an encryptable type; a single dot (`parent.key`) is the maximum nesting for encrypted keys.
+7. `pk`, `unique`, `softDelete`, and `search_columns` may **never** reference a dotted (virtual) sub-key.
 
 ---
 
@@ -629,8 +684,9 @@ The column rule syntax is fully backward compatible:
 - `"string:text"` — new sub-type, no validation
 - `"required|string|email"` — new validation, default sub-type
 - `"required|string:text|minLength:10|maxLength:5000"` — full syntax
+- `"encrypted|string"` — new encryption flag (no other change; reads of existing plaintext keep working until backfilled)
 
-Existing schemas without sub-types or validators continue to work unchanged.
+Existing schemas without sub-types or validators continue to work unchanged. Adding the `encrypted` flag to an existing column requires `options.encryption` to be set before the model is instantiated; legacy plaintext values pass through reads unchanged until re-encrypted with `db-model-router encrypt:scan --apply`.
 
 ---
 

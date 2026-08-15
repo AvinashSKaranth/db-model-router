@@ -302,4 +302,289 @@ describe("Schema Validator", function () {
       );
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Encrypted columns
+
+  describe("encrypted columns", function () {
+    function encSchema(columns, extra) {
+      const schema = validSchema();
+      schema.tables.users = Object.assign(
+        { columns, pk: "id", unique: ["id"] },
+        extra,
+      );
+      return schema;
+    }
+
+    it("accepts encrypted string/integer/numeric/boolean/datetime columns", function () {
+      const schema = encSchema({
+        id: "auto_increment",
+        ssn: "encrypted|required|string",
+        age: "encrypted|integer",
+        score: "encrypted|numeric",
+        is_vip: "encrypted|required|boolean",
+        joined: "encrypted|datetime",
+        profile: "object",
+        "profile.dob": "encrypted|required|datetime",
+      });
+      const result = validateSchema(schema);
+      assert.strictEqual(result.valid, true, JSON.stringify(result.errors));
+    });
+
+    it("rejects encrypted object columns (must use dotted keys)", function () {
+      const schema = encSchema({ id: "auto_increment", blob: "encrypted|object" });
+      const result = validateSchema(schema);
+      assert.strictEqual(result.valid, false);
+      assert.ok(
+        result.errors.some((e) =>
+          e.message.includes('type "object" which cannot be encrypted'),
+        ),
+      );
+    });
+
+    it("rejects encrypted auto_increment columns", function () {
+      const schema = encSchema({ id: "encrypted|auto_increment" });
+      const result = validateSchema(schema);
+      assert.strictEqual(result.valid, false);
+    });
+
+    it("rejects dotted fields without a parent column", function () {
+      const schema = encSchema({
+        id: "auto_increment",
+        "profile.dob": "encrypted|required|datetime",
+      });
+      const result = validateSchema(schema);
+      assert.strictEqual(result.valid, false);
+      assert.ok(
+        result.errors.some((e) =>
+          e.message.includes('has no parent column "profile"'),
+        ),
+      );
+    });
+
+    it("rejects dotted fields whose parent is not an object", function () {
+      const schema = encSchema({
+        id: "auto_increment",
+        profile: "required|string",
+        "profile.dob": "encrypted|required|datetime",
+      });
+      const result = validateSchema(schema);
+      assert.strictEqual(result.valid, false);
+      assert.ok(
+        result.errors.some((e) =>
+          e.message.includes('requires parent column "profile" to be declared as "object"'),
+        ),
+      );
+    });
+
+    it("accepts non-encrypted dotted fields over an object parent", function () {
+      const schema = encSchema({
+        id: "auto_increment",
+        profile: "object",
+        "profile.city": "required|string",
+      });
+      const result = validateSchema(schema);
+      assert.strictEqual(result.valid, true, JSON.stringify(result.errors));
+    });
+
+    it("rejects more than one level of dotted nesting", function () {
+      const schema = encSchema({
+        id: "auto_increment",
+        profile: "object",
+        "profile.a.b": "encrypted|string",
+      });
+      const result = validateSchema(schema);
+      assert.strictEqual(result.valid, false);
+      assert.ok(
+        result.errors.some((e) => e.message.includes("at most one level")),
+      );
+    });
+
+    it("rejects dotted references in pk", function () {
+      const schema = encSchema(
+        { id: "auto_increment", profile: "object", "profile.dob": "encrypted|string" },
+        { pk: "profile.dob", unique: ["id"] },
+      );
+      const result = validateSchema(schema);
+      assert.strictEqual(result.valid, false);
+      assert.ok(
+        result.errors.some((e) => e.path === "tables.users.pk"),
+      );
+    });
+
+    it("rejects pk referencing an encrypted column", function () {
+      const schema = encSchema(
+        { id: "auto_increment", ssn: "encrypted|string" },
+        { pk: "ssn", unique: ["id"] },
+      );
+      const result = validateSchema(schema);
+      assert.strictEqual(result.valid, false);
+      assert.ok(
+        result.errors.some(
+          (e) =>
+            e.path === "tables.users.pk" &&
+            e.message.includes('encrypted column "ssn"'),
+        ),
+      );
+    });
+
+    it("rejects dotted references in unique", function () {
+      const schema = encSchema(
+        { id: "auto_increment", profile: "object", "profile.dob": "encrypted|string" },
+        { unique: ["profile.dob"] },
+      );
+      const result = validateSchema(schema);
+      assert.strictEqual(result.valid, false);
+      assert.ok(
+        result.errors.some((e) =>
+          e.message.includes('unique cannot reference a dotted (virtual JSON) field'),
+        ),
+      );
+    });
+
+    it("rejects unique referencing an encrypted column", function () {
+      const schema = encSchema(
+        { id: "auto_increment", ssn: "encrypted|string" },
+        { unique: ["ssn"] },
+      );
+      const result = validateSchema(schema);
+      assert.strictEqual(result.valid, false);
+      assert.ok(
+        result.errors.some((e) =>
+          e.path === "tables.users.unique[0]" &&
+          e.message.includes('cannot reference an encrypted column "ssn"'),
+        ),
+      );
+    });
+
+    it("rejects dotted references in search_columns", function () {
+      const schema = encSchema(
+        { id: "auto_increment", profile: "object", "profile.dob": "encrypted|string" },
+        { search_columns: ["profile.dob"] },
+      );
+      const result = validateSchema(schema);
+      assert.strictEqual(result.valid, false);
+      assert.ok(
+        result.errors.some((e) =>
+          e.message.includes('search_columns cannot reference a dotted (virtual JSON) field'),
+        ),
+      );
+    });
+
+    it("rejects search_columns referencing an encrypted column", function () {
+      const schema = encSchema(
+        { id: "auto_increment", ssn: "encrypted|string", email: "string" },
+        { search_columns: ["email", "ssn"] },
+      );
+      const result = validateSchema(schema);
+      assert.strictEqual(result.valid, false);
+      assert.ok(
+        result.errors.some((e) =>
+          e.path === "tables.users.search_columns[1]" &&
+          e.message.includes('cannot reference an encrypted column "ssn"'),
+        ),
+      );
+      assert.ok(
+        !result.errors.some((e) => e.path === "tables.users.search_columns[0]"),
+        "plain column in search_columns should not be flagged",
+      );
+    });
+
+    it("rejects dotted references in softDelete", function () {
+      const schema = encSchema(
+        { id: "auto_increment", profile: "object", "profile.dob": "encrypted|string", is_deleted: "boolean" },
+        { softDelete: "profile.dob" },
+      );
+      const result = validateSchema(schema);
+      assert.strictEqual(result.valid, false);
+      assert.ok(
+        result.errors.some((e) =>
+          e.message.includes('softDelete cannot reference a dotted (virtual JSON) field'),
+        ),
+      );
+    });
+
+    it("rejects softDelete referencing an encrypted column", function () {
+      const schema = encSchema(
+        { id: "auto_increment", is_deleted: "encrypted|boolean" },
+        { softDelete: "is_deleted" },
+      );
+      const result = validateSchema(schema);
+      assert.strictEqual(result.valid, false);
+      assert.ok(
+        result.errors.some((e) =>
+          e.path === "tables.users.softDelete" &&
+          e.message.includes('cannot reference an encrypted column "is_deleted"'),
+        ),
+      );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // options.encryption
+
+  describe("options.encryption", function () {
+    function withEncryption(encryption) {
+      const schema = validSchema();
+      schema.options = { encryption };
+      return schema;
+    }
+
+    it("accepts a valid encryption block", function () {
+      const result = validateSchema(
+        withEncryption({
+          key: "env:ENC_KEY",
+          version: 1,
+          keys: { 1: "env:ENC_KEY" },
+        }),
+      );
+      assert.strictEqual(result.valid, true, JSON.stringify(result.errors));
+    });
+
+    it("accepts a base64 key reference", function () {
+      const result = validateSchema(
+        withEncryption({ key: "c2VjcmV0", version: 1 }),
+      );
+      assert.strictEqual(result.valid, true, JSON.stringify(result.errors));
+    });
+
+    it("requires key to be a string", function () {
+      const result = validateSchema(withEncryption({ version: 1 }));
+      assert.strictEqual(result.valid, false);
+      assert.ok(
+        result.errors.some((e) => e.path === "options.encryption.key"),
+      );
+    });
+
+    it("requires version to be a positive integer", function () {
+      for (const bad of [0, -1, "x", 1.5]) {
+        const result = validateSchema(
+          withEncryption({ key: "env:ENC_KEY", version: bad }),
+        );
+        assert.strictEqual(result.valid, false, `version=${bad}`);
+        assert.ok(
+          result.errors.some((e) => e.path === "options.encryption.version"),
+        );
+      }
+    });
+
+    it("validates the keys map", function () {
+      const result = validateSchema(
+        withEncryption({
+          key: "env:ENC_KEY",
+          version: 1,
+          keys: { x: "env:ENC_KEY" },
+        }),
+      );
+      assert.strictEqual(result.valid, false);
+      assert.ok(
+        result.errors.some((e) => e.path.startsWith("options.encryption.keys")),
+      );
+    });
+
+    it("rejects a non-object encryption block", function () {
+      const result = validateSchema(withEncryption("nope"));
+      assert.strictEqual(result.valid, false);
+    });
+  });
 });

@@ -9,6 +9,8 @@ const doctorCmd = require("./commands/doctor");
 const diffCmd = require("./commands/diff");
 const helpCmd = require("./commands/help");
 const dbManagerCmd = require("./commands/db-manager");
+const encryptScanCmd = require("./commands/encrypt-scan");
+const encryptRotateKeyCmd = require("./commands/encrypt-rotate-key");
 
 /**
  * Map of subcommand names to their handler functions.
@@ -19,6 +21,8 @@ const COMMANDS = {
   doctor: doctorCmd,
   diff: diffCmd,
   "db-manager": dbManagerCmd,
+  "encrypt:scan": encryptScanCmd,
+  "encrypt:rotate-key": encryptRotateKeyCmd,
   help: helpCmd,
 };
 
@@ -31,6 +35,8 @@ const COMMAND_DESCRIPTIONS = {
   doctor: "Validate schema, check dependencies, and verify file sync",
   diff: "Preview changes between current files and what the schema would produce",
   "db-manager": "Start a live database management UI",
+  "encrypt:scan": "Scan/backfill unencrypted values in encrypted fields",
+  "encrypt:rotate-key": "Rotate field-level encryption keys",
   help: "Show help for a command",
 };
 
@@ -54,6 +60,21 @@ const COMMAND_FLAGS = {
   "db-manager": [
     ["--env <path>", "Path to .env file (default: .env)"],
     ["--port <number>", "Server port (default: 4000)"],
+  ],
+  "encrypt:scan": [
+    ["--type <adapter>", "Database adapter (required)"],
+    ["--from <path>", "Schema file (default: dbmr.schema.json)"],
+    ["--env <path>", "Path to .env file"],
+    ["--tables <list>", "Comma-separated table filter"],
+    ["--apply", "Encrypt unencrypted values found"],
+  ],
+  "encrypt:rotate-key": [
+    ["--type <adapter>", "Database adapter (required)"],
+    ["--to <n>", "Target key version (required)"],
+    ["--new-key <ref>", "New key reference"],
+    ["--from <path>", "Schema file (default: dbmr.schema.json)"],
+    ["--env <path>", "Path to .env file"],
+    ["--tables <list>", "Comma-separated table filter"],
   ],
 };
 

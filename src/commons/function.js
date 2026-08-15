@@ -156,10 +156,59 @@ function objectSelecter(obj, picker) {
   return obj;
 }
 
+/**
+ * Read a value from a nested object using an array path.
+ * @param {object} obj
+ * @param {string[]} path - e.g. ["identity", "dob"]
+ * @returns {*} value at path, or undefined
+ */
+function getByPath(obj, path) {
+  if (!obj || typeof obj !== "object" || !Array.isArray(path)) {
+    return undefined;
+  }
+  let cur = obj;
+  for (const segment of path) {
+    if (cur === null || cur === undefined) return undefined;
+    if (typeof cur !== "object") return undefined;
+    cur = cur[segment];
+  }
+  return cur;
+}
+
+/**
+ * Set a value inside a nested object using an array path, creating
+ * intermediate objects when needed. The root must be an object.
+ * @param {object} obj
+ * @param {string[]} path
+ * @param {*} value
+ * @returns {object} the same object reference
+ */
+function setByPath(obj, path, value) {
+  if (!obj || typeof obj !== "object" || !Array.isArray(path)) return obj;
+  let cur = obj;
+  for (let i = 0; i < path.length - 1; i++) {
+    const segment = path[i];
+    if (cur[segment] === null || cur[segment] === undefined) {
+      cur[segment] = {};
+    }
+    if (typeof cur[segment] !== "object") return obj;
+    cur = cur[segment];
+  }
+  const last = path[path.length - 1];
+  if (value === undefined) {
+    delete cur[last];
+  } else {
+    cur[last] = value;
+  }
+  return obj;
+}
+
 module.exports = {
   jsonSafeParse,
   jsonStringify,
   getType,
   empty,
   objectSelecter,
+  getByPath,
+  setByPath,
 };

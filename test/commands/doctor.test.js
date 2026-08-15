@@ -448,4 +448,106 @@ describe("CLI Commands - doctor (src/cli/commands/doctor.js)", function () {
       }
     });
   });
+
+  // -------------------------------------------------------------------
+  // Encryption config check
+  // -------------------------------------------------------------------
+  describe("encryption config (Req 6.5)", function () {
+    function encSchema() {
+      const schema = validSchema();
+      schema.tables = {
+        users: {
+          columns: {
+            id: "auto_increment",
+            ssn: "encrypted|required|string",
+          },
+          pk: "id",
+          unique: ["id"],
+        },
+      };
+      return schema;
+    }
+
+    it("reports missing options.encryption when encrypted fields exist", async function () {
+      const schema = encSchema();
+      const schemaPath = writeSchema(tmpDir, schema);
+      writePkg(tmpDir, { "better-sqlite3": "^9.0.0" });
+
+      const ctx = new OutputContext({ json: true });
+      await doctorCmd(
+        { from: schemaPath },
+        { yes: false, json: true, dryRun: false, noInstall: false, help: false },
+        ctx,
+      );
+
+      const result = ctx._results[0];
+      assert.strictEqual(result.encryption.ok, false);
+      assert.ok(result.encryption.missing.length >= 1);
+      assert.ok(
+        result.encryption.missing[0].includes("options.encryption"),
+        `missing message: ${result.encryption.missing[0]}`,
+      );
+      assert.notStrictEqual(process.exitCode, 0);
+    });
+
+    it("reports an invalid options.encryption block via schema validation", async function () {
+      const schema = encSchema();
+      schema.options = { encryption: { version: 1 } };
+      const schemaPath = writeSchema(tmpDir, schema);
+      writePkg(tmpDir, { "better-sqlite3": "^9.0.0" });
+
+      const ctx = new OutputContext({ json: true });
+      await doctorCmd(
+        { from: schemaPath },
+        { yes: false, json: true, dryRun: false, noInstall: false, help: false },
+        ctx,
+      );
+
+      const result = ctx._results[0];
+      // The invalid block fails schema parsing, so the schema is unusable and
+      // doctor reports the schema validation failure (encryption stays unset).
+      assert.strictEqual(result.validation.valid, false);
+      assert.ok(
+        result.validation.errors.some(
+          (e) => e.path === "options.encryption.key",
+        ),
+      );
+      assert.notStrictEqual(process.exitCode, 0);
+    });
+
+    it("passes encryption check when options.encryption is valid", async function () {
+      const schema = encSchema();
+      schema.options = {
+        encryption: { key: "env:ENC_KEY", version: 1, keys: { 1: "env:ENC_KEY" } },
+      };
+      const schemaPath = writeSchema(tmpDir, schema);
+      writePkg(tmpDir, { "better-sqlite3": "^9.0.0" });
+
+      const ctx = new OutputContext({ json: true });
+      await doctorCmd(
+        { from: schemaPath },
+        { yes: false, json: true, dryRun: false, noInstall: false, help: false },
+        ctx,
+      );
+
+      const result = ctx._results[0];
+      assert.strictEqual(result.encryption.ok, true, JSON.stringify(result.encryption));
+    });
+
+    it("does not require encryption config when no fields are encrypted", async function () {
+      const schema = validSchema();
+      const schemaPath = writeSchema(tmpDir, schema);
+      writePkg(tmpDir, { "better-sqlite3": "^9.0.0" });
+
+      const ctx = new OutputContext({ json: true });
+      await doctorCmd(
+        { from: schemaPath },
+        { yes: false, json: true, dryRun: false, noInstall: false, help: false },
+        ctx,
+      );
+
+      const result = ctx._results[0];
+      assert.strictEqual(result.encryption.ok, true);
+    });
+  });
 });

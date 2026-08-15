@@ -16,7 +16,36 @@ const VALID_ADAPTERS = new Set([
 const VALID_FRAMEWORKS = new Set(["express", "ultimate-express"]);
 
 const COLUMN_RULE_RE =
-  /^(required\|)?(string|integer|numeric|boolean|object|datetime|auto_increment)(:[^|]+)?(\|[^|]+)*$/;
+  /^(encrypted\|)?(required\|)?(string|integer|numeric|boolean|object|datetime|auto_increment)(:[^|]+)?(\|[^|]+)*$/;
+
+// Field types that may carry the `encrypted` flag. object columns must use
+// dotted JSON-key encryption instead; auto_increment is managed by the DB.
+const ENCRYPTABLE_TYPES = new Set([
+  "string",
+  "integer",
+  "numeric",
+  "boolean",
+  "datetime",
+]);
+
+// Detect whether a column rule declares the `encrypted` flag.
+function isEncryptedRule(rule) {
+  return typeof rule === "string" && rule.split("|").includes("encrypted");
+}
+
+// Extract the base type token from a column rule (the first non-flag token).
+function baseTypeOf(rule) {
+  if (typeof rule !== "string") return null;
+  const parts = rule.split("|");
+  for (const p of parts) {
+    if (p === "required" || p === "encrypted") continue;
+    const token = p.indexOf(":") > -1 ? p.slice(0, p.indexOf(":")) : p;
+    if (/^(string|integer|numeric|boolean|object|datetime|auto_increment)$/.test(token)) {
+      return token;
+    }
+  }
+  return null;
+}
 
 class SchemaValidationError extends Error {
   constructor(errors) {
@@ -183,6 +212,69 @@ function validateOptions(options, errors) {
       });
     }
   }
+
+  if (options.encryption !== undefined) {
+    validateEncryptionOptions(options.encryption, errors);
+  }
+}
+
+/**
+ * Validate the `options.encryption` block.
+ * Shape: { key, version, keys? }
+ *   key     — env:VAR or base64 literal key reference (required)
+ *   version — positive integer tagging the active key (required)
+ *   keys    — optional map of version → key reference (rotation history)
+ */
+function validateEncryptionOptions(encryption, errors) {
+  if (encryption == null || typeof encryption !== "object" || Array.isArray(encryption)) {
+    errors.push({
+      path: "options.encryption",
+      message: "options.encryption must be an object { key, version, keys? }",
+    });
+    return;
+  }
+  if (encryption.key === undefined || typeof encryption.key !== "string") {
+    errors.push({
+      path: "options.encryption.key",
+      message: "options.encryption.key must be a string (env:VAR or base64 key)",
+    });
+  }
+  const version = encryption.version;
+  if (version === undefined) {
+    errors.push({
+      path: "options.encryption.version",
+      message: "options.encryption.version must be a positive integer",
+    });
+  } else if (!Number.isInteger(version) || version < 1) {
+    errors.push({
+      path: "options.encryption.version",
+      message: "options.encryption.version must be a positive integer",
+    });
+  }
+  if (encryption.keys !== undefined) {
+    if (typeof encryption.keys !== "object" || Array.isArray(encryption.keys)) {
+      errors.push({
+        path: "options.encryption.keys",
+        message: "options.encryption.keys must be an object mapping version → key reference",
+      });
+    } else {
+      for (const [v, ref] of Object.entries(encryption.keys)) {
+        const n = parseInt(v, 10);
+        if (!Number.isInteger(n) || n < 1) {
+          errors.push({
+            path: `options.encryption.keys.${v}`,
+            message: `encryption keys version key must be a positive integer (got "${v}")`,
+          });
+        }
+        if (typeof ref !== "string" || ref.length === 0) {
+          errors.push({
+            path: `options.encryption.keys.${v}`,
+            message: `encryption key reference for version ${v} must be a non-empty string`,
+          });
+        }
+      }
+    }
+  }
 }
 
 /**
@@ -227,8 +319,137 @@ function validateTables(tables, errors) {
       if (typeof rule !== "string" || !COLUMN_RULE_RE.test(rule)) {
         errors.push({
           path: `${basePath}.columns.${colName}`,
-          message: `Invalid column rule "${rule}" for column "${colName}". Must match pattern: (required|)?(string|integer|numeric|boolean|object)`,
+          message: `Invalid column rule "${rule}" for column "${colName}". Must match pattern: (encrypted|)?(required|)?(string|integer|numeric|boolean|object|datetime|auto_increment)`,
         });
+      }
+    }
+
+    // Validate encrypted flags and dotted (virtual JSON) field definitions.
+    for (const [colName, rule] of Object.entries(tableDef.columns)) {
+      const colPath = `${basePath}.columns.${colName}`;
+      const encrypted = isEncryptedRule(rule);
+      const isDotted = colName.includes(".");
+
+      if (isDotted) {
+        const parent = colName.split(".")[0];
+        if (!Object.prototype.hasOwnProperty.call(tableDef.columns, parent)) {
+          errors.push({
+            path: colPath,
+            message: `Dotted field "${colName}" has no parent column "${parent}" in table "${tableName}"`,
+          });
+          continue;
+        }
+        const parentRule = tableDef.columns[parent];
+        const parentType = baseTypeOf(parentRule);
+        if (parentType !== "object") {
+          errors.push({
+            path: colPath,
+            message: `Dotted field "${colName}" requires parent column "${parent}" to be declared as "object" (found "${parentType || parentRule}")`,
+          });
+        }
+        // Only a single dot is supported (nested JSON is expressed via the
+        // parent object's own structure, not deeper dotted column names).
+        if (colName.split(".").length > 2) {
+          errors.push({
+            path: colPath,
+            message: `Dotted field "${colName}" must use at most one level of nesting (parent.key)`,
+          });
+        }
+        // Dotted fields must not be referenced by physical-column constraints.
+        if (encrypted && !ENCRYPTABLE_TYPES.has(baseTypeOf(rule))) {
+          errors.push({
+            path: colPath,
+            message: `Dotted field "${colName}" uses type "${baseTypeOf(rule)}" which cannot be encrypted. Supported: ${[...ENCRYPTABLE_TYPES].join(", ")}`,
+          });
+        }
+      } else if (encrypted) {
+        const type = baseTypeOf(rule);
+        if (!ENCRYPTABLE_TYPES.has(type)) {
+          errors.push({
+            path: colPath,
+            message: `Column "${colName}" uses type "${type}" which cannot be encrypted. Supported: ${[...ENCRYPTABLE_TYPES].join(", ")}`,
+          });
+        }
+      }
+    }
+
+    // Validate that pk/unique/softDelete/search_columns never reference
+    // virtual dotted fields (those are JSON keys, not physical columns).
+    if (typeof pk === "string" && pk.includes(".")) {
+      errors.push({
+        path: `${basePath}.pk`,
+        message: `pk cannot reference a dotted (virtual JSON) field "${pk}"`,
+      });
+    }
+    if (
+      typeof pk === "string" &&
+      !pk.includes(".") &&
+      columnNames.has(pk) &&
+      isEncryptedRule(tableDef.columns[pk])
+    ) {
+      errors.push({
+        path: `${basePath}.pk`,
+        message: `pk cannot reference an encrypted column "${pk}" (encrypted fields cannot be used to look up rows)`,
+      });
+    }
+    if (tableDef.unique !== undefined) {
+      const groups = Array.isArray(tableDef.unique[0])
+        ? tableDef.unique
+        : [tableDef.unique];
+      for (let g = 0; g < groups.length; g++) {
+        const group = groups[g];
+        if (Array.isArray(group)) {
+          for (let i = 0; i < group.length; i++) {
+            if (typeof group[i] === "string" && group[i].includes(".")) {
+              errors.push({
+                path: `${basePath}.unique[${g}][${i}]`,
+                message: `unique cannot reference a dotted (virtual JSON) field "${group[i]}"`,
+              });
+            }
+          }
+        }
+      }
+    }
+    if (
+      typeof tableDef.softDelete === "string" &&
+      tableDef.softDelete.includes(".")
+    ) {
+      errors.push({
+        path: `${basePath}.softDelete`,
+        message: `softDelete cannot reference a dotted (virtual JSON) field "${tableDef.softDelete}"`,
+      });
+    } else if (
+      typeof tableDef.softDelete === "string" &&
+      !tableDef.softDelete.includes(".") &&
+      columnNames.has(tableDef.softDelete) &&
+      isEncryptedRule(tableDef.columns[tableDef.softDelete])
+    ) {
+      errors.push({
+        path: `${basePath}.softDelete`,
+        message: `softDelete cannot reference an encrypted column "${tableDef.softDelete}" (encrypted fields cannot be filtered)`,
+      });
+    }
+    if (Array.isArray(tableDef.search_columns)) {
+      for (let i = 0; i < tableDef.search_columns.length; i++) {
+        if (
+          typeof tableDef.search_columns[i] === "string" &&
+          tableDef.search_columns[i].includes(".")
+        ) {
+          errors.push({
+            path: `${basePath}.search_columns[${i}]`,
+            message: `search_columns cannot reference a dotted (virtual JSON) field "${tableDef.search_columns[i]}"`,
+          });
+        } else if (
+          typeof tableDef.search_columns[i] === "string" &&
+          !tableDef.search_columns[i].includes(".") &&
+          columnNames.has(tableDef.search_columns[i]) &&
+          isEncryptedRule(tableDef.columns[tableDef.search_columns[i]])
+        ) {
+          errors.push({
+            path: `${basePath}.search_columns[${i}]`,
+            message: `search_columns cannot reference an encrypted column "${tableDef.search_columns[i]}" (encrypted fields cannot be searched)`,
+          });
+        }
       }
     }
 
@@ -262,6 +483,14 @@ function validateTables(tables, errors) {
               errors.push({
                 path: `${groupPath}[${i}]`,
                 message: `unique entry must be a string in table "${tableName}"`,
+              });
+            } else if (
+              columnNames.has(entry) &&
+              isEncryptedRule(tableDef.columns[entry])
+            ) {
+              errors.push({
+                path: `${groupPath}[${i}]`,
+                message: `unique entry "${entry}" cannot reference an encrypted column "${entry}" (encrypted values are never equal, so uniqueness cannot be enforced)`,
               });
             } else if (entry !== pk && !columnNames.has(entry)) {
               errors.push({

@@ -89,6 +89,20 @@ function parseColumnRule(rule) {
 function mapColumnType(rule, adapter) {
   const { isRequired, baseType, subType, validators } = parseColumnRule(rule);
 
+  // Encrypted values are stored as `enc:v<N>:<base64>` envelopes, so a whole
+  // encrypted column must use a long-text type regardless of its logical
+  // base type (an INTEGER/NUMERIC/BOOLEAN/VARCHAR(255) column would reject or
+  // silently truncate the ciphertext on real SQL adapters). JSON parent
+  // columns ("object") are already text-backed and need no override.
+  if (rule.split("|").includes("encrypted")) {
+    return {
+      sqlType: stringType(adapter, "text"),
+      nullable: !isRequired,
+      isAutoIncrement: false,
+      validators,
+    };
+  }
+
   let sqlType;
   let isAutoIncrement = false;
 

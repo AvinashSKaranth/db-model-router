@@ -287,6 +287,7 @@ function generateFakerFields(structure) {
   let firstStringCol = null;
 
   for (const [col, rule] of Object.entries(structure)) {
+    if (col.includes(".")) continue;
     const fakerCall = columnToFaker(col, rule);
     lines.push(`    ${col}: ${fakerCall},`);
     if (!firstStringCol && rule.includes("string")) {
@@ -302,7 +303,9 @@ ${lines.join("\n")}
 
   const patchPayload = firstStringCol
     ? `{ ${firstStringCol}: faker.lorem.word() }`
-    : `{ ${Object.keys(structure)[0] || "name"}: faker.lorem.word() }`;
+    : `{ ${
+        Object.keys(structure).find((c) => !c.includes(".")) || "name"
+      }: faker.lorem.word() }`;
 
   return { helperFn, patchPayload };
 }
