@@ -73,7 +73,7 @@ async function encryptRotateKey(args, flags, ctx) {
   // the schema file; the user is expected to bump options.encryption afterward.
   let oldConfig;
   try {
-    encryption.setConfig({ key: oldKeyRef, version: toVersion, keys: oldKeys });
+    encryption.setConfig({ key: oldKeyRef, version: encOpts.version, keys: oldKeys });
     oldConfig = encryption.getConfig();
     if (!oldConfig) throw new Error("Failed to resolve encryption config");
   } catch (err) {
