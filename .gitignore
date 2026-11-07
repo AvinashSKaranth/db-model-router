@@ -23,6 +23,8 @@ lib-cov
 # Coverage directory used by tools like istanbul
 coverage
 *.lcov
+reports/
+report.html
 
 # nyc test coverage
 .nyc_output
@@ -146,3 +148,7 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 db-manager/.dbmanager.sqlite-shm
 db-manager/.dbmanager.sqlite-wal
+
+# Benchmark output (generated HTML reports)
+benchmark/reports/
+benchmark/*.html

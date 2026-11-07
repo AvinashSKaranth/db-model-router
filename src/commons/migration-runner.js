@@ -81,7 +81,17 @@ async function getAppliedMigrations(db) {
     if (res && Array.isArray(res.rows)) return res.rows;
     return [];
   } catch (err) {
-    return [];
+    const msg = (err && err.message ? err.message : String(err)).toLowerCase();
+    const isTableMissing =
+      msg.includes("no such table") ||
+      msg.includes("does not exist") ||
+      msg.includes("doesn't exist") ||
+      msg.includes("invalid object name") ||
+      msg.includes("ora-00942");
+    if (isTableMissing) {
+      return [];
+    }
+    throw err;
   }
 }
 
@@ -94,7 +104,7 @@ function getMigrationFiles(migrationsDir) {
   }
   const files = fs.readdirSync(migrationsDir);
   return files
-    .filter((f) => /^\d+_.+\.(js|sql)$/i.test(f))
+    .filter((f) => /^\d+_.+\.(js|sql)$/i.test(f) && !/\.down\.sql$/i.test(f))
     .sort()
     .map((filename) => {
       const fullPath = path.join(migrationsDir, filename);
@@ -245,6 +255,16 @@ async function down(db, migrationsDir = "migrations", adapterType = "") {
       const migration = require(path.resolve(file.fullPath));
       if (typeof migration.down === "function") {
         await migration.down(db);
+      }
+    } else if (file && file.ext === ".sql") {
+      const downSqlFile = file.fullPath.replace(/\.sql$/i, ".down.sql");
+      if (fs.existsSync(downSqlFile)) {
+        const downSql = fs.readFileSync(downSqlFile, "utf8");
+        await db.query(downSql);
+      } else {
+        throw new Error(
+          `Cannot rollback SQL migration '${file.filename}': missing corresponding '.down.sql' file`,
+        );
       }
     }
 

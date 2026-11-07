@@ -21,7 +21,16 @@ const pkCache = {};
 function escapeId(name) {
   if (typeof name !== "string") name = String(name);
   name = name.replace(/\0/g, "");
-  return `"${name.replace(/"/g, '""')}"`;
+  return name
+    .split(".")
+    .map((part) => {
+      part = part.trim();
+      if (part.startsWith('"') && part.endsWith('"')) {
+        part = part.slice(1, -1);
+      }
+      return '"' + part.replace(/"/g, '""') + '"';
+    })
+    .join(".");
 }
 
 function sanitizeValue(v) {
@@ -282,14 +291,17 @@ const tableColumnsCache = {};
 async function getTableColumns(table) {
   if (tableColumnsCache[table] !== undefined) return tableColumnsCache[table];
   try {
-    const cleanName = table.replace(/^.*"\."?/, "").replace(/"/g, "");
+    const parts = table.split(".");
+    const cleanName = parts[parts.length - 1].replace(/"/g, "").trim();
+    const schemaName = parts.length > 1 ? parts[0].replace(/"/g, "").trim() : "public";
     const res = await query(
       `SELECT a.attname AS column_name, t.typname AS data_type 
        FROM pg_attribute a 
        JOIN pg_class c ON c.oid = a.attrelid 
+       JOIN pg_namespace n ON n.oid = c.relnamespace
        JOIN pg_type t ON t.oid = a.atttypid 
-       WHERE c.relname = $1 AND a.attnum >= 1`,
-      [cleanName],
+       WHERE c.relname = $1 AND n.nspname = $2 AND a.attnum >= 1`,
+      [cleanName, schemaName],
     );
     const cols = {};
     const rows = Array.isArray(res) ? res : res.rows || [];

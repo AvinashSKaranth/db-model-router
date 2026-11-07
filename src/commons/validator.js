@@ -1,8 +1,11 @@
 const { Validator } = require("node-input-validator");
 const { getType } = require("./function");
+
+const hasProp = (obj, key) => obj != null && Object.prototype.hasOwnProperty.call(obj, key);
+
 function RemovePK(modelPK, data) {
   for (const item of data) {
-    if (item.hasOwnProperty(modelPK)) {
+    if (hasProp(item, modelPK)) {
       delete item[modelPK];
     }
   }
@@ -66,7 +69,7 @@ function getPayloadValidator(type, structure, pk, bulk = false) {
 }
 function errorResponse(res, err) {
   let status = 500;
-  if (err.hasOwnProperty("cause") && err.cause.hasOwnProperty("status")) {
+  if (hasProp(err, "cause") && hasProp(err.cause, "status")) {
     status = err.cause.status;
   }
   // For client errors (4xx), return the validation message.
@@ -91,16 +94,18 @@ async function validateInput(req, required) {
   let validator = new Validator(req, required);
   const matched = await validator.check();
   if (!matched) {
-    throw new Error(getErrorMessage(validator.errors), {
+    const err = new Error(getErrorMessage(validator.errors), {
       cause: { status: 422 },
     });
+    err.status = 422;
+    throw err;
   }
   return true;
 }
 function getErrorMessage(errors) {
   let message = "";
   for (const i in errors) {
-    if (errors.hasOwnProperty(i)) {
+    if (hasProp(errors, i)) {
       message = message + (message !== "" ? " " : "");
       message = message + errors[i].message;
     }
@@ -114,13 +119,13 @@ function parseFilterValue(value) {
 
   // !in(john,snow,ram) -> not in
   if (/^!in\((.+)\)$/i.test(value)) {
-    const items = value.match(/^!in\((.+)\)$/i)[1].split(",");
+    const items = value.match(/^!in\((.+)\)$/i)[1].split(",").map((v) => v.trim());
     return ["not in", items];
   }
 
   // in(john,snow,ram) -> in
   if (/^in\((.+)\)$/i.test(value)) {
-    const items = value.match(/^in\((.+)\)$/i)[1].split(",");
+    const items = value.match(/^in\((.+)\)$/i)[1].split(",").map((v) => v.trim());
     return ["in", items];
   }
 
@@ -170,10 +175,61 @@ function objectToFilter(obj) {
   }
   return [filterArray];
 }
+function isEmptyFilter(filter) {
+  if (!filter || !Array.isArray(filter) || filter.length === 0) return true;
+  if (filter.length === 1 && Array.isArray(filter[0]) && filter[0].length === 0) return true;
+  if (
+    filter.length === 1 &&
+    Array.isArray(filter[0]) &&
+    filter[0].length === 1 &&
+    Array.isArray(filter[0][0]) &&
+    filter[0][0].length === 0
+  ) {
+    return true;
+  }
+  return false;
+}
+
 function dataToFilter(data, primary_key) {
-  let filter = [];
+  if (data === null || data === undefined || data === "") {
+    const err = new Error("Invalid filter Inputs", { cause: { status: 422 } });
+    err.status = 422;
+    throw err;
+  }
+  if (typeof data === "number" || typeof data === "string") {
+    return [[[primary_key, "=", data]]];
+  }
+  let filter;
   let type = getType(data);
-  if (data.hasOwnProperty("filter") && getType(data.filter) === "array") {
+
+  if (type === "array") {
+    if (data.length === 0) return [[[]]];
+    // If array of primitives (numbers or strings), treat as pk in [...]
+    const allPrimitives = data.every((x) => typeof x === "number" || typeof x === "string");
+    if (allPrimitives) {
+      return [[[primary_key, "in", data]]];
+    }
+    // If array of objects where each has the primary_key
+    const allObjects = data.every((x) => typeof x === "object" && x !== null);
+    if (allObjects) {
+      const allPkOnly = data.every((x) => Object.keys(x).length === 1 && hasProp(x, primary_key));
+      if (allPkOnly) {
+        const ids = data.map((x) => x[primary_key]);
+        return [[[primary_key, "in", ids]]];
+      }
+      // Or-combine multiple object conditions
+      return data.map((item) => objectToFilter(item)[0]);
+    }
+    const err = new Error("Invalid filter Inputs", { cause: { status: 422 } });
+    err.status = 422;
+    throw err;
+  }
+
+  if (data && typeof data === "object" && hasProp(data, "data") && Array.isArray(data.data)) {
+    return dataToFilter(data.data, primary_key);
+  }
+
+  if (hasProp(data, "filter") && getType(data.filter) === "array") {
     filter = JSON.parse(JSON.stringify(data.filter));
     if (Object.keys(data).length > 1) {
       delete data.filter;
@@ -209,21 +265,5 @@ module.exports = {
   parseFilterValue,
   objectToFilter,
   dataToFilter,
+  isEmptyFilter,
 };
-/*async function validateInput(req, required) {
-  console.log(req, required);
-  for (const key in required) {
-    if (req.hasOwnProperty(key)) {
-      if (Array.isArray(req[key])) {
-        throw Error({ message: "This service supports does not support array", status: 422 });
-      }
-      let validator = new Validator(req[key], required[key]);
-      const matched = await validator.check();
-      if (!matched) {
-        console.log(getErrorMessage(key, validator.errors));
-        //throw Error({ message: getErrorMessage(key, validator.errors), status: 422 });
-      }
-    }
-  }
-  return true;
-}*/

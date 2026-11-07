@@ -1,48 +1,43 @@
 function jsonSafeParse(obj) {
   if (typeof obj === "string") {
-    try {
-      // If the string is a bare numeric literal that would lose precision,
-      // return it as-is (string) to preserve the original value.
-      if (/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(obj.trim())) {
-        if (wouldLosePrecision(obj.trim())) {
+    const trimmed = obj.trim();
+    // Only parse strings that represent JSON objects {...} or JSON arrays [...]
+    // Plain text scalars ("12345", "true", "null", "hello") must remain strings.
+    if (
+      (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+      (trimmed.startsWith("[") && trimmed.endsWith("]"))
+    ) {
+      try {
+        // Pre-process: find numeric literals in the JSON that would lose precision.
+        const safed = trimmed.replace(
+          /(?<=[:,[]\s*)-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?(?=\s*[,}\]])/g,
+          (match) => {
+            if (wouldLosePrecision(match)) {
+              return '"' + match + '"';
+            }
+            return match;
+          },
+        );
+        return JSON.parse(safed);
+      } catch (_err) {
+        // If the regex approach fails, fall back to standard reviver
+        try {
+          return JSON.parse(trimmed, (key, value) => {
+            if (
+              typeof value === "number" &&
+              !Number.isSafeInteger(value) &&
+              !isSmallFloat(value)
+            ) {
+              return value.toString();
+            }
+            return value;
+          });
+        } catch (_err2) {
           return obj;
         }
       }
-      // Pre-process: find numeric literals in the JSON that would lose precision.
-      // A number loses precision if:
-      //   - It's an integer with more than 15 significant digits
-      //   - It's a float with more than 15 significant digits total
-      //   - It exceeds Number.MAX_SAFE_INTEGER (9007199254740991)
-      //
-      // We wrap those in quotes before JSON.parse sees them.
-      const safed = obj.replace(
-        /(?<=[:,\[]\s*)-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?(?=\s*[,\}\]])/g,
-        (match) => {
-          // Check if this number would lose precision
-          if (wouldLosePrecision(match)) {
-            return '"' + match + '"';
-          }
-          return match;
-        },
-      );
-      return JSON.parse(safed);
-    } catch (err) {
-      // If the regex approach fails, fall back to standard reviver
-      try {
-        return JSON.parse(obj, (key, value) => {
-          if (
-            typeof value === "number" &&
-            !Number.isSafeInteger(value) &&
-            !isSmallFloat(value)
-          ) {
-            return value.toString();
-          }
-          return value;
-        });
-      } catch (err2) {
-        return obj;
-      }
     }
+    return obj;
   } else if (typeof obj === "object" && obj !== null) {
     for (const i in obj) {
       obj[i] = jsonSafeParse(obj[i]);
@@ -91,10 +86,7 @@ function wouldLosePrecision(numStr) {
   const n = Number(numStr);
   if (String(n) !== numStr && n.toString() !== numStr) {
     // Could be trailing zeros in decimal (e.g., "1.50") — that's not precision loss
-    if (decPart && Number(numStr) === parseFloat(numStr)) {
-      return false;
-    }
-    return true;
+    return !(decPart && Number(numStr) === parseFloat(numStr));
   }
 
   return false;
@@ -206,6 +198,8 @@ function setByPath(obj, path, value) {
 module.exports = {
   jsonSafeParse,
   jsonStringify,
+  wouldLosePrecision,
+  isSmallFloat,
   getType,
   empty,
   objectSelecter,

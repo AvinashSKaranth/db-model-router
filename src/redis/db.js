@@ -292,22 +292,24 @@ async function remove(table, filter, safeDelete = null) {
     throw new Error(WHERE_INVALID);
   }
 
-  // Check if filter is effectively empty
-  let records = await getAllRecords(table);
-  const allMatch = records.filter(whereData.query);
-
-  // If the filter was empty (matches everything), check if we have actual filter conditions
-  const emptyFilter = where(filter);
-  if (
-    emptyFilter &&
-    typeof emptyFilter.query === "function" &&
-    filter != null &&
-    (filter === "" ||
-      filter.length === 0 ||
-      (filter.length > 0 && filter[0].length === 0))
-  ) {
+  // Guard against empty filters at any nesting level to prevent accidental mass deletion
+  const isFilterEmpty =
+    !filter ||
+    filter === "" ||
+    !Array.isArray(filter) ||
+    filter.length === 0 ||
+    filter.every(
+      (group) =>
+        !Array.isArray(group) ||
+        group.length === 0 ||
+        group.every((cond) => !Array.isArray(cond) || cond.length < 3),
+    );
+  if (isFilterEmpty) {
     throw new Error("unable to remove as there are no filter attributes");
   }
+
+  let records = await getAllRecords(table);
+  const allMatch = records.filter(whereData.query);
 
   if (safeDelete != null) {
     const BATCH_SIZE = 1000;

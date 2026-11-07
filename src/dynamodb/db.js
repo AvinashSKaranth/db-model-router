@@ -427,7 +427,7 @@ async function insert(table, data, uniqueKeys = []) {
   const total = array.length;
 
   // Auto-generate primary key (UUID) for items missing it
-  const pkField = (uniqueKeys && uniqueKeys[0]) || primaryKey;
+  const pkField = primaryKey;
   for (const item of array) {
     if (item[pkField] == null || item[pkField] === "") {
       item[pkField] = crypto.randomUUID();

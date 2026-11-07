@@ -32,7 +32,11 @@
     "demo:create-postgres": "node scripts/demo-create.js postgres",
     "review": "ocr review",
     "review:master": "ocr review --from master --to HEAD",
-    "scan": "ocr scan"
+    "scan": "ocr scan",
+    "lint": "eslint src/ test/",
+    "lint:fix": "eslint src/ test/ --fix",
+    "coverage": "c8 mocha test/unit/*.test.js --exit",
+    "quality:report": "node scripts/quality-report.js"
   },
   "repository": {
     "type": "git",
@@ -122,9 +126,14 @@
     "@alibaba-group/open-code-review": "^1.11.0",
     "@aws-sdk/client-dynamodb": "^3.1164.0",
     "@aws-sdk/lib-dynamodb": "^3.1164.0",
+    "@eslint/js": "^10.0.1",
     "@faker-js/faker": "^10.4.0",
     "better-sqlite3": "^12.9.0",
+    "c8": "^12.0.0",
     "dotenv-cli": "^11.0.0",
+    "eslint": "^10.14.0",
+    "eslint-plugin-security": "^4.2.1",
+    "eslint-plugin-sonarjs": "^4.2.2",
     "express": "^4.21.0",
     "faker": "^5.5.3",
     "fast-check": "^4.6.0",

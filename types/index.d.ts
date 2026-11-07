@@ -81,14 +81,14 @@ export interface TransactionContext {
 export interface DatabaseAdapter {
   connect(config: any): Promise<any> | any;
   disconnect(): Promise<any> | any;
-  transaction<R = any>(fn: (tx: TransactionContext) => Promise<R>): Promise<R>;
+  transaction?<R = any>(fn: (tx: TransactionContext) => Promise<R>): Promise<R>;
   get(table: string, filter?: any[][][], sort?: any[], safeDelete?: string | null): Promise<FindResult<any>>;
   list(table: string, filter?: any[][][], sort?: any[], safeDelete?: string | null, page?: number, size?: number): Promise<FindResult<any>>;
   insert(table: string, data: any, unique?: any[]): Promise<any>;
   upsert(table: string, data: any, unique?: any[]): Promise<any>;
   remove(table: string, filter?: any[][][], safeDelete?: string | null): Promise<any>;
   query(sql: string, params?: any[]): Promise<any>;
-  escapeId(name: string): string;
+  escapeId?(name: string): string;
   [key: string]: any;
 }
 

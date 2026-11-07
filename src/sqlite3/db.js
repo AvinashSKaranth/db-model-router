@@ -99,6 +99,8 @@ function sort_builder(sort) {
     if (col.startsWith("-")) {
       col = col.substring(1).trim();
       dir = "DESC";
+    } else if (col.startsWith("+")) {
+      col = col.substring(1).trim();
     }
     if (!col) continue;
     query_items.push(`${escapeId(col)} ${dir}`);
@@ -129,7 +131,7 @@ function where(filter, safeDelete = null) {
         filter = [[]];
       }
     }
-  } catch (err) {
+  } catch (_err) {
     return null;
   }
 
@@ -288,8 +290,27 @@ function upsert(table, data, uniqueKeys = []) {
     for (const row of array) {
       const vals = columns.map((c) => row[c]);
       const result = stmt.run(...vals);
-      if (result.lastInsertRowid) {
+      if (result.changes > 0) {
         lastId = Number(result.lastInsertRowid);
+      } else if (uniqueKeys && uniqueKeys.length > 0) {
+        const presentKeys = uniqueKeys.filter((k) => row[k] !== undefined);
+        if (presentKeys.length > 0) {
+          const whereClause = presentKeys
+            .map((k) => `${escapeId(k)} = ?`)
+            .join(" AND ");
+          const existing = db
+            .prepare(`SELECT rowid AS __rowid__, * FROM ${escapeId(table)} WHERE ${whereClause}`)
+            .get(...presentKeys.map((k) => row[k]));
+          if (existing) {
+            lastId = Number(existing.id ?? existing.__rowid__ ?? 0);
+          } else {
+            lastId = 0;
+          }
+        } else {
+          lastId = 0;
+        }
+      } else {
+        lastId = 0;
       }
     }
   });
@@ -319,7 +340,6 @@ function insert(table, data, uniqueKeys = []) {
 
   let sql;
   if (uniqueKeys && uniqueKeys.length > 0) {
-    const conflictCols = uniqueKeys.map(escapeId).join(",");
     sql = `INSERT OR IGNORE INTO ${escapeId(table)} (${colList}) VALUES (${placeholders})`;
   } else {
     sql = `INSERT INTO ${escapeId(table)} (${colList}) VALUES (${placeholders})`;
@@ -332,8 +352,27 @@ function insert(table, data, uniqueKeys = []) {
     for (const row of array) {
       const vals = columns.map((c) => row[c]);
       const result = stmt.run(...vals);
-      if (result.lastInsertRowid) {
+      if (result.changes > 0) {
         lastId = Number(result.lastInsertRowid);
+      } else if (uniqueKeys && uniqueKeys.length > 0) {
+        const presentKeys = uniqueKeys.filter((k) => row[k] !== undefined);
+        if (presentKeys.length > 0) {
+          const whereClause = presentKeys
+            .map((k) => `${escapeId(k)} = ?`)
+            .join(" AND ");
+          const existing = db
+            .prepare(`SELECT rowid AS __rowid__, * FROM ${escapeId(table)} WHERE ${whereClause}`)
+            .get(...presentKeys.map((k) => row[k]));
+          if (existing) {
+            lastId = Number(existing.id ?? existing.__rowid__ ?? 0);
+          } else {
+            lastId = 0;
+          }
+        } else {
+          lastId = 0;
+        }
+      } else {
+        lastId = 0;
       }
     }
   });
@@ -401,7 +440,7 @@ function resolveSortIdentifiers(sortData) {
 function namify(text) {
   return text
     .replace("_", " ")
-    .replace(/(^\w{1})|(\s+\w{1})/g, (letter) => letter.toUpperCase());
+    .replace(/(^\w)|(\s+\w)/g, (letter) => letter.toUpperCase());
 }
 
 let txDepth = 0;
@@ -481,5 +520,7 @@ module.exports = {
   disconnect,
   close: disconnect,
   escapeId,
+  resolveSortIdentifiers,
+  arrayParam,
   transaction,
 };

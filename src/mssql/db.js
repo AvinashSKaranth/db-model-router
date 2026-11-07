@@ -200,6 +200,9 @@ function sort_builder(sort) {
     if (col.startsWith("-")) {
       col = col.substring(1).trim();
       dir = "DESC";
+    } else if (col.startsWith("+")) {
+      col = col.substring(1).trim();
+      dir = "ASC";
     }
     if (!col) continue;
     items.push(`${escapeId(col)} ${dir}`);
@@ -468,9 +471,7 @@ async function upsert(table, data, uniqueKeys = []) {
       // Exclude identity column from INSERT clause to avoid IDENTITY_INSERT errors
       const insertColumns = identityCol
         ? columns.filter((c) => c.toLowerCase() !== identityCol)
-        : nonUniqueColumns.length > 0
-          ? nonUniqueColumns
-          : columns;
+        : columns;
       const insertCols = insertColumns.map((c) => escapeId(c)).join(",");
       const insertVals = insertColumns
         .map((c) => `source.${escapeId(c)}`)

@@ -433,6 +433,9 @@ function sort_builder(sort) {
     if (col.startsWith("-")) {
       col = col.substring(1).trim();
       dir = "DESC";
+    } else if (col.startsWith("+")) {
+      col = col.substring(1).trim();
+      dir = "ASC";
     }
     if (!col) continue;
     items.push(`${escapeId(col)} ${dir}`);

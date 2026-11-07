@@ -211,6 +211,24 @@ function applySearch(filter, searchColumns, term) {
 }
 
 /**
+ * Normalize sort input to an array of sort strings.
+ * Handles: array of strings, JSON-stringified array, or comma-separated string ("-age,name").
+ */
+function normalizeSort(sort) {
+  if (!sort) return [];
+  if (Array.isArray(sort)) return sort;
+  const parsed = jsonSafeParse(sort);
+  if (Array.isArray(parsed)) return parsed;
+  if (typeof sort === "string") {
+    return sort
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+/**
  * Apply column projection to a single record or array of records.
  */
 function applySelect(data, select_columns) {
@@ -434,6 +452,7 @@ module.exports = function model(
           getPayloadValidator("CREATE", validatorStructure, primary_key, true),
         );
         data = data.data;
+        RemoveUnknownData(modelStructure, data);
       } else {
         delete data[primary_key];
         stripTimestampFields(data, allTimestampKeys);
@@ -441,6 +460,7 @@ module.exports = function model(
           data,
           getPayloadValidator("CREATE", validatorStructure, primary_key, false),
         );
+        RemoveUnknownData(modelStructure, [data]);
       }
       encryptPayload(data, encryptionMeta, activeEncryption?.keyring, activeEncryption?.version);
       data = jsonStringify(data);
@@ -605,6 +625,11 @@ module.exports = function model(
       return removeResult;
     },
     byId: async (id, options = {}, context = {}) => {
+      if (id === null || id === undefined || id === "") {
+        const err = new Error("Invalid id value", { cause: { status: 422 } });
+        err.status = 422;
+        throw err;
+      }
       let opt = {};
       let ctx = context;
       if (options && typeof options === "object") {
@@ -641,7 +666,9 @@ module.exports = function model(
           return record;
         } else return null;
       } else {
-        throw new Error("Invalid id value", { cause: { status: 422 } });
+        const err = new Error("Invalid id value", { cause: { status: 422 } });
+        err.status = 422;
+        throw err;
       }
     },
     //TODO: Implement Sort Logic
@@ -649,9 +676,8 @@ module.exports = function model(
       const { select_columns, search } = extractReservedParams(data);
       let sort = [];
       if (data.hasOwnProperty("sort")) {
-        sort = data.sort;
+        sort = normalizeSort(data.sort);
         delete data.sort;
-        sort = jsonSafeParse(sort);
       }
       let filter = dataToFilter(jsonSafeParse(data), primary_key);
       filter = applySearch(filter, option.search_columns, search);
@@ -673,9 +699,8 @@ module.exports = function model(
       const { select_columns, search } = extractReservedParams(data);
       let sort = [];
       if (data.hasOwnProperty("sort")) {
-        sort = data.sort;
+        sort = normalizeSort(data.sort);
         delete data.sort;
-        sort = jsonSafeParse(sort);
       }
       let filter = dataToFilter(jsonSafeParse(data), primary_key);
       filter = applySearch(filter, option.search_columns, search);
@@ -716,7 +741,7 @@ module.exports = function model(
         delete data.limit;
       }
       if (data.hasOwnProperty("sort")) {
-        sort = data.sort;
+        sort = normalizeSort(data.sort);
         delete data.sort;
       }
       let filter = dataToFilter(jsonSafeParse(data), primary_key);
@@ -725,7 +750,6 @@ module.exports = function model(
         const f = await hooks.beforeFind(filter, context);
         if (f !== undefined && Array.isArray(f)) filter = f;
       }
-      sort = jsonSafeParse(sort);
       const result = await db.list(
         table,
         filter,
@@ -754,6 +778,22 @@ module.exports = function model(
         });
       }
       const pkValue = data[primary_key];
+      // Validate input fields provided in patch (Review item B3)
+      const patchValidator = {};
+      for (const key of Object.keys(data)) {
+        if (key === primary_key) continue;
+        if (validatorStructure[key]) {
+          const rules = validatorStructure[key]
+            .split("|")
+            .filter((r) => r !== "required")
+            .join("|");
+          if (rules) patchValidator[key] = rules;
+        }
+      }
+      if (Object.keys(patchValidator).length > 0) {
+        await validateInput(data, patchValidator);
+      }
+
       // Fetch existing record
       const existing = await db.get(
         table,
