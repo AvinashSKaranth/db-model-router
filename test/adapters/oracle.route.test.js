@@ -36,7 +36,7 @@ describe("Oracle Route REST API", function () {
       password: process.env.ORACLE_PASSWORD || "oracle",
     });
     await db.query(
-      `/* ORACLE_NATIVE */ CREATE TABLE ${tableName} (
+      `CREATE TABLE ${tableName} (
         id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         name VARCHAR2(255) NOT NULL,
         email VARCHAR2(255) NOT NULL,
@@ -51,7 +51,7 @@ describe("Oracle Route REST API", function () {
 
   after(async function () {
     try {
-      await db.query(`/* ORACLE_NATIVE */ DROP TABLE ${tableName}`);
+      await db.query(`DROP TABLE ${tableName}`);
     } catch (_) {}
     await db.disconnect();
   });
@@ -267,6 +267,39 @@ describe("Oracle Route REST API", function () {
       // Verify records are gone
       const check = await testModel.find({ name: "ToRemove" });
       assert.strictEqual(check.count, 0, "removed records should not exist");
+    });
+
+    it("QUERY /test/ should filter collection using request body", async function () {
+      await testModel.insert({
+        name: "QueryUserOracle",
+        email: "queryoracle@example.com",
+        age: 40,
+      });
+
+      const res = await request(app)
+        .query("/test/")
+        .send({ name: "QueryUserOracle" })
+        .expect("Content-Type", /json/)
+        .expect(200);
+
+      assert.ok(Array.isArray(res.body.data));
+      assert.ok(res.body.count >= 1);
+      assert.strictEqual(res.body.data[0].name, "QueryUserOracle");
+    });
+
+    it("QUERY /test/:pk should get record by PK with body-based projection", async function () {
+      const all = await testModel.find({ name: "QueryUserOracle" });
+      const id = all.data[0].id;
+
+      const res = await request(app)
+        .query("/test/" + id)
+        .send({ select_columns: ["id", "name"] })
+        .expect("Content-Type", /json/)
+        .expect(200);
+
+      assert.strictEqual(res.body.id, id);
+      assert.strictEqual(res.body.name, "QueryUserOracle");
+      assert.strictEqual(res.body.age, undefined);
     });
   });
 });

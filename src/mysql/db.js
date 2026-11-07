@@ -1,26 +1,35 @@
 const mysql = require("mysql2");
 const { jsonSafeParse } = require("../commons/function");
+
 let pool = null;
 const WHERE_INVALID = "Invalid filter object";
 
-function connect(credentails) {
+/**
+ * Escapes an identifier with MySQL backticks, stripping null bytes.
+ */
+function escapeId(name) {
+  if (typeof name !== "string") name = String(name);
+  name = name.replace(/\0/g, "");
+  return mysql.escapeId(name);
+}
+
+function connect(credentials) {
   // Force UTC timezone so timestamps are consistent
-  // dateStrings: true returns raw strings without JS Date conversion
-  credentails.timezone = "+00:00";
+  credentials.timezone = "+00:00";
   // Enable multiple statements by default so multi-query migration files
   // (e.g. a single .sql with many CREATE TABLE statements) run in one call.
-  // Applied to mysql and mariadb (both use this adapter).
-  if (credentails.multipleStatements === undefined) {
-    credentails.multipleStatements = true;
+  if (credentials.multipleStatements === undefined) {
+    credentials.multipleStatements = true;
   }
-  pool = mysql.createPool(credentails);
+  pool = mysql.createPool(credentials);
   return pool;
 }
+
 function query(sql, parameter = []) {
   return new Promise((resolve, reject) => {
     pool.query(sql, parameter, function (error, results) {
       if (error) {
-        reject(error);
+        return reject(error);
       }
       resolve(results);
     });
@@ -28,7 +37,7 @@ function query(sql, parameter = []) {
 }
 
 function sort_builder(sort) {
-  if (sort.length < 1) {
+  if (!sort || sort.length < 1) {
     return {
       query: "",
       value: [],
@@ -37,24 +46,28 @@ function sort_builder(sort) {
   let query_item = [];
   let value = [];
   for (const item of sort) {
-    if (item[0] === "-") {
+    if (typeof item !== "string") continue;
+    let col = item.trim();
+    if (col.startsWith("-")) {
       query_item.push("?? DESC");
-      value.push(item.replace("-", ""));
+      value.push(col.slice(1).trim());
     } else {
       query_item.push("?? ASC");
-      value.push(item);
+      value.push(col.startsWith("+") ? col.slice(1).trim() : col);
     }
   }
-  let query = "ORDER BY " + query_item.join(",");
+  let query = query_item.length > 0 ? "ORDER BY " + query_item.join(",") : "";
   return {
     query,
     value,
   };
 }
+
 function where(filter, safeDelete = null) {
   if (filter !== null && filter !== "" && !Array.isArray(filter)) {
     return null;
   }
+  let filterCopy;
   try {
     if (
       filter === null ||
@@ -71,18 +84,22 @@ function where(filter, safeDelete = null) {
           value: [],
         };
       } else {
-        filter = [[]];
+        filterCopy = [[]];
       }
+    } else {
+      // Clone filter array to prevent in-place mutation of caller's data
+      filterCopy = filter.map((group) => group.map((cond) => [...cond]));
     }
   } catch (err) {
     return null;
   }
 
   if (safeDelete !== null) {
-    for (const filterItem of filter) {
+    for (const filterItem of filterCopy) {
       filterItem.push([safeDelete, "=", 0]);
     }
   }
+
   const valid_conditionals = [
     "=",
     "like",
@@ -97,7 +114,8 @@ function where(filter, safeDelete = null) {
   ];
   let conditionOr = [];
   let value = [];
-  for (const i of filter) {
+
+  for (const i of filterCopy) {
     let conditionAnd = [];
     for (const j of i) {
       if (!valid_conditionals.includes(j[1])) {
@@ -107,7 +125,7 @@ function where(filter, safeDelete = null) {
         return null;
       }
       if (j[1] === "in" || j[1] === "not in") {
-        conditionAnd.push("?? " + j[1] + " " + arrayParam(j[2].length) + "");
+        conditionAnd.push("?? " + j[1] + " " + arrayParam(j[2].length));
         value.push(j[0], ...j[2]);
       } else if (j[1] === "like" || j[1] === "not like") {
         conditionAnd.push("?? " + j[1] + " ?");
@@ -119,41 +137,29 @@ function where(filter, safeDelete = null) {
     }
     conditionOr.push(conditionAnd.join(" AND "));
   }
+
   let query = "WHERE ((" + conditionOr.join(") OR (") + "))";
   return {
     query,
     value,
   };
 }
-function get(table, filter = [], sort = [], safeDelete = null) {
-  const response = {};
-  return new Promise((resolve, reject) => {
-    if (safeDelete !== null) {
-      for (const filterItem of filter) {
-        filterItem.push([safeDelete, "=", 0]);
-      }
-    }
-    const whereData = where(filter, safeDelete);
-    const sortData = sort_builder(sort);
-    const statement = `SELECT * FROM ?? ${whereData["query"]} ${sortData["query"]};`;
-    pool.query(
-      statement,
-      [table, ...whereData["value"], ...sortData["value"]],
-      function (error, results) {
-        if (error) {
-          reject({ message: error.sqlMessage });
-        }
-        response["data"] = jsonSafeParse(results);
-        response["count"] = qcount(table, filter, safeDelete).then((count) => {
-          response["count"] = count;
-          resolve(response);
-        });
-      },
-    );
-  });
+
+async function get(table, filter = [], sort = [], safeDelete = null) {
+  const whereData = where(filter, safeDelete);
+  const sortData = sort_builder(sort);
+  if (whereData == null) {
+    throw new Error(WHERE_INVALID);
+  }
+  const statement = `SELECT * FROM ?? ${whereData.query} ${sortData.query};`.trim();
+  const [results] = await pool
+    .promise()
+    .query(statement, [table, ...whereData.value, ...sortData.value]);
+  const count = await qcount(table, filter, safeDelete);
+  return { data: jsonSafeParse(results), count };
 }
 
-function list(
+async function list(
   table,
   filter = [],
   sort = [],
@@ -161,377 +167,259 @@ function list(
   page = 0,
   limit = 30,
 ) {
-  const response = {};
-  return new Promise((resolve, reject) => {
-    const whereData = where(filter, safeDelete);
-    const sortData = sort_builder(sort);
-    if (whereData == null) {
-      reject({ message: WHERE_INVALID });
-    }
-    const statement = `SELECT * FROM ?? ${whereData["query"]} ${sortData["query"]} LIMIT ? OFFSET ?;`;
-    pool.query(
-      statement,
-      [table, ...whereData["value"], ...sortData["value"], limit, page * limit],
-      function (error, results) {
-        if (error) {
-          reject({ message: error.sqlMessage });
-        }
-        response["data"] = jsonSafeParse(results);
-        response["count"] = qcount(table, filter, safeDelete).then((count) => {
-          response["count"] = count;
-          resolve(response);
-        });
-      },
-    );
-  });
+  const whereData = where(filter, safeDelete);
+  const sortData = sort_builder(sort);
+  if (whereData == null) {
+    throw new Error(WHERE_INVALID);
+  }
+  const offset = page * limit;
+  const statement = `SELECT * FROM ?? ${whereData.query} ${sortData.query} LIMIT ? OFFSET ?;`.trim();
+  const [results] = await pool
+    .promise()
+    .query(statement, [
+      table,
+      ...whereData.value,
+      ...sortData.value,
+      limit,
+      offset,
+    ]);
+  const count = await qcount(table, filter, safeDelete);
+  return { data: jsonSafeParse(results), count };
 }
 
-function qcount(table, filter, safeDelete = null) {
-  return new Promise((resolve) => {
-    const whereData = where(filter, safeDelete);
-    if (whereData == null) {
-      reject({ message: WHERE_INVALID });
-    }
-    const statement = `SELECT count(*) AS number FROM ?? ${whereData["query"]};`;
-    pool.query(
-      statement,
-      [table, ...whereData["value"]],
-      function (error, results) {
-        if (error || results === "undefined") {
-          resolve(0);
-        } else {
-          resolve(results[0].number);
-        }
-      },
-    );
-  });
+async function qcount(table, filter, safeDelete = null) {
+  const whereData = where(filter, safeDelete);
+  if (whereData == null) {
+    throw new Error(WHERE_INVALID);
+  }
+  const statement = `SELECT count(*) AS number FROM ?? ${whereData.query};`.trim();
+  const [results] = await pool
+    .promise()
+    .query(statement, [table, ...whereData.value]);
+  return results && results[0] ? results[0].number : 0;
 }
 
-function remove(table, filter, safeDelete = null) {
-  return new Promise((resolve, reject) => {
-    const whereData = where(filter);
-    if (whereData == null) {
-      reject({ message: WHERE_INVALID });
-    }
-    if (whereData.value.length < 1) {
-      reject({ status: "unable to remove as there is not filter attributes" });
-    } else {
-      let statement = "";
-      if (safeDelete != null) {
-        statement = `UPDATE  ?? SET ?? = 1  ${whereData["query"]};`;
-      } else {
-        statement = `DELETE FROM ?? ${whereData["query"]};`;
-      }
-      pool.query(
-        statement,
-        safeDelete != null
-          ? [table, safeDelete, ...whereData["value"]]
-          : [table, ...whereData["value"]],
-        function (error, results) {
-          if (error || results === undefined) {
-            reject({ message: error.sqlMessage });
-          }
-          if (results) {
-            let rows = results.affectedRows || 0;
-            resolve({
-              message: rows + " " + table + (rows > 1 ? "s" : "") + " removed",
-            });
-          }
-        },
-      );
-    }
-  });
-}
+async function remove(table, filter, safeDelete = null) {
+  const whereData = where(filter);
+  if (whereData == null) {
+    throw new Error(WHERE_INVALID);
+  }
+  if (whereData.value.length < 1) {
+    throw new Error("unable to remove as there is not filter attributes");
+  }
 
-function upsert(table, data, uniqueKeys = []) {
-  return new Promise((resolve, reject) => {
-    let array = [];
-    const promise = [];
-    let count = 0;
-    let total = 0;
-    if (!isset(data[0])) {
-      array.push(data);
-    } else {
-      array = data;
-    }
-    const [statement, insertColumn, updateColumn] = getChangeParameter(
-      array[0],
-      uniqueKeys,
-    );
-    let value = [];
-    for (const [i, v] of Object.entries(array)) {
-      if (array.hasOwnProperty(i)) {
-        const entry = [];
-        for (const col of insertColumn) {
-          entry.push(v[col]);
-        }
-        value.push(entry);
-        count++;
-        total++;
-        if (count > 999) {
-          promise.push(
-            pool
-              .promise()
-              .query(statement, [
-                table,
-                ...insertColumn,
-                value,
-                ...updateColumn,
-              ]),
-          );
-          value = [];
-          count = 0;
-        }
-      }
-    }
-    if (count > 0) {
-      promise.push(
-        pool
-          .promise()
-          .query(statement, [table, ...insertColumn, value, ...updateColumn]),
-      );
-    }
+  let statement;
+  let params;
+  if (safeDelete != null) {
+    statement = `UPDATE ?? SET ?? = 1 ${whereData.query};`.trim();
+    params = [table, safeDelete, ...whereData.value];
+  } else {
+    statement = `DELETE FROM ?? ${whereData.query};`.trim();
+    params = [table, ...whereData.value];
+  }
 
-    const response = {
-      rows: total,
-      message:
-        (total === 1
-          ? `1 ${namify(table)} is `
-          : `${total} ${namify(table)}s are `) + "saved",
-      type: "success",
-    };
-    Promise.all(promise)
-      .then((results) => {
-        try {
-          if (total === 1) {
-            response["id"] = results[0][0].insertId;
-          }
-          resolve(response);
-        } catch (err) {
-          reject(err);
-        }
-      })
-      .catch((error) => {
-        reject({ message: error.sqlMessage, type: "danger" });
-      });
-  });
+  const [results] = await pool.promise().query(statement, params);
+  const rows = results ? results.affectedRows || 0 : 0;
+  return {
+    message: rows + " " + table + (rows > 1 ? "s" : "") + " removed",
+  };
 }
 
 function getChangeParameter(row, uniqueKeys, onDuplicate = true) {
   const insertColumn = Object.keys(row);
   const updateColumn = [];
-  const queryStart =
-    "INSERT " +
-    (!onDuplicate ? "IGNORE" : "") +
-    " INTO ?? " +
-    insertParam(insertColumn.length);
-  let queryEnd = "";
+  let isDuplicate = onDuplicate;
+
   if (onDuplicate) {
-    queryEnd = " ON DUPLICATE KEY UPDATE ";
     for (const column of insertColumn) {
       if (!uniqueKeys.includes(column)) {
-        if (queryEnd !== " ON DUPLICATE KEY UPDATE ") {
-          queryEnd += ",";
-        }
-        queryEnd += "??=VALUES(??)";
         updateColumn.push(column);
         updateColumn.push(column);
       }
     }
+    // Fall back to INSERT IGNORE if no non-unique columns to update
+    if (updateColumn.length === 0) {
+      isDuplicate = false;
+    }
+  }
+
+  const queryStart =
+    "INSERT " +
+    (!isDuplicate ? "IGNORE" : "") +
+    " INTO ?? " +
+    insertParam(insertColumn.length);
+
+  let queryEnd = "";
+  if (isDuplicate) {
+    const updatePairs = [];
+    for (let i = 0; i < updateColumn.length; i += 2) {
+      updatePairs.push("??=VALUES(??)");
+    }
+    queryEnd = " ON DUPLICATE KEY UPDATE " + updatePairs.join(",");
   }
   queryEnd += ";";
+
   return [
     `${queryStart} VALUES ? ${queryEnd}`,
     insertColumn,
     updateColumn,
   ];
 }
+
+async function upsert(table, data, uniqueKeys = []) {
+  let array = Array.isArray(data) ? [...data] : [data];
+  let count = 0;
+  let total = 0;
+  const promise = [];
+
+  const [statement, insertColumn, updateColumn] = getChangeParameter(
+    array[0],
+    uniqueKeys,
+  );
+
+  let value = [];
+  for (const v of array) {
+    const entry = [];
+    for (const col of insertColumn) {
+      entry.push(v[col]);
+    }
+    value.push(entry);
+    count++;
+    total++;
+    if (count > 999) {
+      promise.push(
+        pool
+          .promise()
+          .query(statement, [
+            table,
+            ...insertColumn,
+            value,
+            ...updateColumn,
+          ]),
+      );
+      value = [];
+      count = 0;
+    }
+  }
+  if (count > 0) {
+    promise.push(
+      pool
+        .promise()
+        .query(statement, [table, ...insertColumn, value, ...updateColumn]),
+    );
+  }
+
+  const response = {
+    rows: total,
+    message:
+      (total === 1
+        ? `1 ${namify(table)} is `
+        : `${total} ${namify(table)}s are `) + "saved",
+    type: "success",
+  };
+
+  const results = await Promise.all(promise);
+  if (total === 1 && results[0]?.[0]) {
+    response["id"] = results[0][0].insertId;
+  }
+  return response;
+}
+
+async function insert(table, data, uniqueKeys = []) {
+  let array = Array.isArray(data) ? [...data] : [data];
+  let count = 0;
+  let total = 0;
+  const promise = [];
+
+  const [statement, insertColumn] = getChangeParameter(
+    array[0],
+    uniqueKeys,
+    false,
+  );
+
+  let value = [];
+  for (const v of array) {
+    const entry = [];
+    for (const col of insertColumn) {
+      entry.push(v[col]);
+    }
+    value.push(entry);
+    count++;
+    total++;
+    if (count > 999) {
+      promise.push(
+        pool.promise().query(statement, [table, ...insertColumn, value]),
+      );
+      value = [];
+      count = 0;
+    }
+  }
+  if (count > 0) {
+    promise.push(
+      pool.promise().query(statement, [table, ...insertColumn, value]),
+    );
+  }
+
+  const response = {
+    rows: total,
+    message:
+      (total === 1
+        ? `1 ${namify(table)} is `
+        : `${total} ${namify(table)}s are `) + "saved",
+    type: "success",
+  };
+
+  const results = await Promise.all(promise);
+  if (total === 1 && results[0]?.[0]) {
+    response["id"] = results[0][0].insertId;
+  }
+  return response;
+}
+
+async function disconnect() {
+  if (pool) {
+    await pool.promise().end();
+    pool = null;
+  }
+}
+
 function insertParam(number) {
   let str = "";
   for (let i = 0; i < number; i++) {
-    if (i === 0) {
-      str = "??";
-    } else {
-      str = str + ",??";
-    }
+    str += i === 0 ? "??" : ",??";
   }
   return `(${str})`;
 }
+
 function arrayParam(number) {
   let str = "";
   for (let i = 0; i < number; i++) {
-    if (i === 0) {
-      str = "?";
-    } else {
-      str = str + ",?";
-    }
+    str += i === 0 ? "?" : ",?";
   }
   return `(${str})`;
 }
-function isset(obj) {
-  return typeof obj !== "undefined";
-}
+
 function namify(text) {
   return text
     .replace("_", " ")
     .replace(/(^\w{1})|(\s+\w{1})/g, (letter) => letter.toUpperCase());
 }
+
 module.exports = {
   connect,
   get,
   list,
   where,
+  sort_builder,
   query,
   qcount,
   remove,
   delete: remove,
   upsert,
   change: upsert,
-  pool,
   insert,
+  disconnect,
+  close: disconnect,
+  escapeId,
+  pool: null,
 };
-
-function insert(table, data, uniqueKeys = []) {
-  return new Promise((resolve, reject) => {
-    let array = [];
-    const promise = [];
-    let count = 0;
-    let total = 0;
-    if (!isset(data[0])) {
-      array.push(data);
-    } else {
-      array = data;
-    }
-    const [statement, insertColumn, updateColumn] = getChangeParameter(
-      array[0],
-      uniqueKeys,
-      false,
-    );
-    let value = [];
-    for (const [i, v] of Object.entries(array)) {
-      if (array.hasOwnProperty(i)) {
-        const entry = [];
-        for (const col of insertColumn) {
-          entry.push(v[col]);
-        }
-        value.push(entry);
-        count++;
-        total++;
-        if (count > 999) {
-          promise.push(
-            pool.promise().query(statement, [table, ...insertColumn, value]),
-          );
-          value = [];
-          count = 0;
-        }
-      }
-    }
-    if (count > 0) {
-      promise.push(
-        pool.promise().query(statement, [table, ...insertColumn, value]),
-      );
-    }
-
-    const response = {
-      rows: total,
-      message:
-        (total === 1
-          ? `1 ${namify(table)} is `
-          : `${total} ${namify(table)}s are `) + "saved",
-      type: "success",
-    };
-    Promise.all(promise)
-      .then((results) => {
-        try {
-          if (total === 1) {
-            response["id"] = results[0][0].insertId;
-          }
-          resolve(response);
-        } catch (err) {
-          reject(err);
-        }
-      })
-      .catch((error) => {
-        reject({ message: error.sqlMessage, type: "danger" });
-      });
-  });
-}
-/*
-function update(table, data, uniqueKeys = []) {
-  return new Promise((resolve) => {
-    let array = [];
-    const promise = [];
-    let count = 0;
-    let total = 0;
-    if (!isset(data[0])) {
-      array.push(data);
-    } else {
-      array = data;
-    }
-    const [statement, insertColumn, updateColumn] = getChangeParameter(
-      array[0],
-      uniqueKeys
-    );
-    let value = [];
-    for (const [i, v] of Object.entries(array)) {
-      if (array.hasOwnProperty(i)) {
-        const entry = [];
-        for (const col of insertColumn) {
-          entry.push(v[col]);
-        }
-        value.push(entry);
-        count++;
-        total++;
-        if (count > 999) {
-          promise.push(
-            pool
-              .promise()
-              .query(
-                statement,
-                [table, ...insertColumn, value, ...updateColumn],
-                function (_error, results) {
-                  resolve(results);
-                }
-              )
-          );
-          value = [];
-          count = 0;
-        }
-      }
-    }
-    if (count > 0) {
-      promise.push(
-        pool
-          .promise()
-          .query(
-            statement,
-            [table, ...insertColumn, value, ...updateColumn],
-            function (_error, results) {
-              resolve(results);
-            }
-          )
-      );
-    }
-
-    const response = {
-      rows: total,
-      message:
-        (total === 1
-          ? `1 ${namify(table)} is `
-          : `${total} ${namify(table)}s are `) + "saved",
-      type: "success",
-    };
-    Promise.all(promise)
-      .then((results) => {
-        try {
-          if (total === 1) {
-            response["id"] = results[0][0].insertId;
-          }
-        } catch (err) {}
-        resolve(response);
-      })
-      .catch((error) => {
-        resolve({ message: error.sqlMessage, type: "danger" });
-      });
-  });
-}*/

@@ -15,15 +15,68 @@ function connect(config) {
   return db;
 }
 
+/**
+ * Checks if SQL contains multiple statements outside string literals and comments.
+ */
+function isMultiStatement(sql) {
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+  let semicolonCount = 0;
+
+  for (let i = 0; i < sql.length; i++) {
+    const ch = sql[i];
+    const next = sql[i + 1];
+
+    if (inSingleQuote) {
+      if (ch === "'") {
+        if (next === "'") {
+          i++;
+        } else {
+          inSingleQuote = false;
+        }
+      }
+    } else if (inDoubleQuote) {
+      if (ch === '"') {
+        if (next === '"') {
+          i++;
+        } else {
+          inDoubleQuote = false;
+        }
+      }
+    } else if (inLineComment) {
+      if (ch === "\n") {
+        inLineComment = false;
+      }
+    } else if (inBlockComment) {
+      if (ch === "*" && next === "/") {
+        i++;
+        inBlockComment = false;
+      }
+    } else {
+      if (ch === "'") {
+        inSingleQuote = true;
+      } else if (ch === '"') {
+        inDoubleQuote = true;
+      } else if (ch === "-" && next === "-") {
+        inLineComment = true;
+      } else if (ch === "/" && next === "*") {
+        inBlockComment = true;
+      } else if (ch === ";") {
+        const remaining = sql.slice(i + 1).replace(/--[^\n]*/g, "").trim();
+        if (remaining.length > 0) {
+          semicolonCount++;
+        }
+      }
+    }
+  }
+  return semicolonCount > 0;
+}
+
 function query(sql, parameter = []) {
   // Use exec() for multi-statement SQL (e.g., migration files)
-  if (
-    parameter.length === 0 &&
-    sql
-      .replace(/--[^\n]*/g, "")
-      .split(";")
-      .filter((s) => s.trim()).length > 1
-  ) {
+  if (parameter.length === 0 && isMultiStatement(sql)) {
     db.exec(sql);
     return { changes: 0 };
   }
@@ -39,19 +92,20 @@ function sort_builder(sort) {
     return { query: "", value: [] };
   }
   let query_items = [];
-  let value = [];
   for (const item of sort) {
-    if (item[0] === "-") {
-      query_items.push("?? DESC");
-      value.push(item.replace("-", ""));
-    } else {
-      query_items.push("?? ASC");
-      value.push(item);
+    if (typeof item !== "string") continue;
+    let col = item.trim();
+    let dir = "ASC";
+    if (col.startsWith("-")) {
+      col = col.substring(1).trim();
+      dir = "DESC";
     }
+    if (!col) continue;
+    query_items.push(`${escapeId(col)} ${dir}`);
   }
   return {
-    query: "ORDER BY " + query_items.join(","),
-    value,
+    query: query_items.length > 0 ? "ORDER BY " + query_items.join(",") : "",
+    value: [],
   };
 }
 
@@ -139,7 +193,7 @@ function get(table, filter = [], sort = [], safeDelete = null) {
   }
 
   const sortQuery = resolveSortIdentifiers(sortData);
-  const statement = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortQuery}`;
+  const statement = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortQuery}`.trim();
   const rows = db.prepare(statement).all(...whereData.value);
   const count = qcount(table, filter, safeDelete);
   return { data: jsonSafeParse(rows), count };
@@ -161,7 +215,7 @@ function list(
 
   const sortQuery = resolveSortIdentifiers(sortData);
   const offset = page * limit;
-  const statement = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortQuery} LIMIT ? OFFSET ?`;
+  const statement = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortQuery} LIMIT ? OFFSET ?`.trim();
   const rows = db.prepare(statement).all(...whereData.value, limit, offset);
   const count = qcount(table, filter, safeDelete);
   return { data: jsonSafeParse(rows), count };
@@ -172,13 +226,9 @@ function qcount(table, filter, safeDelete = null) {
   if (whereData == null) {
     return 0;
   }
-  const statement = `SELECT count(*) AS number FROM ${escapeId(table)} ${whereData.query}`;
-  try {
-    const result = db.prepare(statement).get(...whereData.value);
-    return result ? result.number : 0;
-  } catch (err) {
-    return 0;
-  }
+  const statement = `SELECT count(*) AS number FROM ${escapeId(table)} ${whereData.query}`.trim();
+  const result = db.prepare(statement).get(...whereData.value);
+  return result ? result.number : 0;
 }
 
 function remove(table, filter, safeDelete = null) {
@@ -193,10 +243,10 @@ function remove(table, filter, safeDelete = null) {
   let statement;
   let params;
   if (safeDelete != null) {
-    statement = `UPDATE ${escapeId(table)} SET ${escapeId(safeDelete)} = 1 ${whereData.query}`;
+    statement = `UPDATE ${escapeId(table)} SET ${escapeId(safeDelete)} = 1 ${whereData.query}`.trim();
     params = whereData.value;
   } else {
-    statement = `DELETE FROM ${escapeId(table)} ${whereData.query}`;
+    statement = `DELETE FROM ${escapeId(table)} ${whereData.query}`.trim();
     params = whereData.value;
   }
 
@@ -213,7 +263,6 @@ function upsert(table, data, uniqueKeys = []) {
   const columns = Object.keys(array[0]);
 
   if (!uniqueKeys || uniqueKeys.length === 0) {
-    // No unique keys — just do a plain insert
     return insert(table, data, uniqueKeys);
   }
 
@@ -314,8 +363,20 @@ function disconnect() {
 // --- Utility helpers ---
 
 function escapeId(name) {
-  // Quote identifier to avoid reserved-word conflicts
-  return '"' + name.replace(/"/g, '""') + '"';
+  if (typeof name !== "string") {
+    name = String(name);
+  }
+  name = name.replace(/\0/g, "");
+  return name
+    .split(".")
+    .map((part) => {
+      part = part.trim();
+      if (part.startsWith('"') && part.endsWith('"')) {
+        part = part.slice(1, -1);
+      }
+      return '"' + part.replace(/"/g, '""') + '"';
+    })
+    .join(".");
 }
 
 function arrayParam(number) {
@@ -329,8 +390,10 @@ function arrayParam(number) {
 function resolveSortIdentifiers(sortData) {
   if (!sortData.query) return "";
   let q = sortData.query;
-  for (const v of sortData.value) {
-    q = q.replace("??", escapeId(v));
+  if (sortData.value && sortData.value.length > 0) {
+    for (const v of sortData.value) {
+      q = q.replace("??", escapeId(v));
+    }
   }
   return q;
 }
@@ -346,6 +409,7 @@ module.exports = {
   get,
   list,
   where,
+  sort_builder,
   query,
   qcount,
   remove,
@@ -355,4 +419,5 @@ module.exports = {
   insert,
   disconnect,
   close: disconnect,
+  escapeId,
 };

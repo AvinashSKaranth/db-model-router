@@ -15,6 +15,15 @@ let dateStringsMode = false;
 const WHERE_INVALID = "Invalid filter object";
 const pkCache = {};
 
+/**
+ * Escapes an identifier with CockroachDB/PostgreSQL double quotes, stripping null bytes.
+ */
+function escapeId(name) {
+  if (typeof name !== "string") name = String(name);
+  name = name.replace(/\0/g, "");
+  return `"${name.replace(/"/g, '""')}"`;
+}
+
 function sanitizeValue(v) {
   if (v instanceof Date) return v.toISOString().slice(0, 19).replace("T", " ");
   if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v)) {
@@ -141,11 +150,12 @@ async function query(sql, parameter = []) {
   });
 }
 
-// WHERE builder — generates PostgreSQL-compatible WHERE clauses with $N bind params
+// WHERE builder — generates PostgreSQL/CockroachDB-compatible WHERE clauses with $N bind params
 function where(filter, safeDelete = null) {
   if (filter !== null && filter !== "" && !Array.isArray(filter)) {
     return null;
   }
+  let filterCopy;
   try {
     if (
       filter === null ||
@@ -159,15 +169,18 @@ function where(filter, safeDelete = null) {
       if (safeDelete === null) {
         return { query: "", value: [] };
       } else {
-        filter = [[]];
+        filterCopy = [[]];
       }
+    } else {
+      // Clone filter array to prevent in-place mutation of caller's data
+      filterCopy = filter.map((group) => group.map((cond) => [...cond]));
     }
   } catch (err) {
     return null;
   }
 
   if (safeDelete !== null) {
-    for (const filterItem of filter) {
+    for (const filterItem of filterCopy) {
       filterItem.push([safeDelete, "=", 0]);
     }
   }
@@ -188,13 +201,14 @@ function where(filter, safeDelete = null) {
   let value = [];
   let bindIdx = 0;
 
-  for (const i of filter) {
+  for (const i of filterCopy) {
     let conditionAnd = [];
     for (const j of i) {
       if (!valid_conditionals.includes(j[1])) return null;
       if ((j[1] === "in" || j[1] === "not in") && !Array.isArray(j[2]))
         return null;
 
+      const colName = escapeId(j[0]);
       if (j[1] === "in" || j[1] === "not in") {
         const placeholders = j[2]
           .map(() => {
@@ -202,7 +216,7 @@ function where(filter, safeDelete = null) {
             return "$" + bindIdx;
           })
           .join(",");
-        conditionAnd.push(`${j[0]} ${j[1]} (${placeholders})`);
+        conditionAnd.push(`${colName} ${j[1]} (${placeholders})`);
         value.push(
           ...j[2].map((v) =>
             typeof v === "boolean" ? (v ? 1 : 0) : v === "" ? null : v,
@@ -210,11 +224,11 @@ function where(filter, safeDelete = null) {
         );
       } else if (j[1] === "like" || j[1] === "not like") {
         bindIdx++;
-        conditionAnd.push(`${j[0]} ${j[1]} $${bindIdx}`);
+        conditionAnd.push(`${colName} ${j[1] === "like" ? "ILIKE" : "NOT ILIKE"} $${bindIdx}`);
         value.push("%" + j[2] + "%");
       } else {
         bindIdx++;
-        conditionAnd.push(`${j[0]} ${j[1]} $${bindIdx}`);
+        conditionAnd.push(`${colName} ${j[1]} $${bindIdx}`);
         let val = j[2];
         if (val === "") val = null;
         else if (typeof val === "boolean") val = val ? 1 : 0;
@@ -234,13 +248,15 @@ function sort_builder(sort) {
   if (!sort || sort.length < 1) return { query: "", value: [] };
   let items = [];
   for (const item of sort) {
-    if (item[0] === "-") {
-      items.push(item.replace("-", "") + " DESC");
+    if (typeof item !== "string") continue;
+    let col = item.trim();
+    if (col.startsWith("-")) {
+      items.push(escapeId(col.slice(1).trim()) + " DESC");
     } else {
-      items.push(item + " ASC");
+      items.push(escapeId(col.startsWith("+") ? col.slice(1).trim() : col) + " ASC");
     }
   }
-  return { query: "ORDER BY " + items.join(","), value: [] };
+  return { query: items.length > 0 ? "ORDER BY " + items.join(",") : "", value: [] };
 }
 
 async function get(table, filter = [], sort = [], safeDelete = null) {
@@ -248,7 +264,7 @@ async function get(table, filter = [], sort = [], safeDelete = null) {
   const sortData = sort_builder(sort);
   if (whereData == null) throw new Error(WHERE_INVALID);
 
-  const sql = `SELECT * FROM ${table} ${whereData.query} ${sortData.query}`;
+  const sql = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query}`;
   const rows = await query(sql, whereData.value);
   const count = await qcount(table, filter, safeDelete);
   return { data: jsonSafeParse(rows), count };
@@ -267,7 +283,7 @@ async function list(
   if (whereData == null) throw new Error(WHERE_INVALID);
 
   const offset = page * limit;
-  const sql = `SELECT * FROM ${table} ${whereData.query} ${sortData.query} LIMIT ${limit} OFFSET ${offset}`;
+  const sql = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query} LIMIT ${parseInt(limit, 10)} OFFSET ${parseInt(offset, 10)}`;
   const rows = await query(sql, whereData.value);
   const count = await qcount(table, filter, safeDelete);
   return { data: jsonSafeParse(rows), count };
@@ -275,14 +291,10 @@ async function list(
 
 async function qcount(table, filter, safeDelete = null) {
   const whereData = where(filter, safeDelete);
-  if (whereData == null) return 0;
-  const sql = `SELECT count(*) AS number FROM ${table} ${whereData.query}`;
-  try {
-    const rows = await query(sql, whereData.value);
-    return parseInt(rows[0]?.number) || 0;
-  } catch {
-    return 0;
-  }
+  if (whereData == null) throw new Error(WHERE_INVALID);
+  const sql = `SELECT count(*) AS number FROM ${escapeId(table)} ${whereData.query}`;
+  const rows = await query(sql, whereData.value);
+  return parseInt(rows[0]?.number) || 0;
 }
 
 async function remove(table, filter, safeDelete = null) {
@@ -295,10 +307,10 @@ async function remove(table, filter, safeDelete = null) {
   let sql;
   let params;
   if (safeDelete != null) {
-    sql = `UPDATE ${table} SET ${safeDelete} = 1 ${whereData.query}`;
+    sql = `UPDATE ${escapeId(table)} SET ${escapeId(safeDelete)} = 1 ${whereData.query}`;
     params = whereData.value;
   } else {
-    sql = `DELETE FROM ${table} ${whereData.query}`;
+    sql = `DELETE FROM ${escapeId(table)} ${whereData.query}`;
     params = whereData.value;
   }
 
@@ -350,8 +362,8 @@ async function insert(table, data, uniqueKeys = []) {
     const row = array[0];
     const vals = columns.map((c) => sanitizeValue(row[c]));
     const placeholders = columns.map((_, i) => "$" + (i + 1)).join(",");
-    let sql = `INSERT INTO ${table} (${columns.join(",")}) VALUES (${placeholders})`;
-    if (pk) sql += ` RETURNING ${pk}`;
+    let sql = `INSERT INTO ${escapeId(table)} (${columns.map(escapeId).join(",")}) VALUES (${placeholders})`;
+    if (pk) sql += ` RETURNING ${escapeId(pk)}`;
 
     const client = await pool.connect();
     try {
@@ -373,7 +385,7 @@ async function insert(table, data, uniqueKeys = []) {
 
   // Bulk insert via multi-row VALUES in batches of 1000
   const BATCH_SIZE = 1000;
-  const colList = columns.join(",");
+  const colList = columns.map(escapeId).join(",");
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -389,7 +401,7 @@ async function insert(table, data, uniqueKeys = []) {
         });
         return "(" + placeholders.join(",") + ")";
       });
-      const sql = `INSERT INTO ${table} (${colList}) VALUES ${valuesClauses.join(",")}`;
+      const sql = `INSERT INTO ${escapeId(table)} (${colList}) VALUES ${valuesClauses.join(",")}`;
       await client.query(sql, allParams);
     }
     await client.query("COMMIT");
@@ -414,8 +426,8 @@ async function insert(table, data, uniqueKeys = []) {
 async function _insertOnConflict(table, array, columns, uniqueKeys, total) {
   let lastId = 0;
   const pk = await getPkColumn(table);
-  const conflictCols = uniqueKeys.join(",");
-  const colList = columns.join(",");
+  const conflictCols = uniqueKeys.map(escapeId).join(",");
+  const colList = columns.map(escapeId).join(",");
   const BATCH_SIZE = 1000;
 
   const client = await pool.connect();
@@ -434,8 +446,8 @@ async function _insertOnConflict(table, array, columns, uniqueKeys, total) {
         });
         return "(" + placeholders.join(",") + ")";
       });
-      let sql = `INSERT INTO ${table} (${colList}) VALUES ${valuesClauses.join(",")} ON CONFLICT (${conflictCols}) DO NOTHING`;
-      if (pk) sql += ` RETURNING ${pk}`;
+      let sql = `INSERT INTO ${escapeId(table)} (${colList}) VALUES ${valuesClauses.join(",")} ON CONFLICT (${conflictCols}) DO NOTHING`;
+      if (pk) sql += ` RETURNING ${escapeId(pk)}`;
 
       const result = await client.query(sql, allParams);
       if (pk && result.rows && result.rows.length > 0) {
@@ -484,13 +496,13 @@ async function upsert(table, data, uniqueKeys = []) {
         const updateCols = columns.filter((c) => c !== keyCol);
         if (updateCols.length === 0) continue;
         const setClause = updateCols
-          .map((c, i) => `${c} = ${i + 1}`)
+          .map((c, i) => `${escapeId(c)} = $${i + 1}`)
           .join(", ");
         const vals = [
           ...updateCols.map((c) => sanitizeValue(row[c])),
           row[keyCol],
         ];
-        const sql = `UPDATE ${table} SET ${setClause} WHERE ${keyCol} = ${updateCols.length + 1}`;
+        const sql = `UPDATE ${escapeId(table)} SET ${setClause} WHERE ${escapeId(keyCol)} = $${updateCols.length + 1}`;
         await query(sql, vals);
         if (row[keyCol]) lastId = row[keyCol];
       }
@@ -517,10 +529,10 @@ async function upsert(table, data, uniqueKeys = []) {
     await client.query("BEGIN");
 
     const updateSetSql = nonUniqueColumns
-      .map((c) => `${c} = EXCLUDED.${c}`)
+      .map((c) => `${escapeId(c)} = EXCLUDED.${escapeId(c)}`)
       .join(", ");
-    const conflictCols = uniqueKeys.join(",");
-    const colList = columns.join(",");
+    const conflictCols = uniqueKeys.map(escapeId).join(",");
+    const colList = columns.map(escapeId).join(",");
 
     for (let offset = 0; offset < total; offset += BATCH_SIZE) {
       const batch = array.slice(offset, offset + BATCH_SIZE);
@@ -535,13 +547,13 @@ async function upsert(table, data, uniqueKeys = []) {
         return "(" + placeholders.join(",") + ")";
       });
 
-      let sql = `INSERT INTO ${table} (${colList}) VALUES ${valuesClauses.join(",")} ON CONFLICT (${conflictCols})`;
+      let sql = `INSERT INTO ${escapeId(table)} (${colList}) VALUES ${valuesClauses.join(",")} ON CONFLICT (${conflictCols})`;
       if (updateSetSql) {
         sql += ` DO UPDATE SET ${updateSetSql}`;
       } else {
         sql += ` DO NOTHING`;
       }
-      if (pk) sql += ` RETURNING ${pk}`;
+      if (pk) sql += ` RETURNING ${escapeId(pk)}`;
 
       const result = await client.query(sql, allParams);
       if (pk && result.rows && result.rows.length > 0) {
@@ -581,6 +593,8 @@ module.exports = {
   get,
   list,
   where,
+  sort_builder,
+  escapeId,
   query,
   qcount,
   remove,

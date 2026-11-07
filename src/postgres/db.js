@@ -1,6 +1,5 @@
-﻿const { Pool } = require("pg");
+const { Pool } = require("pg");
 const { jsonSafeParse } = require("../commons/function");
-const sqlTranslator = require("./sql_translator");
 
 let pool = null;
 let dateStringsMode = false;
@@ -8,14 +7,7 @@ const WHERE_INVALID = "Invalid filter object";
 const pkCache = {};
 
 function sanitizeValue(v) {
-  if (v instanceof Date) return v.toISOString().slice(0, 19).replace("T", " ");
-  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v)) {
-    return v
-      .replace("T", " ")
-      .replace(/[+-]\d{2}:\d{2}$/, "")
-      .replace(/Z$/, "")
-      .slice(0, 19);
-  }
+  if (v === undefined) return null;
   return v;
 }
 
@@ -50,10 +42,16 @@ function isRetryable(err) {
 
 /**
  * Quote a PostgreSQL identifier to prevent SQL injection.
- * Doubles any embedded double-quotes, then wraps in double-quotes.
+ * Strips null bytes, handles multi-part identifiers (e.g. schema.table),
+ * doubles any embedded double-quotes, then wraps each part in double-quotes.
  */
 function escapeId(name) {
-  return '"' + String(name).replace(/"/g, '""') + '"';
+  if (typeof name !== "string") name = String(name);
+  name = name.replace(/\0/g, "");
+  return name
+    .split(".")
+    .map((part) => '"' + part.trim().replace(/"/g, '""') + '"')
+    .join(".");
 }
 
 function connect(config) {
@@ -74,6 +72,10 @@ function connect(config) {
     connectionTimeoutMillis: 5000,
   };
 
+  if (config.ssl) {
+    poolConfig.ssl = config.ssl;
+  }
+
   pool = new Pool(poolConfig);
 
   // Set session timezone to UTC for consistent timestamp handling
@@ -86,56 +88,6 @@ function connect(config) {
   });
 
   return pool;
-}
-
-/**
- * Translate MySQL-style ? placeholders to PostgreSQL $1, $2, ...
- * Also resolves ?? identifier placeholders.
- */
-function translatePlaceholders(sql, params) {
-  if (!params || params.length === 0) return { sql, params: [] };
-
-  const paramsCopy = [...params];
-
-  // Step 1: resolve ?? identifiers
-  while (sql.includes("??")) {
-    const val = paramsCopy.shift();
-    sql = sql.replace("??", String(val));
-  }
-
-  // Step 2: Check for bulk VALUES ? (array-of-arrays)
-  const bulkMatch = sql.match(/VALUES\s+\?/i);
-  if (
-    bulkMatch &&
-    paramsCopy.length === 1 &&
-    Array.isArray(paramsCopy[0]) &&
-    Array.isArray(paramsCopy[0][0])
-  ) {
-    return { sql, params: paramsCopy[0], isBulk: true };
-  }
-
-  // Step 3: replace ? with $1, $2, ...
-  let bindIndex = 0;
-  const pgParams = [];
-  sql = sql.replace(/\?/g, () => {
-    bindIndex++;
-    pgParams.push(paramsCopy.shift());
-    return "$" + bindIndex;
-  });
-
-  // Step 4: PG can't infer type for to_jsonb($N) — add explicit cast based on JS type
-  sql = sql.replace(/to_jsonb\(\$(\d+)\)/g, (m, idx) => {
-    const val = pgParams[parseInt(idx) - 1];
-    if (typeof val === "number") return `to_jsonb($${idx}::numeric)`;
-    if (typeof val === "boolean") return `to_jsonb($${idx}::boolean)`;
-    return `to_jsonb($${idx}::text)`;
-  });
-
-  if (bindIndex === 0 && paramsCopy.length > 0) {
-    return { sql, params: paramsCopy };
-  }
-
-  return { sql, params: pgParams };
 }
 
 function mapResults(result) {
@@ -169,53 +121,34 @@ async function executeWithRetry(fn) {
   }
 }
 
-// Test hook: capture raw MySQL SQL before translation (only in test mode)
+// Test hook: capture raw queries in test mode
 const _sqlCaptureLog = [];
 function getSqlCaptureLog() {
   return _sqlCaptureLog;
 }
 
+/**
+ * Execute a native PostgreSQL query with parameterized values.
+ * Uses node-postgres ($1, $2, ...) parameter binding directly.
+ */
 async function query(sql, parameter = []) {
-  if (process.env.NODE_ENV === "test")
+  if (process.env.NODE_ENV === "test") {
     _sqlCaptureLog.push({ raw: sql, params: parameter });
-  const translated = sqlTranslator.translate(sql);
-  const {
-    sql: pgSql,
-    params: pgParams,
-    isBulk,
-  } = translatePlaceholders(translated, parameter);
+  }
+
+  // Strip leading /* PG_NATIVE */ comment if present for backwards compatibility
+  let cleanSql = sql;
+  if (typeof cleanSql === "string") {
+    cleanSql = cleanSql.replace(/^\/\*\s*PG_NATIVE\s*\*\/\s*/i, "");
+  }
 
   return executeWithRetry(async () => {
     const client = await pool.connect();
     try {
-      if (isBulk) {
-        // Bulk insert: build multi-row VALUES
-        const rows = pgParams;
-        if (rows.length === 0) return { affectedRows: 0, insertId: 0 };
-        const colCount = rows[0].length;
-        let paramIdx = 0;
-        const allParams = [];
-        const valuesClauses = rows.map((row) => {
-          const placeholders = row.map((v) => {
-            paramIdx++;
-            allParams.push(v);
-            return "$" + paramIdx;
-          });
-          return "(" + placeholders.join(",") + ")";
-        });
-        const cleanSql = pgSql.replace(
-          /VALUES\s+\?/i,
-          "VALUES " + valuesClauses.join(","),
-        );
-        const result = await client.query(cleanSql, allParams);
-        return { affectedRows: result.rowCount || 0, insertId: 0 };
-      }
+      const result = await client.query(cleanSql, parameter);
 
-      const result = await client.query(pgSql, pgParams);
-
-      const isInsert = /^\s*INSERT\s/i.test(pgSql);
+      const isInsert = /^\s*INSERT\s/i.test(cleanSql);
       if (isInsert) {
-        // If RETURNING was used, extract the id
         if (result.rows && result.rows.length > 0) {
           const firstRow = result.rows[0];
           const id = firstRow.id || firstRow[Object.keys(firstRow)[0]] || 0;
@@ -224,7 +157,7 @@ async function query(sql, parameter = []) {
         return { affectedRows: result.rowCount || 0, insertId: 0 };
       }
 
-      const isUpdate = /^\s*(UPDATE|DELETE|MERGE)\s/i.test(pgSql);
+      const isUpdate = /^\s*(UPDATE|DELETE|MERGE)\s/i.test(cleanSql);
       if (isUpdate) {
         return { affectedRows: result.rowCount || 0, insertId: 0 };
       }
@@ -236,7 +169,7 @@ async function query(sql, parameter = []) {
   });
 }
 
-// WHERE builder
+// WHERE builder — produces native PostgreSQL WHERE clauses with $N bind params
 function where(filter, safeDelete = null) {
   if (filter !== null && filter !== "" && !Array.isArray(filter)) {
     return null;
@@ -261,9 +194,14 @@ function where(filter, safeDelete = null) {
     return null;
   }
 
+  // Deep clone filter to avoid mutating caller objects
+  const filterCopy = filter.map((group) =>
+    Array.isArray(group) ? group.map((cond) => (Array.isArray(cond) ? [...cond] : cond)) : group,
+  );
+
   if (safeDelete !== null) {
-    for (const filterItem of filter) {
-      filterItem.push([safeDelete, "=", 0]);
+    for (const filterItem of filterCopy) {
+      filterItem.push([safeDelete, "=", false]);
     }
   }
 
@@ -271,6 +209,8 @@ function where(filter, safeDelete = null) {
     "=",
     "like",
     "not like",
+    "ilike",
+    "not ilike",
     "in",
     "not in",
     "<",
@@ -283,40 +223,37 @@ function where(filter, safeDelete = null) {
   let value = [];
   let bindIdx = 0;
 
-  for (const i of filter) {
+  for (const i of filterCopy) {
     let conditionAnd = [];
     for (const j of i) {
-      if (!valid_conditionals.includes(j[1])) return null;
-      if ((j[1] === "in" || j[1] === "not in") && !Array.isArray(j[2]))
+      if (!Array.isArray(j) || j.length < 3) return null;
+      const op = String(j[1]).toLowerCase();
+      if (!valid_conditionals.includes(op)) return null;
+      if ((op === "in" || op === "not in") && (!Array.isArray(j[2]) || j[2].length === 0)) {
         return null;
+      }
 
-      if (j[1] === "in" || j[1] === "not in") {
+      if (op === "in" || op === "not in") {
         const placeholders = j[2]
           .map(() => {
             bindIdx++;
             return "$" + bindIdx;
           })
           .join(",");
-        conditionAnd.push(`${escapeId(j[0])} ${j[1]} (${placeholders})`);
-        value.push(
-          ...j[2].map((v) =>
-            typeof v === "boolean" ? (v ? 1 : 0) : v === "" ? null : v,
-          ),
-        );
-      } else if (j[1] === "like" || j[1] === "not like") {
-        const pgOp = j[1] === "like" ? "ILIKE" : "NOT ILIKE";
+        conditionAnd.push(`${escapeId(j[0])} ${op.toUpperCase()} (${placeholders})`);
+        value.push(...j[2]);
+      } else if (op === "like" || op === "ilike" || op === "not like" || op === "not ilike") {
+        const isNot = op.startsWith("not");
+        const pgOp = isNot ? "NOT ILIKE" : "ILIKE";
         bindIdx++;
         conditionAnd.push(`${escapeId(j[0])} ${pgOp} $${bindIdx}`);
-        value.push("%" + j[2] + "%");
+        const rawVal = String(j[2] ?? "");
+        const val = rawVal.includes("%") ? rawVal : "%" + rawVal + "%";
+        value.push(val);
       } else {
         bindIdx++;
         conditionAnd.push(`${escapeId(j[0])} ${j[1]} $${bindIdx}`);
-        // Coerce empty string to null (PG won't cast '' to bigint/int)
-        // Coerce booleans to 0/1 (PG smallint columns store true/false as 1/0)
-        let val = j[2];
-        if (val === "") val = null;
-        else if (typeof val === "boolean") val = val ? 1 : 0;
-        value.push(val);
+        value.push(j[2]);
       }
     }
     conditionOr.push(conditionAnd.join(" AND "));
@@ -332,13 +269,18 @@ function sort_builder(sort) {
   if (!sort || sort.length < 1) return { query: "", value: [] };
   let items = [];
   for (const item of sort) {
-    if (item[0] === "-") {
-      items.push(escapeId(item.replace("-", "")) + " DESC");
+    if (typeof item !== "string") continue;
+    const trimmed = item.trim();
+    if (!trimmed) continue;
+    if (trimmed.startsWith("-")) {
+      items.push(escapeId(trimmed.slice(1).trim()) + " DESC");
+    } else if (trimmed.startsWith("+")) {
+      items.push(escapeId(trimmed.slice(1).trim()) + " ASC");
     } else {
-      items.push(escapeId(item) + " ASC");
+      items.push(escapeId(trimmed) + " ASC");
     }
   }
-  return { query: "ORDER BY " + items.join(","), value: [] };
+  return { query: items.length > 0 ? "ORDER BY " + items.join(", ") : "", value: [] };
 }
 
 async function get(table, filter = [], sort = [], safeDelete = null) {
@@ -347,7 +289,7 @@ async function get(table, filter = [], sort = [], safeDelete = null) {
   if (whereData == null) throw new Error(WHERE_INVALID);
 
   const sql = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query}`;
-  const rows = await query(`/* PG_NATIVE */ ${sql}`, whereData.value);
+  const rows = await query(sql, whereData.value);
   const count = await qcount(table, filter, safeDelete);
   return { data: jsonSafeParse(rows), count };
 }
@@ -366,7 +308,7 @@ async function list(
 
   const offset = page * limit;
   const sql = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query} LIMIT ${limit} OFFSET ${offset}`;
-  const rows = await query(`/* PG_NATIVE */ ${sql}`, whereData.value);
+  const rows = await query(sql, whereData.value);
   const count = await qcount(table, filter, safeDelete);
   return { data: jsonSafeParse(rows), count };
 }
@@ -376,9 +318,12 @@ async function qcount(table, filter, safeDelete = null) {
   if (whereData == null) return 0;
   const sql = `SELECT count(*) AS number FROM ${escapeId(table)} ${whereData.query}`;
   try {
-    const rows = await query(`/* PG_NATIVE */ ${sql}`, whereData.value);
+    const rows = await query(sql, whereData.value);
     return parseInt(rows[0]?.number) || 0;
-  } catch {
+  } catch (err) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("qcount error:", err.message);
+    }
     return 0;
   }
 }
@@ -400,7 +345,7 @@ async function remove(table, filter, safeDelete = null) {
     params = whereData.value;
   }
 
-  const result = await query(`/* PG_NATIVE */ ${sql}`, params);
+  const result = await query(sql, params);
   const rows = result.affectedRows || 0;
   return { message: rows + " " + table + (rows > 1 ? "s" : "") + " removed" };
 }
@@ -416,20 +361,34 @@ async function getPkColumn(table) {
   try {
     const client = await pool.connect();
     try {
+      const cleanName = table.replace(/^.*"\."?/, "").replace(/"/g, "");
       const r = await client.query(
         `SELECT a.attname AS column_name
          FROM pg_index i
+         JOIN pg_class c ON c.oid = i.indrelid
          JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
-         WHERE i.indrelid = $1::regclass AND i.indisprimary
+         WHERE c.relname = $1 AND i.indisprimary
          LIMIT 1`,
-        [table],
+        [cleanName],
       );
-      pkCache[table] = r.rows.length > 0 ? r.rows[0].column_name : null;
+      if (r.rows.length > 0) {
+        pkCache[table] = r.rows[0].column_name;
+      } else {
+        const r2 = await client.query(
+          `SELECT a.attname AS column_name
+           FROM pg_index i
+           JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+           WHERE i.indrelid = $1::regclass AND i.indisprimary
+           LIMIT 1`,
+          [table],
+        ).catch(() => ({ rows: [] }));
+        pkCache[table] = r2.rows.length > 0 ? r2.rows[0].column_name : null;
+      }
     } finally {
       client.release();
     }
   } catch (e) {
-    pkCache[table] = null;
+    return null;
   }
   return pkCache[table];
 }
@@ -469,8 +428,9 @@ async function insert(table, data, uniqueKeys = []) {
     }
   }
 
-  // Bulk insert via multi-row VALUES in batches of 1000
-  const BATCH_SIZE = 1000;
+  // Bulk insert chunked to respect PostgreSQL's wire protocol limit of 65,535 parameters
+  const maxBatch = Math.max(1, Math.floor(65000 / columns.length));
+  const BATCH_SIZE = Math.min(1000, maxBatch);
   const colList = columns.map(escapeId).join(",");
   const client = await pool.connect();
   try {
@@ -514,7 +474,8 @@ async function _insertOnConflict(table, array, columns, uniqueKeys, total) {
   const pk = await getPkColumn(table);
   const conflictCols = uniqueKeys.map(escapeId).join(",");
   const colList = columns.map(escapeId).join(",");
-  const BATCH_SIZE = 1000;
+  const maxBatch = Math.max(1, Math.floor(65000 / columns.length));
+  const BATCH_SIZE = Math.min(1000, maxBatch);
 
   const client = await pool.connect();
   try {
@@ -589,7 +550,7 @@ async function upsert(table, data, uniqueKeys = []) {
           row[keyCol],
         ];
         const sql = `UPDATE ${escapeId(table)} SET ${setClause} WHERE ${escapeId(keyCol)} = $${updateCols.length + 1}`;
-        await query(`/* PG_NATIVE */ ${sql}`, vals);
+        await query(sql, vals);
         if (row[keyCol]) lastId = row[keyCol];
       }
       const response = {
@@ -608,7 +569,8 @@ async function upsert(table, data, uniqueKeys = []) {
   const nonUniqueColumns = columns.filter((c) => !uniqueKeys.includes(c));
   const pk = await getPkColumn(table);
   let lastId = 0;
-  const BATCH_SIZE = 1000;
+  const maxBatch = Math.max(1, Math.floor(65000 / columns.length));
+  const BATCH_SIZE = Math.min(1000, maxBatch);
 
   const client = await pool.connect();
   try {
@@ -679,6 +641,7 @@ module.exports = {
   get,
   list,
   where,
+  sort_builder,
   query,
   qcount,
   remove,

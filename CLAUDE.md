@@ -53,7 +53,7 @@ The library follows a **singleton adapter pattern**:
 
 1. **`src/index.js`** — Main entry. Exports `init(adapterName)`, `db` (lazy singleton), `model`, `route`, `kafka`. Calling `init("postgres")` loads the corresponding adapter module into the `db` singleton.
 2. **`src/commons/model.js`** — The `model(db, table, structure, pk, uniqueKeys, option)` factory returns an object with async methods: `insert`, `update`, `upsert`, `remove`, `byId`, `find`, `findOne`, `list`, `patch`. This is the **universal model API**; it is identical across all adapters.
-3. **`src/commons/route.js`** — The `route(model, override)` factory returns an Express `Router` with 9 standard endpoints (GET/POST/PUT/PATCH/DELETE for `/:id` and `/`). `override` injects request-derived values into payloads (e.g., `{ user_id: "user.user_id" }`).
+3. **`src/commons/route.js`** — The `route(model, override)` factory returns an Express `Router` with 11 standard endpoints (GET/QUERY/POST/PUT/PATCH/DELETE for `/:id` and `/`). `override` injects request-derived values into payloads (e.g., `{ user_id: "user.user_id" }`).
 4. **`src/commons/validator.js`** — Input validation using `node-input-validator`, plus the filter parser that converts query-string operators (`!value`, `>value`, `%value%`, `in(a,b)`) into the internal filter array format.
 5. **`src/commons/kafka.js`** — Optional Kafka producer. If `KAFKA_BROKER` is set, write operations in `model.js` call `produce(table, operation, data)` after successful DB commits.
 6. **`src/commons/function.js`** — Shared utilities (`jsonSafeParse`, `jsonStringify`, `getType`, etc.).

@@ -22,6 +22,7 @@ function where(filter, safeDelete = null) {
   if (filter !== null && filter !== "" && !Array.isArray(filter)) {
     return null;
   }
+  let filterCopy;
   try {
     if (
       filter === null ||
@@ -35,15 +36,18 @@ function where(filter, safeDelete = null) {
       if (safeDelete === null) {
         return { query: () => true, value: [] };
       } else {
-        filter = [[]];
+        filterCopy = [[]];
       }
+    } else {
+      // Clone filter array to prevent in-place mutation of caller's data
+      filterCopy = filter.map((group) => group.map((cond) => [...cond]));
     }
   } catch (err) {
     return null;
   }
 
   if (safeDelete !== null) {
-    for (const filterItem of filter) {
+    for (const filterItem of filterCopy) {
       filterItem.push([safeDelete, "=", 0]);
     }
   }
@@ -64,7 +68,7 @@ function where(filter, safeDelete = null) {
   // Build filter groups for in-memory evaluation
   const orGroups = [];
 
-  for (const group of filter) {
+  for (const group of filterCopy) {
     const andConditions = [];
     for (const condition of group) {
       if (!valid_conditionals.includes(condition[1])) {
@@ -172,10 +176,18 @@ async function getAllRecords(table) {
   if (recordKeys.length === 0) return [];
 
   const records = [];
-  for (const key of recordKeys) {
-    const hash = await client.hgetall(key);
-    if (hash && Object.keys(hash).length > 0) {
-      records.push(parseRecord(hash));
+  const BATCH_SIZE = 1000;
+  for (let i = 0; i < recordKeys.length; i += BATCH_SIZE) {
+    const batch = recordKeys.slice(i, i + BATCH_SIZE);
+    const pipe = client.pipeline();
+    for (const key of batch) {
+      pipe.hgetall(key);
+    }
+    const results = await pipe.exec();
+    for (const [err, hash] of results) {
+      if (!err && hash && Object.keys(hash).length > 0) {
+        records.push(parseRecord(hash));
+      }
     }
   }
   return records;
@@ -295,17 +307,27 @@ async function remove(table, filter, safeDelete = null) {
   }
 
   if (safeDelete != null) {
-    for (const record of allMatch) {
-      const pkVal = record[primaryKey];
-      if (pkVal != null) {
-        await client.hset(`${table}:${pkVal}`, safeDelete, "1");
+    const BATCH_SIZE = 1000;
+    for (let i = 0; i < allMatch.length; i += BATCH_SIZE) {
+      const batch = allMatch.slice(i, i + BATCH_SIZE);
+      const pipe = client.pipeline();
+      for (const record of batch) {
+        const pkVal = record[primaryKey];
+        if (pkVal != null) {
+          pipe.hset(`${table}:${pkVal}`, safeDelete, "1");
+        }
       }
+      await pipe.exec();
     }
   } else {
-    for (const record of allMatch) {
-      const pkVal = record[primaryKey];
-      if (pkVal != null) {
-        await client.del(`${table}:${pkVal}`);
+    const keysToDelete = allMatch
+      .map((r) => `${table}:${r[primaryKey]}`)
+      .filter((k) => k !== `${table}:null` && k !== `${table}:undefined`);
+    const BATCH_SIZE = 1000;
+    for (let i = 0; i < keysToDelete.length; i += BATCH_SIZE) {
+      const batch = keysToDelete.slice(i, i + BATCH_SIZE);
+      if (batch.length > 0) {
+        await client.del(...batch);
       }
     }
   }
@@ -369,18 +391,39 @@ async function insert(table, data, uniqueKeys = []) {
 
   try {
     let lastId = null;
-    for (const row of array) {
-      let pkVal = row[primaryKey];
-
+    if (total === 1) {
+      let pkVal = array[0][primaryKey];
       if (pkVal == null) {
-        // Auto-generate id using Redis INCR
         pkVal = await client.incr(`${table}:__seq`);
       }
-
-      const record = { ...row, [primaryKey]: pkVal };
+      const record = { ...array[0], [primaryKey]: pkVal };
       const flat = flattenForHash(record);
       await client.hset(`${table}:${pkVal}`, flat);
       lastId = pkVal;
+    } else {
+      const missingCount = array.filter((r) => r[primaryKey] == null).length;
+      let nextId = 0;
+      if (missingCount > 0) {
+        const maxId = await client.incrby(`${table}:__seq`, missingCount);
+        nextId = maxId - missingCount + 1;
+      }
+
+      const BATCH_SIZE = 1000;
+      for (let i = 0; i < total; i += BATCH_SIZE) {
+        const batch = array.slice(i, i + BATCH_SIZE);
+        const pipe = client.pipeline();
+        for (const row of batch) {
+          let pkVal = row[primaryKey];
+          if (pkVal == null) {
+            pkVal = nextId++;
+          }
+          const record = { ...row, [primaryKey]: pkVal };
+          const flat = flattenForHash(record);
+          pipe.hset(`${table}:${pkVal}`, flat);
+          lastId = pkVal;
+        }
+        await pipe.exec();
+      }
     }
 
     const response = {
@@ -400,6 +443,14 @@ async function insert(table, data, uniqueKeys = []) {
   }
 }
 
+async function query(cmd, ...args) {
+  if (!client) throw new Error("Redis client not connected");
+  if (typeof client[cmd] === "function") {
+    return await client[cmd](...args);
+  }
+  return await client.call(cmd, ...args);
+}
+
 async function disconnect() {
   if (client) {
     await client.quit();
@@ -417,7 +468,7 @@ function sortItems(items, sort) {
         field = s.substring(1);
         dir = -1;
       } else {
-        field = s;
+        field = s.startsWith("+") ? s.substring(1) : s;
         dir = 1;
       }
       if (a[field] < b[field]) return -1 * dir;
@@ -438,6 +489,8 @@ module.exports = {
   get,
   list,
   where,
+  sort_builder: sortItems,
+  query,
   qcount,
   remove,
   delete: remove,

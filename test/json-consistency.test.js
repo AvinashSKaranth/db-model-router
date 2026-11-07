@@ -85,10 +85,10 @@ const adapters = {
       }),
     createTable: (d) =>
       d.query(
-        `/* ORACLE_NATIVE */ CREATE TABLE ${tableName} (id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY, label VARCHAR2(255) NOT NULL, meta CLOB)`,
+        `CREATE TABLE ${tableName} (id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY, label VARCHAR2(255) NOT NULL, meta CLOB)`,
       ),
     dropTable: (d) =>
-      d.query(`/* ORACLE_NATIVE */ DROP TABLE ${tableName}`).catch(() => {}),
+      d.query(`DROP TABLE ${tableName}`).catch(() => {}),
   },
   mssql: {
     mod: () => require("../src/mssql/db.js"),

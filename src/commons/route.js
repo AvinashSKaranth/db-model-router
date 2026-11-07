@@ -27,33 +27,67 @@ function sendFormatted(res, data, contentType) {
 }
 
 module.exports = function route(model, override = {}) {
-  return express
-    .Router({ mergeParams: true })
-    .get("/:" + model.pk, (req, res) => {
-      let payload = payloadOverride(
-        { ...(req.query || {}), ...(req.params || {}) },
-        req,
-        override,
-      );
-      const { select_columns, output_content_type, search } =
-        extractReservedParams(payload);
-      payload[model.pk] = req.params[model.pk];
-      // Re-attach search so the model layer can apply it against search_columns;
-      // route only needs select_columns/output_content_type for response shaping.
-      if (search !== null && search !== undefined) payload.search = search;
-      model
-        .find(payload)
-        .then((response) => {
-          if (response.count > 0) {
-            let record = response.data[0];
-            if (select_columns) record = applySelect(record, select_columns);
-            sendFormatted(res, record, output_content_type);
-          } else res.status(404).send({ message: "Not Found", type: "danger" });
-        })
-        .catch((err) => {
-          errorResponse(res, err);
-        });
-    })
+  const router = express.Router({ mergeParams: true });
+
+  const registerQuery = (path, handler) => {
+    if (typeof router.query === "function") {
+      router.query(path, handler);
+    } else {
+      router.all(path, (req, res, next) => {
+        if (req.method === "QUERY") return handler(req, res, next);
+        next();
+      });
+    }
+  };
+
+  const handleGetById = (req, res, fromBody = false) => {
+    const input = fromBody
+      ? { ...(req.query || {}), ...(req.body || {}), ...(req.params || {}) }
+      : { ...(req.query || {}), ...(req.params || {}) };
+    let payload = payloadOverride(input, req, override);
+    const { select_columns, output_content_type, search } =
+      extractReservedParams(payload);
+    payload[model.pk] = req.params[model.pk];
+    // Re-attach search so the model layer can apply it against search_columns;
+    // route only needs select_columns/output_content_type for response shaping.
+    if (search !== null && search !== undefined) payload.search = search;
+    model
+      .find(payload)
+      .then((response) => {
+        if (response.count > 0) {
+          let record = response.data[0];
+          if (select_columns) record = applySelect(record, select_columns);
+          sendFormatted(res, record, output_content_type);
+        } else res.status(404).send({ message: "Not Found", type: "danger" });
+      })
+      .catch((err) => {
+        errorResponse(res, err);
+      });
+  };
+
+  const handleList = (req, res, fromBody = false) => {
+    const input = fromBody
+      ? { ...(req.query || {}), ...(req.body || {}) }
+      : { ...(req.query || {}), ...(req.params || {}) };
+    let payload = payloadOverride(input, req, override);
+    const { select_columns, output_content_type, search } =
+      extractReservedParams(payload);
+    // select_columns stays in payload — model.list handles it
+    if (select_columns) payload.select_columns = select_columns;
+    // Re-attach search so the model layer can apply it against search_columns.
+    if (search !== null && search !== undefined) payload.search = search;
+    model
+      .list(payload)
+      .then((response) => {
+        sendFormatted(res, response, output_content_type);
+      })
+      .catch((err) => {
+        errorResponse(res, err);
+      });
+  };
+
+  router
+    .get("/:" + model.pk, (req, res) => handleGetById(req, res, false))
     .post("/:id", (req, res) => {
       let payload = payloadOverride(req.body || {}, req, override);
       delete payload[model.pk];
@@ -141,25 +175,7 @@ module.exports = function route(model, override = {}) {
           errorResponse(res, err);
         });
     })
-    .get("/", (req, res) => {
-      let payload = payloadOverride(
-        { ...(req.query || {}), ...(req.params || {}) },
-        req,
-        override,
-      );
-      const { output_content_type, search } = extractReservedParams(payload);
-      // select_columns stays in payload — model.list handles it
-      // Re-attach search so the model layer can apply it against search_columns.
-      if (search !== null && search !== undefined) payload.search = search;
-      model
-        .list(payload)
-        .then((response) => {
-          sendFormatted(res, response, output_content_type);
-        })
-        .catch((err) => {
-          errorResponse(res, err);
-        });
-    })
+    .get("/", (req, res) => handleList(req, res, false))
     .post("/", (req, res) => {
       if (!req.body || !Array.isArray(req.body.data)) {
         return res.status(400).send({
@@ -217,6 +233,12 @@ module.exports = function route(model, override = {}) {
           errorResponse(res, err);
         });
     });
+
+  // QUERY method routes (RFC draft / HTTP QUERY method using request body)
+  registerQuery("/:" + model.pk, (req, res) => handleGetById(req, res, true));
+  registerQuery("/", (req, res) => handleList(req, res, true));
+
+  return router;
 };
 
 function payloadOverride(payload, req, override) {

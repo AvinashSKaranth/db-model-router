@@ -175,9 +175,16 @@ describe("Feature: database-adapter-standardization, Property 1: Filter translat
         for (const andGroup of filterArray) {
           for (const condition of andGroup) {
             const op = condition[1];
+            const opLower = op.toLowerCase();
+            const expectedOp =
+              opLower === "not like"
+                ? "not ilike"
+                : opLower === "like"
+                  ? "ilike"
+                  : opLower;
             assert.ok(
-              result.query.toLowerCase().includes(op.toLowerCase()),
-              `Operator "${op}" not found in query: ${result.query}`,
+              result.query.toLowerCase().includes(expectedOp),
+              `Operator "${op}" (mapped to "${expectedOp}") not found in query: ${result.query}`,
             );
           }
         }

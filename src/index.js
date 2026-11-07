@@ -4,7 +4,7 @@ const kafka = require("./commons/kafka.js");
 const encryption = require("./commons/encryption.js");
 const routers = {
   mysql: "./mysql/db.js",
-  mariadb: "./mysql/db.js",
+  mariadb: "./mariadb/db.js",
   postgresql: "./postgres/db.js",
   postgres: "./postgres/db.js",
   oracle: "./oracle/db.js",

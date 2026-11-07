@@ -101,14 +101,85 @@ async function executeWithRetry(fn) {
   }
 }
 
+/**
+ * Safely replaces ? placeholders outside string literals, bracket identifiers, and comments with @param0, @param1, ...
+ */
+function replacePlaceholders(sqlStr) {
+  let result = "";
+  let inSingleQuote = false;
+  let inBracket = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+  let paramIdx = 0;
+
+  for (let i = 0; i < sqlStr.length; i++) {
+    const ch = sqlStr[i];
+    const next = sqlStr[i + 1];
+
+    if (inSingleQuote) {
+      result += ch;
+      if (ch === "'") {
+        if (next === "'") {
+          result += next;
+          i++;
+        } else {
+          inSingleQuote = false;
+        }
+      }
+    } else if (inBracket) {
+      result += ch;
+      if (ch === "]") {
+        if (next === "]") {
+          result += next;
+          i++;
+        } else {
+          inBracket = false;
+        }
+      }
+    } else if (inLineComment) {
+      result += ch;
+      if (ch === "\n") {
+        inLineComment = false;
+      }
+    } else if (inBlockComment) {
+      result += ch;
+      if (ch === "*" && next === "/") {
+        result += next;
+        i++;
+        inBlockComment = false;
+      }
+    } else {
+      if (ch === "'") {
+        inSingleQuote = true;
+        result += ch;
+      } else if (ch === "[") {
+        inBracket = true;
+        result += ch;
+      } else if (ch === "-" && next === "-") {
+        inLineComment = true;
+        result += ch;
+      } else if (ch === "/" && next === "*") {
+        inBlockComment = true;
+        result += ch;
+      } else if (ch === "?") {
+        result += "@param" + paramIdx;
+        paramIdx++;
+      } else {
+        result += ch;
+      }
+    }
+  }
+  return result;
+}
+
 async function query(sqlStr, parameter = []) {
   return executeWithRetry(async () => {
     const request = pool.request();
     for (let i = 0; i < parameter.length; i++) {
       request.input("param" + i, parameter[i]);
     }
-    // Replace positional @paramN placeholders if not already present
-    const result = await request.query(sqlStr);
+    const execSql = replacePlaceholders(sqlStr);
+    const result = await request.query(execSql);
     return (
       mapRecordset(result.recordset) || {
         affectedRows: result.rowsAffected?.[0] || 0,
@@ -123,13 +194,20 @@ function sort_builder(sort) {
   }
   let items = [];
   for (const item of sort) {
-    if (item[0] === "-") {
-      items.push(escapeId(item.replace("-", "")) + " DESC");
-    } else {
-      items.push(escapeId(item) + " ASC");
+    if (typeof item !== "string") continue;
+    let col = item.trim();
+    let dir = "ASC";
+    if (col.startsWith("-")) {
+      col = col.substring(1).trim();
+      dir = "DESC";
     }
+    if (!col) continue;
+    items.push(`${escapeId(col)} ${dir}`);
   }
-  return { query: "ORDER BY " + items.join(","), value: [] };
+  return {
+    query: items.length > 0 ? "ORDER BY " + items.join(",") : "",
+    value: [],
+  };
 }
 
 function where(filter, safeDelete = null) {
@@ -221,7 +299,7 @@ async function get(table, filter = [], sort = [], safeDelete = null) {
   const sortData = sort_builder(sort);
   if (whereData == null) throw new Error(WHERE_INVALID);
 
-  const sqlStr = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query}`;
+  const sqlStr = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query}`.trim();
   const request = pool.request();
   for (let i = 0; i < whereData.value.length; i++) {
     request.input("param" + i, whereData.value[i]);
@@ -247,7 +325,7 @@ async function list(
   const offset = page * limit;
   // MSSQL requires ORDER BY for OFFSET/FETCH. Use sort or default to (SELECT NULL)
   const orderClause = sortData.query || "ORDER BY (SELECT NULL)";
-  const sqlStr = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${orderClause} OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`;
+  const sqlStr = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${orderClause} OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`.trim();
 
   const request = pool.request();
   for (let i = 0; i < whereData.value.length; i++) {
@@ -262,17 +340,13 @@ async function list(
 async function qcount(table, filter, safeDelete = null) {
   const whereData = where(filter, safeDelete);
   if (whereData == null) return 0;
-  const sqlStr = `SELECT COUNT(*) AS number FROM ${escapeId(table)} ${whereData.query}`;
-  try {
-    const request = pool.request();
-    for (let i = 0; i < whereData.value.length; i++) {
-      request.input("param" + i, whereData.value[i]);
-    }
-    const result = await request.query(sqlStr);
-    return result.recordset?.[0]?.number || 0;
-  } catch {
-    return 0;
+  const sqlStr = `SELECT COUNT(*) AS number FROM ${escapeId(table)} ${whereData.query}`.trim();
+  const request = pool.request();
+  for (let i = 0; i < whereData.value.length; i++) {
+    request.input("param" + i, whereData.value[i]);
   }
+  const result = await request.query(sqlStr);
+  return result.recordset?.[0]?.number || 0;
 }
 
 async function remove(table, filter, safeDelete = null) {
@@ -284,9 +358,9 @@ async function remove(table, filter, safeDelete = null) {
 
   let sqlStr;
   if (safeDelete != null) {
-    sqlStr = `UPDATE ${escapeId(table)} SET ${escapeId(safeDelete)} = 1 ${whereData.query}`;
+    sqlStr = `UPDATE ${escapeId(table)} SET ${escapeId(safeDelete)} = 1 ${whereData.query}`.trim();
   } else {
-    sqlStr = `DELETE FROM ${escapeId(table)} ${whereData.query}`;
+    sqlStr = `DELETE FROM ${escapeId(table)} ${whereData.query}`.trim();
   }
 
   const request = pool.request();
@@ -304,8 +378,42 @@ function namify(text) {
     .replace(/(^\w{1})|(\s+\w{1})/g, (letter) => letter.toUpperCase());
 }
 
+/**
+ * Escapes a MSSQL identifier with square brackets.
+ * Strips null bytes, splits on periods, and wraps each component in brackets.
+ */
 function escapeId(name) {
-  return "[" + name.replace(/\]/g, "]]") + "]";
+  if (typeof name !== "string") {
+    name = String(name);
+  }
+  name = name.replace(/\0/g, "");
+  return name
+    .split(".")
+    .map((part) => {
+      part = part.trim();
+      if (part.startsWith("[") && part.endsWith("]")) {
+        part = part.slice(1, -1);
+      }
+      return "[" + part.replace(/\]/g, "]]") + "]";
+    })
+    .join(".");
+}
+
+const identityCache = {};
+async function getIdentityColumn(table) {
+  const cleanTable = table.replace(/[\[\]]/g, "").split(".").pop();
+  if (identityCache[cleanTable] !== undefined) return identityCache[cleanTable];
+  try {
+    const request = pool.request();
+    request.input("tbl", cleanTable);
+    const r = await request.query(
+      "SELECT name FROM sys.identity_columns WHERE object_id = OBJECT_ID(@tbl)",
+    );
+    identityCache[cleanTable] = r.recordset?.[0]?.name?.toLowerCase() || null;
+  } catch {
+    identityCache[cleanTable] = null;
+  }
+  return identityCache[cleanTable];
 }
 
 async function upsert(table, data, uniqueKeys = []) {
@@ -317,6 +425,7 @@ async function upsert(table, data, uniqueKeys = []) {
   const total = array.length;
   const columns = Object.keys(array[0]);
   const nonUniqueColumns = columns.filter((c) => !uniqueKeys.includes(c));
+  const identityCol = await getIdentityColumn(table);
   let lastId = 0;
   // MSSQL has a 2100 parameter limit per request
   const MAX_PARAMS = 2000;
@@ -356,8 +465,14 @@ async function upsert(table, data, uniqueKeys = []) {
         mergeSql += ` WHEN MATCHED THEN UPDATE SET ${updateSet}`;
       }
 
-      const insertCols = nonUniqueColumns.map((c) => escapeId(c)).join(",");
-      const insertVals = nonUniqueColumns
+      // Exclude identity column from INSERT clause to avoid IDENTITY_INSERT errors
+      const insertColumns = identityCol
+        ? columns.filter((c) => c.toLowerCase() !== identityCol)
+        : nonUniqueColumns.length > 0
+          ? nonUniqueColumns
+          : columns;
+      const insertCols = insertColumns.map((c) => escapeId(c)).join(",");
+      const insertVals = insertColumns
         .map((c) => `source.${escapeId(c)}`)
         .join(",");
       mergeSql += ` WHEN NOT MATCHED THEN INSERT (${insertCols}) VALUES (${insertVals})`;
@@ -409,8 +524,6 @@ async function insert(table, data, uniqueKeys = []) {
 
     let sqlStr;
     if (hasAllUniqueKeys) {
-      // INSERT with conflict ignore: use TRY/CATCH or check existence
-      // For MSSQL, we use a MERGE with WHEN NOT MATCHED only
       const onClause = uniqueKeys
         .map((k) => `target.${escapeId(k)} = source.${escapeId(k)}`)
         .join(" AND ");
@@ -515,6 +628,7 @@ module.exports = {
   get,
   list,
   where,
+  sort_builder,
   query,
   qcount,
   remove,
@@ -524,4 +638,5 @@ module.exports = {
   insert,
   disconnect,
   close: disconnect,
+  escapeId,
 };

@@ -261,5 +261,38 @@ describe("MongoDB Route REST API", function () {
       const check = await testModel.find({ name: "ToRemove" });
       assert.strictEqual(check.count, 0, "removed records should not exist");
     });
+
+    it("QUERY /test/ should filter collection using request body", async function () {
+      await testModel.insert({
+        name: "QueryUserMongo",
+        email: "querymongo@example.com",
+        age: 40,
+      });
+
+      const res = await request(app)
+        .query("/test/")
+        .send({ name: "QueryUserMongo" })
+        .expect("Content-Type", /json/)
+        .expect(200);
+
+      assert.ok(Array.isArray(res.body.data));
+      assert.ok(res.body.count >= 1);
+      assert.strictEqual(res.body.data[0].name, "QueryUserMongo");
+    });
+
+    it("QUERY /test/:pk should get record by PK with body-based projection", async function () {
+      const all = await testModel.find({ name: "QueryUserMongo" });
+      const id = all.data[0]._id;
+
+      const res = await request(app)
+        .query("/test/" + id)
+        .send({ select_columns: ["_id", "name"] })
+        .expect("Content-Type", /json/)
+        .expect(200);
+
+      assert.strictEqual(String(res.body._id), String(id));
+      assert.strictEqual(res.body.name, "QueryUserMongo");
+      assert.strictEqual(res.body.age, undefined);
+    });
   });
 });

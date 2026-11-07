@@ -1,134 +1,46 @@
 const oracledb = require("oracledb");
 const { jsonSafeParse } = require("../commons/function");
-const sqlTranslator = require("./sql_translator");
 
 let pool = null;
 let dateStringsMode = false;
 const WHERE_INVALID = "Invalid filter object";
 const pkCache = {};
-const ORACLE_RESERVED_WORDS = new Set([
-  "access",
-  "add",
-  "all",
-  "alter",
-  "and",
-  "any",
-  "as",
-  "asc",
-  "audit",
-  "between",
-  "by",
-  "char",
-  "check",
-  "cluster",
-  "column",
-  "comment",
-  "compress",
-  "connect",
-  "create",
-  "current",
-  "date",
-  "decimal",
-  "default",
-  "delete",
-  "desc",
-  "distinct",
-  "drop",
-  "else",
-  "exclusive",
-  "exists",
-  "file",
-  "float",
-  "for",
-  "from",
-  "grant",
-  "group",
-  "having",
-  "identified",
-  "immediate",
-  "in",
-  "increment",
-  "index",
-  "initial",
-  "insert",
-  "integer",
-  "intersect",
-  "into",
-  "is",
-  "level",
-  "like",
-  "lock",
-  "long",
-  "maxextents",
-  "minus",
-  "mlslabel",
-  "mode",
-  "modify",
-  "noaudit",
-  "nocompress",
-  "not",
-  "nowait",
-  "null",
-  "number",
-  "of",
-  "offline",
-  "on",
-  "online",
-  "option",
-  "or",
-  "order",
-  "pctfree",
-  "prior",
-  "public",
-  "raw",
-  "rename",
-  "resource",
-  "revoke",
-  "row",
-  "rowid",
-  "rownum",
-  "rows",
-  "select",
-  "session",
-  "set",
-  "share",
-  "size",
-  "smallint",
-  "start",
-  "successful",
-  "synonym",
-  "sysdate",
-  "table",
-  "then",
-  "to",
-  "trigger",
-  "type",
-  "uid",
-  "union",
-  "unique",
-  "update",
-  "user",
-  "validate",
-  "values",
-  "varchar",
-  "varchar2",
-  "view",
-  "whenever",
-  "where",
-  "with",
-  "private",
-]);
-function quoteCol(col) {
-  return ORACLE_RESERVED_WORDS.has(col.toLowerCase())
-    ? '"' + col.toUpperCase() + '"'
-    : col;
+
+// Test hook: capture raw queries in test mode
+const _sqlCaptureLog = [];
+function getSqlCaptureLog() {
+  return _sqlCaptureLog;
 }
+
+/**
+ * Escapes an Oracle identifier (table name, column name, or schema-qualified identifier).
+ * Strips null bytes, splits on periods, and wraps each component in double quotes.
+ * Converts to uppercase by default to align with Oracle data dictionary storage.
+ */
+function escapeId(name) {
+  if (typeof name !== "string") {
+    name = String(name);
+  }
+  name = name.replace(/\0/g, "");
+  return name
+    .split(".")
+    .map((part) => {
+      part = part.trim();
+      if (part.startsWith('"') && part.endsWith('"')) {
+        part = part.slice(1, -1);
+      }
+      return '"' + part.toUpperCase().replace(/"/g, '""') + '"';
+    })
+    .join(".");
+}
+
 function sanitizeValue(v) {
   if (v instanceof Date) return v.toISOString().slice(0, 19).replace("T", " ");
   if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v)) {
     return v
       .replace("T", " ")
       .replace(/[+-]\d{2}:\d{2}$/, "")
+      .replace(/Z$/, "")
       .slice(0, 19);
   }
   return v;
@@ -203,50 +115,75 @@ function connect(config) {
 }
 
 /**
- * Resolve ?? (identifier) and ? (value) placeholders.
- * Returns { sql, params } with Oracle :1,:2,... bind vars.
+ * Safely replace ? placeholders outside string literals and comments with :1, :2, ...
  */
-function translatePlaceholders(sql, params) {
-  if (!params || params.length === 0) return { sql, params: [] };
+function replacePlaceholders(sql) {
+  let result = "";
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+  let paramIdx = 0;
 
-  const paramsCopy = [...params];
-  let oracleParams = [];
+  for (let i = 0; i < sql.length; i++) {
+    const ch = sql[i];
+    const next = sql[i + 1];
 
-  // Step 0: Fix '?' (quoted placeholders) - remove quotes around ?
-  sql = sql.replace(/'(\?)'/g, "$1");
-
-  // Step 1: resolve ?? identifiers (consume from front of params)
-  while (sql.includes("??")) {
-    const val = paramsCopy.shift();
-    sql = sql.replace("??", String(val));
+    if (inSingleQuote) {
+      result += ch;
+      if (ch === "'") {
+        if (next === "'") {
+          result += next;
+          i++;
+        } else {
+          inSingleQuote = false;
+        }
+      }
+    } else if (inDoubleQuote) {
+      result += ch;
+      if (ch === '"') {
+        if (next === '"') {
+          result += next;
+          i++;
+        } else {
+          inDoubleQuote = false;
+        }
+      }
+    } else if (inLineComment) {
+      result += ch;
+      if (ch === "\n") {
+        inLineComment = false;
+      }
+    } else if (inBlockComment) {
+      result += ch;
+      if (ch === "*" && next === "/") {
+        result += next;
+        i++;
+        inBlockComment = false;
+      }
+    } else {
+      if (ch === "'") {
+        inSingleQuote = true;
+        result += ch;
+      } else if (ch === '"') {
+        inDoubleQuote = true;
+        result += ch;
+      } else if (ch === "-" && next === "-") {
+        inLineComment = true;
+        result += ch;
+      } else if (ch === "/" && next === "*") {
+        inBlockComment = true;
+        result += ch;
+      } else if (ch === "?") {
+        paramIdx++;
+        result += ":" + paramIdx;
+      } else {
+        result += ch;
+      }
+    }
   }
 
-  // Step 2: Check for bulk VALUES ? (array-of-arrays)
-  const bulkMatch = sql.match(/VALUES\s+\?/i);
-  if (
-    bulkMatch &&
-    paramsCopy.length === 1 &&
-    Array.isArray(paramsCopy[0]) &&
-    Array.isArray(paramsCopy[0][0])
-  ) {
-    // Bulk insert — return special marker
-    return { sql, params: paramsCopy[0], isBulk: true };
-  }
-
-  // Step 3: replace ? with :1, :2, ...
-  let bindIndex = 0;
-  sql = sql.replace(/\?/g, () => {
-    bindIndex++;
-    oracleParams.push(paramsCopy.shift());
-    return ":" + bindIndex;
-  });
-
-  // If no ? were found but SQL has :N placeholders, pass params through
-  if (bindIndex === 0 && paramsCopy.length > 0 && /:\d+/.test(sql)) {
-    oracleParams = paramsCopy;
-  }
-
-  return { sql, params: oracleParams };
+  return result;
 }
 
 function mapResults(result) {
@@ -284,78 +221,87 @@ async function executeWithRetry(fn) {
   }
 }
 
+/**
+ * Executes a native Oracle query with bind parameters.
+ * Supports native :1, :2, ... or :name binds.
+ * If ? placeholders are present outside string literals, they are mapped to :1, :2, ...
+ */
 async function query(sql, parameter = []) {
+  if (process.env.NODE_ENV === "TEST" || process.env.NODE_ENV === "test") {
+    _sqlCaptureLog.push({ raw: sql, params: parameter });
+  }
+
   const resolvedPool = await pool;
-  const translated = sqlTranslator.translate(sql);
-  const {
-    sql: oracleSql,
-    params: oracleParams,
-    isBulk,
-  } = translatePlaceholders(translated, parameter);
+
+  // Strip leading /* ORACLE_NATIVE */ comment if present for backwards compatibility
+  let cleanSql = sql;
+  if (typeof cleanSql === "string") {
+    cleanSql = cleanSql.replace(/^\/\*\s*ORACLE_NATIVE\s*\*\/\s*/i, "");
+  }
+
+  // Check for bulk VALUES ? (array-of-arrays)
+  const isBulk =
+    /VALUES\s+\?/i.test(cleanSql) &&
+    parameter.length === 1 &&
+    Array.isArray(parameter[0]) &&
+    Array.isArray(parameter[0][0]);
 
   return executeWithRetry(async () => {
     const conn = await resolvedPool.getConnection();
     try {
       if (isBulk) {
-        // Bulk insert via executeMany
-        const cleanSql = oracleSql.replace(/VALUES\s+\?/i, () => {
-          const cols = oracleParams[0];
-          const placeholders = cols.map((_, i) => ":" + (i + 1)).join(",");
-          return `VALUES (${placeholders})`;
-        });
-        const result = await conn.executeMany(cleanSql, oracleParams, {
+        const bulkParams = parameter[0];
+        const cols = bulkParams[0];
+        const placeholders = cols.map((_, i) => ":" + (i + 1)).join(",");
+        const execSql = cleanSql.replace(/VALUES\s+\?/i, `VALUES (${placeholders})`);
+        const result = await conn.executeMany(execSql, bulkParams, {
           autoCommit: true,
         });
         return { affectedRows: result.rowsAffected || 0, insertId: 0 };
       }
 
-      // Detect statement type (strip leading comments for detection)
-      const sqlNoComment = oracleSql.replace(/^\s*\/\*.*?\*\/\s*/g, "");
+      // Convert any ? placeholders to :1, :2, ... outside literals
+      let execSql = replacePlaceholders(cleanSql);
+      let execParams = parameter;
+
+      const sqlNoComment = execSql.replace(/^\s*\/\*.*?\*\/\s*/g, "");
       const isInsert = /^\s*INSERT\s/i.test(sqlNoComment);
-      let execSql = oracleSql;
-      let execParams = oracleParams;
       let execOptions = {
         outFormat: oracledb.OUT_FORMAT_OBJECT,
         autoCommit: true,
       };
 
-      if (isInsert && !oracleSql.match(/RETURNING/i)) {
+      if (isInsert && !execSql.match(/RETURNING/i)) {
         // Try to add RETURNING id INTO :pk_out
-        execSql = oracleSql + " RETURNING id INTO :pk_out";
-        execParams = [
-          ...oracleParams,
-          { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
-        ];
-        // Convert positional to named binds for mixed mode
-        let idx = 0;
+        const modifiedSql = execSql + " RETURNING id INTO :pk_out";
         const namedParams = {};
-        execSql = execSql.replace(/:(\d+)/g, (_, num) => {
-          const name = "p" + num;
-          namedParams[name] = oracleParams[parseInt(num) - 1];
-          return ":" + name;
-        });
-        namedParams["pk_out"] = {
-          dir: oracledb.BIND_OUT,
-          type: oracledb.NUMBER,
-        };
-        execParams = namedParams;
-      }
-
-      let result;
-      try {
-        result = await conn.execute(execSql, execParams, execOptions);
-      } catch (insertErr) {
-        // If RETURNING failed (e.g. no 'id' column), retry without it
-        if (
-          isInsert &&
-          insertErr.message &&
-          insertErr.message.includes("ORA-")
-        ) {
-          result = await conn.execute(oracleSql, oracleParams, execOptions);
-        } else {
-          throw insertErr;
+        if (Array.isArray(execParams)) {
+          execParams.forEach((val, i) => {
+            namedParams["p" + (i + 1)] = val;
+          });
+          const convertedSql = modifiedSql.replace(/:(\d+)/g, (_, num) => ":p" + num);
+          namedParams["pk_out"] = {
+            dir: oracledb.BIND_OUT,
+            type: oracledb.NUMBER,
+          };
+          try {
+            const result = await conn.execute(convertedSql, namedParams, execOptions);
+            const insertId =
+              result.outBinds?.pk_out?.[0] || result.outBinds?.pk_out || 0;
+            return {
+              affectedRows: result.rowsAffected || 0,
+              insertId,
+            };
+          } catch (insertErr) {
+            // If RETURNING failed (e.g. no 'id' column), fall through to execute original
+            if (!insertErr.message || !insertErr.message.includes("ORA-")) {
+              throw insertErr;
+            }
+          }
         }
       }
+
+      const result = await conn.execute(execSql, execParams, execOptions);
 
       if (isInsert) {
         const insertId =
@@ -435,6 +381,8 @@ function where(filter, safeDelete = null) {
       if ((j[1] === "in" || j[1] === "not in") && !Array.isArray(j[2]))
         return null;
 
+      const qCol = escapeId(j[0]);
+
       if (j[1] === "in" || j[1] === "not in") {
         const placeholders = j[2]
           .map(() => {
@@ -442,18 +390,18 @@ function where(filter, safeDelete = null) {
             return ":" + bindIdx;
           })
           .join(",");
-        conditionAnd.push(`${j[0]} ${j[1]} (${placeholders})`);
+        conditionAnd.push(`${qCol} ${j[1]} (${placeholders})`);
         // Convert booleans to numbers for Oracle
         value.push(
           ...j[2].map((v) => (typeof v === "boolean" ? (v ? 1 : 0) : v)),
         );
       } else if (j[1] === "like" || j[1] === "not like") {
         bindIdx++;
-        conditionAnd.push(`${j[0]} ${j[1]} :${bindIdx}`);
+        conditionAnd.push(`${qCol} ${j[1]} :${bindIdx}`);
         value.push("%" + j[2] + "%");
       } else {
         bindIdx++;
-        conditionAnd.push(`${j[0]} ${j[1]} :${bindIdx}`);
+        conditionAnd.push(`${qCol} ${j[1]} :${bindIdx}`);
         // Convert boolean to number for Oracle; coerce empty string to null (Oracle treats '' as NULL anyway)
         const val =
           typeof j[2] === "boolean"
@@ -479,13 +427,20 @@ function sort_builder(sort) {
   if (!sort || sort.length < 1) return { query: "", value: [] };
   let items = [];
   for (const item of sort) {
-    if (item[0] === "-") {
-      items.push(item.replace("-", "") + " DESC");
-    } else {
-      items.push(item + " ASC");
+    if (typeof item !== "string") continue;
+    let col = item.trim();
+    let dir = "ASC";
+    if (col.startsWith("-")) {
+      col = col.substring(1).trim();
+      dir = "DESC";
     }
+    if (!col) continue;
+    items.push(`${escapeId(col)} ${dir}`);
   }
-  return { query: "ORDER BY " + items.join(","), value: [] };
+  return {
+    query: items.length > 0 ? "ORDER BY " + items.join(",") : "",
+    value: [],
+  };
 }
 
 async function get(table, filter = [], sort = [], safeDelete = null) {
@@ -493,8 +448,9 @@ async function get(table, filter = [], sort = [], safeDelete = null) {
   const sortData = sort_builder(sort);
   if (whereData == null) throw new Error(WHERE_INVALID);
 
-  const sql = `SELECT * FROM ${table} ${whereData.query} ${sortData.query}`;
-  const rows = await query(`/* ORACLE_NATIVE */ ${sql}`, whereData.value);
+  const qTable = escapeId(table);
+  const sql = `SELECT * FROM ${qTable} ${whereData.query} ${sortData.query}`.trim();
+  const rows = await query(sql, whereData.value);
   const count = await qcount(table, filter, safeDelete);
   return { data: jsonSafeParse(rows), count };
 }
@@ -511,9 +467,10 @@ async function list(
   const sortData = sort_builder(sort);
   if (whereData == null) throw new Error(WHERE_INVALID);
 
+  const qTable = escapeId(table);
   const offset = page * limit;
-  const sql = `SELECT * FROM ${table} ${whereData.query} ${sortData.query} OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`;
-  const rows = await query(`/* ORACLE_NATIVE */ ${sql}`, whereData.value);
+  const sql = `SELECT * FROM ${qTable} ${whereData.query} ${sortData.query} OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`.trim();
+  const rows = await query(sql, whereData.value);
   const count = await qcount(table, filter, safeDelete);
   return { data: jsonSafeParse(rows), count };
 }
@@ -521,13 +478,10 @@ async function list(
 async function qcount(table, filter, safeDelete = null) {
   const whereData = where(filter, safeDelete);
   if (whereData == null) return 0;
-  const sql = `SELECT count(*) AS "number" FROM ${table} ${whereData.query}`;
-  try {
-    const rows = await query(`/* ORACLE_NATIVE */ ${sql}`, whereData.value);
-    return rows[0]?.number || 0;
-  } catch {
-    return 0;
-  }
+  const qTable = escapeId(table);
+  const sql = `SELECT count(*) AS "number" FROM ${qTable} ${whereData.query}`.trim();
+  const rows = await query(sql, whereData.value);
+  return parseInt(rows[0]?.number || 0, 10);
 }
 
 async function remove(table, filter, safeDelete = null) {
@@ -537,17 +491,18 @@ async function remove(table, filter, safeDelete = null) {
     throw new Error("unable to remove as there are no filter attributes");
   }
 
+  const qTable = escapeId(table);
   let sql;
   let params;
   if (safeDelete != null) {
-    sql = `UPDATE ${table} SET ${safeDelete} = 1 ${whereData.query}`;
+    sql = `UPDATE ${qTable} SET ${escapeId(safeDelete)} = 1 ${whereData.query}`.trim();
     params = whereData.value;
   } else {
-    sql = `DELETE FROM ${table} ${whereData.query}`;
+    sql = `DELETE FROM ${qTable} ${whereData.query}`.trim();
     params = whereData.value;
   }
 
-  const result = await query(`/* ORACLE_NATIVE */ ${sql}`, params);
+  const result = await query(sql, params);
   const rows = result.affectedRows || 0;
   return { message: rows + " " + table + (rows > 1 ? "s" : "") + " removed" };
 }
@@ -559,32 +514,34 @@ function namify(text) {
 }
 
 async function getPkColumn(table) {
-  if (pkCache[table] !== undefined) return pkCache[table];
+  const cleanTable = table.replace(/["']/g, "").split(".").pop().toUpperCase();
+  if (pkCache[cleanTable] !== undefined) return pkCache[cleanTable];
   try {
     const resolvedPool = await pool;
     const conn = await resolvedPool.getConnection();
     try {
       const r = await conn.execute(
         `SELECT cols.column_name FROM user_constraints cons JOIN user_cons_columns cols ON cons.constraint_name = cols.constraint_name WHERE cons.table_name = :1 AND cons.constraint_type = 'P' AND ROWNUM = 1`,
-        [table.toUpperCase()],
+        [cleanTable],
         { outFormat: oracledb.OUT_FORMAT_OBJECT },
       );
-      pkCache[table] =
+      pkCache[cleanTable] =
         r.rows.length > 0 ? r.rows[0].COLUMN_NAME.toLowerCase() : null;
     } finally {
       await conn.close();
     }
   } catch (e) {
-    pkCache[table] = null;
+    pkCache[cleanTable] = null;
   }
-  return pkCache[table];
+  return pkCache[cleanTable];
 }
 
 async function insert(table, data, uniqueKeys = []) {
   let array = Array.isArray(data) ? data : [data];
   const total = array.length;
   const columns = Object.keys(array[0]);
-  const qCols = columns.map(quoteCol);
+  const qTable = escapeId(table);
+  const qCols = columns.map(escapeId);
 
   // Only use MERGE when unique keys are actually present in the data
   const effectiveUniqueKeys = uniqueKeys.filter((k) => columns.includes(k));
@@ -603,10 +560,10 @@ async function insert(table, data, uniqueKeys = []) {
     const row = array[0];
     const vals = columns.map((c) => sanitizeValue(row[c]));
     const placeholders = columns.map((_, i) => ":" + (i + 1)).join(",");
-    let sql = `INSERT INTO ${table} (${qCols.join(",")}) VALUES (${placeholders})`;
+    let sql = `INSERT INTO ${qTable} (${qCols.join(",")}) VALUES (${placeholders})`;
 
     if (pk) {
-      sql += ` RETURNING ${quoteCol(pk)} INTO :pk_out`;
+      sql += ` RETURNING ${escapeId(pk)} INTO :pk_out`;
       const namedParams = {};
       vals.forEach((v, i) => {
         namedParams["p" + (i + 1)] = v;
@@ -635,7 +592,7 @@ async function insert(table, data, uniqueKeys = []) {
       }
     }
 
-    const result = await query(`/* ORACLE_NATIVE */ ${sql}`, vals);
+    const result = await query(sql, vals);
     return {
       rows: 1,
       message: `1 ${namify(table)} is saved`,
@@ -648,7 +605,7 @@ async function insert(table, data, uniqueKeys = []) {
   const resolvedPool = await pool;
   let insertId = 0;
   const placeholders = columns.map((_, i) => ":" + (i + 1)).join(",");
-  const sql = `INSERT INTO ${table} (${qCols.join(",")}) VALUES (${placeholders})`;
+  const sql = `INSERT INTO ${qTable} (${qCols.join(",")}) VALUES (${placeholders})`;
 
   for (let i = 0; i < array.length; i += 1000) {
     const batch = array
@@ -675,6 +632,7 @@ async function insert(table, data, uniqueKeys = []) {
 
 async function _mergeInsertOnly(table, array, columns, uniqueKeys, total) {
   let lastId = 0;
+  const qTable = escapeId(table);
   const pk = await getPkColumn(table);
 
   for (let i = 0; i < array.length; i += 1000) {
@@ -682,29 +640,28 @@ async function _mergeInsertOnly(table, array, columns, uniqueKeys, total) {
     for (const row of batch) {
       const vals = columns.map((c) => sanitizeValue(row[c]));
       const usingCols = columns
-        .map((c, idx) => `:${idx + 1} AS ${quoteCol(c)}`)
+        .map((c, idx) => `:${idx + 1} AS ${escapeId(c)}`)
         .join(", ");
       const onClause = uniqueKeys
-        .map((k) => `t.${quoteCol(k)} = s.${quoteCol(k)}`)
+        .map((k) => `t.${escapeId(k)} = s.${escapeId(k)}`)
         .join(" AND ");
       // Exclude PK identity column from the INSERT portion of MERGE
       const insertColumns = pk ? columns.filter((c) => c !== pk) : columns;
-      const insertCols = insertColumns.map(quoteCol).join(",");
-      const insertVals = insertColumns.map((c) => `s.${quoteCol(c)}`).join(",");
+      const insertCols = insertColumns.map(escapeId).join(",");
+      const insertVals = insertColumns.map((c) => `s.${escapeId(c)}`).join(",");
 
-      const sql = `MERGE INTO ${table} t USING (SELECT ${usingCols} FROM DUAL) s ON (${onClause}) WHEN NOT MATCHED THEN INSERT (${insertCols}) VALUES (${insertVals})`;
-      await query(`/* ORACLE_NATIVE */ ${sql}`, vals);
+      const sql = `MERGE INTO ${qTable} t USING (SELECT ${usingCols} FROM DUAL) s ON (${onClause}) WHEN NOT MATCHED THEN INSERT (${insertCols}) VALUES (${insertVals})`;
+      await query(sql, vals);
 
       // Fetch the PK of the inserted/existing row
       if (total === 1) {
-        const pk = await getPkColumn(table);
         if (pk) {
           const whereClause = uniqueKeys
-            .map((k, idx) => `${k} = :${idx + 1}`)
+            .map((k, idx) => `${escapeId(k)} = :${idx + 1}`)
             .join(" AND ");
           const whereVals = uniqueKeys.map((k) => row[k]);
           const fetched = await query(
-            `/* ORACLE_NATIVE */ SELECT ${pk} FROM ${table} WHERE ${whereClause}`,
+            `SELECT ${escapeId(pk)} FROM ${qTable} WHERE ${whereClause}`,
             whereVals,
           );
           if (fetched.length > 0) lastId = fetched[0][pk] || 0;
@@ -731,6 +688,7 @@ async function upsert(table, data, uniqueKeys = []) {
   let array = Array.isArray(data) ? data : [data];
   const total = array.length;
   const columns = Object.keys(array[0]);
+  const qTable = escapeId(table);
 
   // If unique keys aren't all in the data, fall back to UPDATE using PK or available unique key
   const missingKeys = uniqueKeys.filter((k) => !columns.includes(k));
@@ -746,14 +704,14 @@ async function upsert(table, data, uniqueKeys = []) {
         const updateCols = columns.filter((c) => c !== keyCol);
         if (updateCols.length === 0) continue;
         const setClause = updateCols
-          .map((c, i) => `${quoteCol(c)} = :${i + 1}`)
+          .map((c, i) => `${escapeId(c)} = :${i + 1}`)
           .join(", ");
         const vals = [
           ...updateCols.map((c) => sanitizeValue(row[c])),
           row[keyCol],
         ];
-        const sql = `UPDATE ${table} SET ${setClause} WHERE ${quoteCol(keyCol)} = :${updateCols.length + 1}`;
-        await query(`/* ORACLE_NATIVE */ ${sql}`, vals);
+        const sql = `UPDATE ${qTable} SET ${setClause} WHERE ${escapeId(keyCol)} = :${updateCols.length + 1}`;
+        await query(sql, vals);
         if (row[keyCol]) lastId = row[keyCol];
       }
       const response = {
@@ -779,37 +737,36 @@ async function upsert(table, data, uniqueKeys = []) {
     for (const row of batch) {
       const vals = columns.map((c) => sanitizeValue(row[c]));
       const usingCols = columns
-        .map((c, idx) => `:${idx + 1} AS ${quoteCol(c)}`)
+        .map((c, idx) => `:${idx + 1} AS ${escapeId(c)}`)
         .join(", ");
       const onClause = uniqueKeys
-        .map((k) => `t.${quoteCol(k)} = s.${quoteCol(k)}`)
+        .map((k) => `t.${escapeId(k)} = s.${escapeId(k)}`)
         .join(" AND ");
       const updateSet = nonUniqueColumns
-        .map((c) => `t.${quoteCol(c)} = s.${quoteCol(c)}`)
+        .map((c) => `t.${escapeId(c)} = s.${escapeId(c)}`)
         .join(", ");
       // Exclude PK identity column from the INSERT portion of MERGE
       const insertColumns = pk ? columns.filter((c) => c !== pk) : columns;
-      const insertCols = insertColumns.map(quoteCol).join(",");
-      const insertVals = insertColumns.map((c) => `s.${quoteCol(c)}`).join(",");
+      const insertCols = insertColumns.map(escapeId).join(",");
+      const insertVals = insertColumns.map((c) => `s.${escapeId(c)}`).join(",");
 
-      let sql = `MERGE INTO ${table} t USING (SELECT ${usingCols} FROM DUAL) s ON (${onClause})`;
+      let sql = `MERGE INTO ${qTable} t USING (SELECT ${usingCols} FROM DUAL) s ON (${onClause})`;
       if (updateSet) {
         sql += ` WHEN MATCHED THEN UPDATE SET ${updateSet}`;
       }
       sql += ` WHEN NOT MATCHED THEN INSERT (${insertCols}) VALUES (${insertVals})`;
 
-      const result = await query(`/* ORACLE_NATIVE */ ${sql}`, vals);
+      await query(sql, vals);
 
       // MERGE doesn't support RETURNING, so fetch the PK via unique keys
       if (total === 1) {
-        const pk = await getPkColumn(table);
         if (pk) {
           const whereClause = uniqueKeys
-            .map((k, idx) => `${quoteCol(k)} = :${idx + 1}`)
+            .map((k, idx) => `${escapeId(k)} = :${idx + 1}`)
             .join(" AND ");
           const whereVals = uniqueKeys.map((k) => row[k]);
           const fetched = await query(
-            `/* ORACLE_NATIVE */ SELECT ${quoteCol(pk)} FROM ${table} WHERE ${whereClause}`,
+            `SELECT ${escapeId(pk)} FROM ${qTable} WHERE ${whereClause}`,
             whereVals,
           );
           if (fetched.length > 0) lastId = fetched[0][pk] || 0;
@@ -843,6 +800,7 @@ module.exports = {
   get,
   list,
   where,
+  sort_builder,
   query,
   qcount,
   remove,
@@ -852,5 +810,7 @@ module.exports = {
   insert,
   disconnect,
   close: disconnect,
-  pool: null, // Exposed for compatibility, but use methods instead
+  pool: null,
+  escapeId,
+  getSqlCaptureLog,
 };

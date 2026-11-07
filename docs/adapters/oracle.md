@@ -31,11 +31,11 @@ ORACLE_PASSWORD=oracle
 
 - Requires Oracle Instant Client installed on the host
 - Uses connection pooling with session callbacks for NLS date format
-- MySQL-style `?` placeholders are auto-translated to `:1, :2, ...`
-- Includes a SQL translator that converts MySQL DDL/DML to Oracle syntax
-- `MERGE INTO ... USING DUAL` is used for upsert operations
+- Clean native Oracle SQL execution with `:1, :2, ...` positional bind variables
+- Supports MySQL-style `?` placeholders in raw `db.query()` calls (auto-translated outside string literals)
+- Native parameterized `MERGE INTO ... USING (SELECT ... FROM DUAL)` is used for upsert operations
 - `RETURNING ... INTO :pk_out` is used to retrieve auto-generated IDs
-- Oracle reserved words in column names are auto-quoted
+- All table and column identifiers are securely quoted with `escapeId()`
 - `CLOB` values are fetched as strings
 
 ## Table Creation

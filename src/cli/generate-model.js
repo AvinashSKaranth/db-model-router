@@ -86,20 +86,20 @@ function getUniqueColumns(indexRows, indexNameKey, columnNameKey, pkName) {
 
 async function introspectPostgres(db, schema = "public") {
   const tables = await db.query(
-    `/* PG_NATIVE */ SELECT tablename FROM pg_tables WHERE schemaname = $1`,
+    `SELECT tablename FROM pg_tables WHERE schemaname = $1`,
     [schema],
   );
   const tableNames = tables.map((r) => r.tablename);
   const models = [];
   for (const table of tableNames) {
     const columns = await db.query(
-      `/* PG_NATIVE */ SELECT column_name, data_type, is_nullable, column_default
+      `SELECT column_name, data_type, is_nullable, column_default
        FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2
        ORDER BY ordinal_position`,
       [schema, table],
     );
     const pkResult = await db.query(
-      `/* PG_NATIVE */ SELECT a.attname FROM pg_index i
+      `SELECT a.attname FROM pg_index i
        JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
        WHERE i.indrelid = $1::regclass AND i.indisprimary`,
       [table],
@@ -107,7 +107,7 @@ async function introspectPostgres(db, schema = "public") {
     const pk = pkResult.length > 0 ? pkResult[0].attname : "id";
     // Get unique indexes grouped by index name
     const uniqueIdxResult = await db.query(
-      `/* PG_NATIVE */ SELECT ic.relname AS index_name, a.attname AS column_name
+      `SELECT ic.relname AS index_name, a.attname AS column_name
        FROM pg_index i
        JOIN pg_class ic ON ic.oid = i.indexrelid
        JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
@@ -270,19 +270,19 @@ async function introspectMSSQL(db) {
 
 async function introspectOracle(db) {
   const tables = await db.query(
-    "/* ORACLE_NATIVE */ SELECT table_name FROM user_tables ORDER BY table_name",
+    "SELECT table_name FROM user_tables ORDER BY table_name",
     [],
   );
   const tableNames = tables.map((r) => r.table_name || r.TABLE_NAME);
   const models = [];
   for (const table of tableNames) {
     const columns = await db.query(
-      `/* ORACLE_NATIVE */ SELECT column_name, data_type, nullable, data_default
+      `SELECT column_name, data_type, nullable, data_default
        FROM user_tab_columns WHERE table_name = :1 ORDER BY column_id`,
       [table.toUpperCase()],
     );
     const pkResult = await db.query(
-      `/* ORACLE_NATIVE */ SELECT cols.column_name FROM user_constraints cons
+      `SELECT cols.column_name FROM user_constraints cons
        JOIN user_cons_columns cols ON cons.constraint_name = cols.constraint_name
        WHERE cons.table_name = :1 AND cons.constraint_type = 'P'`,
       [table.toUpperCase()],
@@ -293,7 +293,7 @@ async function introspectOracle(db) {
     const pk = pkRows.length > 0 ? pkRows[0] : "id";
     // Get unique constraints grouped by constraint name (excluding PK)
     const uniqueResult = await db.query(
-      `/* ORACLE_NATIVE */ SELECT cons.constraint_name, cols.column_name
+      `SELECT cons.constraint_name, cols.column_name
        FROM user_constraints cons
        JOIN user_cons_columns cols ON cons.constraint_name = cols.constraint_name
        WHERE cons.table_name = :1 AND cons.constraint_type = 'U'

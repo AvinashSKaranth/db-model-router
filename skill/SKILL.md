@@ -21,8 +21,8 @@ For adapter-specific connection options, env vars, upsert behavior, and table cr
 | `oracle`      | `references/oracle.md`      |
 | `redis`       | `references/redis.md`       |
 | `dynamodb`    | `references/dynamodb.md`    |
-
-MySQL/MariaDB use `mysql2` — no separate reference file needed (see Connection Configs below).
+| `mysql`       | `references/mysql.md`       |
+| `mariadb`     | `references/mariadb.md`     |
 
 ---
 
@@ -225,23 +225,54 @@ GET /users/?search=alice&status=active
 
 ## route(model, override?)
 
-Generates an Express Router with 9 endpoints:
+Generates an Express Router with 11 endpoints (including native support for the HTTP `QUERY` method):
 
-| Method | Path   | Action                           |
-| ------ | ------ | -------------------------------- |
-| GET    | `/:pk` | Get by PK                        |
-| POST   | `/add` | Insert single                    |
-| PUT    | `/:pk` | Update single (PK from URL)      |
-| PATCH  | `/:pk` | Partial update (PK from URL)     |
-| DELETE | `/:pk` | Delete single                    |
-| GET    | `/`    | List (page, size, sort, filters) |
-| POST   | `/`    | Bulk insert `{data:[...]}`       |
-| PUT    | `/`    | Bulk update `{data:[...]}`       |
-| DELETE | `/`    | Bulk delete `{filter_object}`    |
+| Method | Path   | Action                           | Description |
+| ------ | ------ | -------------------------------- | ----------- |
+| GET    | `/:pk` | Get by PK                        | URL params + query string options |
+| QUERY  | `/:pk` | Query by PK (body-driven)        | Uses request body for `select_columns`, etc. |
+| POST   | `/add` | Insert single                    | `{col: val, ...}` |
+| PUT    | `/:pk` | Update single (PK from URL)      | Full update |
+| PATCH  | `/:pk` | Partial update (PK from URL)     | Partial update |
+| DELETE | `/:pk` | Delete single                    | Remove by PK |
+| GET    | `/`    | List (page, size, sort, filters) | Filter & paginate via URL query parameters |
+| QUERY  | `/`    | List & filter (body-driven)      | Filter & paginate via JSON request body |
+| POST   | `/`    | Bulk insert `{data:[...]}`       | Insert multiple records |
+| PUT    | `/`    | Bulk update `{data:[...]}`       | Update multiple records |
+| DELETE | `/`    | Bulk delete `{filter_object}`    | Delete by filter criteria |
+
+### HTTP `QUERY` Method (Safe Querying with Request Body)
+
+The router supports the safe, idempotent HTTP `QUERY` method (IETF standard). It mirrors `GET` but consumes query parameters, pagination, sorting, and filters from the JSON request body instead of the URL query string:
+
+```bash
+QUERY /users/
+Content-Type: application/json
+
+{
+  "status": "active",
+  "age": ">25",
+  "sort": ["-created_at"],
+  "page": 0,
+  "limit": 20,
+  "select_columns": ["id", "name", "email"]
+}
+```
+
+Or with explicit filter arrays:
+```json
+{
+  "filter": [[["age", ">", 25], ["status", "=", "active"]]],
+  "sort": ["-created_at"],
+  "select_columns": ["id", "name"]
+}
+```
+
+`QUERY /:pk` accepts body parameters such as `{ select_columns: ["name", "email"] }` while extracting the primary key from the URL.
 
 **Payload override** (multi-tenancy): `route(m, { tenant_id: "user.tenant_id" })` — maps columns to `req` paths via lodash.get.
 
-**Query params**: `select_columns=name,email`, `output_content_type=csv|xml|json`, `sort=-age,name`, `search=alice` (requires `search_columns` on the model — see Multi-Column Search above)
+**Query params / body params**: `select_columns=name,email`, `output_content_type=csv|xml|json`, `sort=-age,name`, `search=alice` (requires `search_columns` on the model — see Multi-Column Search above)
 
 ---
 

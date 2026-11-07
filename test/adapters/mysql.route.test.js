@@ -267,6 +267,39 @@ describe("MySQL Route REST API", function () {
       const check = await testModel.find({ name: "ToRemove" });
       assert.strictEqual(check.count, 0, "removed records should not exist");
     });
+
+    it("QUERY /test/ should filter collection using request body", async function () {
+      await testModel.insert({
+        name: "QueryUserMysql",
+        email: "querymysql@example.com",
+        age: 40,
+      });
+
+      const res = await request(app)
+        .query("/test/")
+        .send({ name: "QueryUserMysql" })
+        .expect("Content-Type", /json/)
+        .expect(200);
+
+      assert.ok(Array.isArray(res.body.data));
+      assert.ok(res.body.count >= 1);
+      assert.strictEqual(res.body.data[0].name, "QueryUserMysql");
+    });
+
+    it("QUERY /test/:pk should get record by PK with body-based projection", async function () {
+      const all = await testModel.find({ name: "QueryUserMysql" });
+      const id = all.data[0].id;
+
+      const res = await request(app)
+        .query("/test/" + id)
+        .send({ select_columns: ["id", "name"] })
+        .expect("Content-Type", /json/)
+        .expect(200);
+
+      assert.strictEqual(res.body.id, id);
+      assert.strictEqual(res.body.name, "QueryUserMysql");
+      assert.strictEqual(res.body.age, undefined);
+    });
   });
 
   describe("Multi-column search", function () {

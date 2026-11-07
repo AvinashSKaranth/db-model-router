@@ -600,11 +600,13 @@ module.exports = function model(
         if (isNaN(page) || page < 0) page = 0;
         delete data.page;
       }
-      if (data.hasOwnProperty("size")) {
-        size = parseInt(data.size, 10);
+      if (data.hasOwnProperty("size") || data.hasOwnProperty("limit")) {
+        const rawSize = data.hasOwnProperty("size") ? data.size : data.limit;
+        size = parseInt(rawSize, 10);
         if (isNaN(size) || size < 1) size = 30;
         if (size > 200) size = 200;
         delete data.size;
+        delete data.limit;
       }
       if (data.hasOwnProperty("sort")) {
         sort = data.sort;

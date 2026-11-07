@@ -24,8 +24,8 @@ npx skills add https://github.com/AvinashSKaranth/db-model-router/skill
 
 | Adapter                                       | Module Key    | Driver                   | Install                                                                |
 | --------------------------------------------- | ------------- | ------------------------ | ---------------------------------------------------------------------- |
-| [MySQL](#mysql-example)                       | `mysql`       | mysql2                   | `npm i db-model-router mysql2`                                         |
-| MariaDB                                       | `mariadb`     | mysql2                   | `npm i db-model-router mysql2`                                         |
+| [MySQL](./docs/adapters/mysql.md)             | `mysql`       | mysql2                   | `npm i db-model-router mysql2`                                         |
+| [MariaDB](./docs/adapters/mariadb.md)         | `mariadb`     | mysql2                   | `npm i db-model-router mysql2`                                         |
 | [PostgreSQL](./docs/adapters/postgres.md)     | `postgres`    | pg                       | `npm i db-model-router pg`                                             |
 | [SQLite3](./docs/adapters/sqlite3.md)         | `sqlite3`     | better-sqlite3           | `npm i db-model-router better-sqlite3`                                 |
 | [MongoDB](./docs/adapters/mongodb.md)         | `mongodb`     | mongodb                  | `npm i db-model-router mongodb`                                        |
@@ -563,19 +563,39 @@ app.use("/users", route(users));
 app.listen(3000);
 ```
 
-This creates 9 endpoints:
+This creates 11 standard REST and query endpoints:
 
-| Method | Path         | Description                     |
-| ------ | ------------ | ------------------------------- |
-| GET    | `/users/:id` | Get one record by PK            |
-| POST   | `/users/add` | Insert a single record          |
-| PUT    | `/users/:id` | Update a single record          |
-| PATCH  | `/users/:id` | Partial update a single record  |
-| DELETE | `/users/:id` | Delete a single record          |
-| GET    | `/users/`    | List with pagination            |
-| POST   | `/users/`    | Bulk insert (`{ data: [...] }`) |
-| PUT    | `/users/`    | Bulk update (`{ data: [...] }`) |
-| DELETE | `/users/`    | Bulk delete `{ name: "Bob" }`   |
+| Method | Path         | Description                                    |
+| ------ | ------------ | ---------------------------------------------- |
+| GET    | `/users/:id` | Get one record by PK                           |
+| QUERY  | `/users/:id` | Query one record by PK with body options       |
+| POST   | `/users/add` | Insert a single record                         |
+| PUT    | `/users/:id` | Update a single record                         |
+| PATCH  | `/users/:id` | Partial update a single record                 |
+| DELETE | `/users/:id` | Delete a single record                         |
+| GET    | `/users/`    | List with pagination (URL query params)        |
+| QUERY  | `/users/`    | Query/filter list using JSON request body      |
+| POST   | `/users/`    | Bulk insert (`{ data: [...] }`)                |
+| PUT    | `/users/`    | Bulk update (`{ data: [...] }`)                |
+| DELETE | `/users/`    | Bulk delete `{ name: "Bob" }`                  |
+
+#### HTTP `QUERY` Method Support
+
+`db-model-router` supports the modern HTTP `QUERY` method (safe and idempotent, with a request body). Instead of encoding complex filters, sort rules, and search terms into URL query parameters, clients can submit a JSON body:
+
+```bash
+QUERY /users/
+Content-Type: application/json
+
+{
+  "status": "active",
+  "age": ">25",
+  "sort": ["-created_at"],
+  "page": 0,
+  "limit": 20,
+  "select_columns": ["id", "name", "email"]
+}
+```
 
 ### 4. Payload Override
 

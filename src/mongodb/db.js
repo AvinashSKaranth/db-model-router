@@ -35,6 +35,7 @@ function where(filter, safeDelete = null) {
   if (filter !== null && filter !== "" && !Array.isArray(filter)) {
     return null;
   }
+  let filterCopy;
   try {
     if (
       filter === null ||
@@ -48,15 +49,18 @@ function where(filter, safeDelete = null) {
       if (safeDelete === null) {
         return { query: {}, value: [] };
       } else {
-        filter = [[]];
+        filterCopy = [[]];
       }
+    } else {
+      // Clone filter array to prevent in-place mutation of caller's data
+      filterCopy = filter.map((group) => group.map((cond) => [...cond]));
     }
   } catch (err) {
     return null;
   }
 
   if (safeDelete !== null) {
-    for (const filterItem of filter) {
+    for (const filterItem of filterCopy) {
       filterItem.push([safeDelete, "=", 0]);
     }
   }
@@ -76,7 +80,7 @@ function where(filter, safeDelete = null) {
 
   let orGroups = [];
 
-  for (const group of filter) {
+  for (const group of filterCopy) {
     let andConditions = [];
     for (const condition of group) {
       if (!valid_conditionals.includes(condition[1])) {
@@ -200,14 +204,10 @@ async function list(
 async function qcount(table, filter, safeDelete = null) {
   const whereData = where(filter, safeDelete);
   if (whereData == null) {
-    return 0;
+    throw new Error(WHERE_INVALID);
   }
-  try {
-    const col = database.collection(table);
-    return await col.countDocuments(whereData.query);
-  } catch (err) {
-    return 0;
-  }
+  const col = database.collection(table);
+  return await col.countDocuments(whereData.query);
 }
 
 async function remove(table, filter, safeDelete = null) {
@@ -370,6 +370,7 @@ module.exports = {
   get,
   list,
   where,
+  sort_builder: buildSort,
   query,
   qcount,
   remove,

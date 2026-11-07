@@ -32,7 +32,7 @@ describe("Oracle Individual Operations", function () {
       password: process.env.ORACLE_PASSWORD || "oracle",
     });
     await db.query(
-      `/* ORACLE_NATIVE */ CREATE TABLE ${tableName} (
+      `CREATE TABLE ${tableName} (
         id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         name VARCHAR2(255) NOT NULL,
         email VARCHAR2(255) NOT NULL,
@@ -44,7 +44,7 @@ describe("Oracle Individual Operations", function () {
 
   after(async function () {
     try {
-      await db.query(`/* ORACLE_NATIVE */ DROP TABLE ${tableName}`);
+      await db.query(`DROP TABLE ${tableName}`);
     } catch (_) {}
     await db.disconnect();
   });

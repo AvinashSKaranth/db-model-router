@@ -23,6 +23,24 @@ services:
     networks:
       - db-network
 
+  mariadb:
+    image: mariadb:latest
+    container_name: db-model-router-mariadb
+    restart: unless-stopped
+    ports:
+      - "3309:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: password
+      MARIADB_DATABASE: test_db
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - db-network
+
   postgres:
     image: postgres:16
     container_name: db-model-router-postgres
