@@ -12,6 +12,10 @@ const dbManagerCmd = require("./commands/db-manager");
 const encryptScanCmd = require("./commands/encrypt-scan");
 const encryptRotateKeyCmd = require("./commands/encrypt-rotate-key");
 const typesCmd = require("./commands/types");
+const migrateCreateCmd = require("./commands/migrate-create");
+const migrateUpCmd = require("./commands/migrate-up");
+const migrateDownCmd = require("./commands/migrate-down");
+const migrateStatusCmd = require("./commands/migrate-status");
 
 /**
  * Map of subcommand names to their handler functions.
@@ -25,6 +29,10 @@ const COMMANDS = {
   "encrypt:scan": encryptScanCmd,
   "encrypt:rotate-key": encryptRotateKeyCmd,
   types: typesCmd,
+  "migrate:create": migrateCreateCmd,
+  "migrate:up": migrateUpCmd,
+  "migrate:down": migrateDownCmd,
+  "migrate:status": migrateStatusCmd,
   help: helpCmd,
 };
 
@@ -40,6 +48,10 @@ const COMMAND_DESCRIPTIONS = {
   "encrypt:scan": "Scan/backfill unencrypted values in encrypted fields",
   "encrypt:rotate-key": "Rotate field-level encryption keys",
   types: "Generate TypeScript interface definitions from dbmr.schema.json",
+  "migrate:create": "Create a new migration file",
+  "migrate:up": "Run pending migrations forward",
+  "migrate:down": "Rollback the last batch of applied migrations",
+  "migrate:status": "Show status of all applied and pending migrations",
   help: "Show help for a command",
 };
 
@@ -56,6 +68,25 @@ const COMMAND_FLAGS = {
     ["--from <path>", "Schema file (default: dbmr.schema.json)"],
     ["--out <path>", "Output file path (default: types/models.d.ts)"],
     ["--stdout", "Output to stdout instead of writing to disk"],
+  ],
+  "migrate:create": [
+    ["<name>", "Name of the migration (e.g. create_users_table)"],
+    ["--dir <path>", "Migrations directory (default: migrations)"],
+  ],
+  "migrate:up": [
+    ["--type <adapter>", "Database adapter (sqlite3, postgres, mysql, etc.)"],
+    ["--env <path>", "Path to .env file"],
+    ["--dir <path>", "Migrations directory (default: migrations)"],
+  ],
+  "migrate:down": [
+    ["--type <adapter>", "Database adapter (sqlite3, postgres, mysql, etc.)"],
+    ["--env <path>", "Path to .env file"],
+    ["--dir <path>", "Migrations directory (default: migrations)"],
+  ],
+  "migrate:status": [
+    ["--type <adapter>", "Database adapter (sqlite3, postgres, mysql, etc.)"],
+    ["--env <path>", "Path to .env file"],
+    ["--dir <path>", "Migrations directory (default: migrations)"],
   ],
   inspect: [
     ["--type <adapter>", "Database adapter (required)"],
