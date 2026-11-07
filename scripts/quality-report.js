@@ -6,13 +6,18 @@ const fs = require("fs");
 const path = require("path");
 
 const ROOT_DIR = path.resolve(__dirname, "..");
+const DOCS_REPORT_DIR = path.join(ROOT_DIR, "docs", "report");
+const OUTPUT_HTML = path.join(DOCS_REPORT_DIR, "index.html");
 const REPORTS_DIR = path.join(ROOT_DIR, "reports");
-const OUTPUT_HTML = path.join(REPORTS_DIR, "report.html");
+const LEGACY_REPORT_HTML = path.join(REPORTS_DIR, "report.html");
 
 const c8Bin = path.join(ROOT_DIR, "node_modules", "c8", "bin", "c8.js");
 const mochaBin = path.join(ROOT_DIR, "node_modules", "mocha", "bin", "mocha.js");
 const eslintBin = path.join(ROOT_DIR, "node_modules", "eslint", "bin", "eslint.js");
 
+if (!fs.existsSync(DOCS_REPORT_DIR)) {
+  fs.mkdirSync(DOCS_REPORT_DIR, { recursive: true });
+}
 if (!fs.existsSync(REPORTS_DIR)) {
   fs.mkdirSync(REPORTS_DIR, { recursive: true });
 }
@@ -859,17 +864,13 @@ const html = `<!DOCTYPE html>
 </body>
 </html>`;
 
+// 1. Primary final target: docs/report/index.html
 fs.writeFileSync(OUTPUT_HTML, html, "utf8");
 
-// Also output to docs/report/report.html and docs/report/index.html
-const DOCS_REPORT_DIR = path.join(ROOT_DIR, "docs", "report");
-if (!fs.existsSync(DOCS_REPORT_DIR)) {
-  fs.mkdirSync(DOCS_REPORT_DIR, { recursive: true });
-}
+// 2. Also output to docs/report/report.html and reports/report.html
 const docsReportHtml = path.join(DOCS_REPORT_DIR, "report.html");
-const docsIndexHtml = path.join(DOCS_REPORT_DIR, "index.html");
 fs.writeFileSync(docsReportHtml, html, "utf8");
-fs.writeFileSync(docsIndexHtml, html, "utf8");
+fs.writeFileSync(LEGACY_REPORT_HTML, html, "utf8");
 
 // Ensure root report.html is deleted if it exists
 const rootReport = path.join(ROOT_DIR, "report.html");
@@ -887,7 +888,6 @@ if (fs.existsSync(artifactDir)) {
 
 console.log("========================================================");
 console.log(`✔ Quality report generated successfully:`);
-console.log(`   - Reports:   ${OUTPUT_HTML}`);
-console.log(`   - Docs:      ${docsReportHtml}`);
+console.log(`   - Target:   ${OUTPUT_HTML}`);
 console.log(`   - Overall Score: ${overallScore}/100 (Grade ${grade})`);
 console.log("========================================================\n");

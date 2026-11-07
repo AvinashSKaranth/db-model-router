@@ -153,3 +153,4 @@ db-manager/.dbmanager.sqlite-wal
 benchmark/reports/
 benchmark/*.html
 benchmark/prisma/generated/
+partner
