@@ -130,14 +130,14 @@ describe("Schema Printer", function () {
   // -------------------------------------------------------------------------
   describe("optional field preservation", function () {
     it("preserves options in output", function () {
-      const schema = parseSchema({
+      const schema = {
         adapter: "postgres",
         framework: "express",
         options: { session: "redis", helmet: true },
         tables: {
           users: { columns: { name: "string" } },
         },
-      });
+      };
 
       const output = printSchema(schema);
       const parsed = JSON.parse(output);

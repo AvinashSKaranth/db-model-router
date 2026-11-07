@@ -910,6 +910,7 @@ async function transaction(fn) {
 }
 
 module.exports = {
+  escapeId,
   connect,
   get,
   list,

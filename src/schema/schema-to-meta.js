@@ -63,10 +63,13 @@ function schemaToModelMeta(schema) {
       modified_at: tableDef.timestamps
         ? tableDef.timestamps.modified_at || null
         : null,
-      search_columns: Array.isArray(tableDef.search_columns)
-        ? [...tableDef.search_columns]
-        : [],
     };
+    if (
+      Array.isArray(tableDef.search_columns) &&
+      tableDef.search_columns.length > 0
+    ) {
+      option.search_columns = [...tableDef.search_columns];
+    }
 
     return {
       table: tableName,

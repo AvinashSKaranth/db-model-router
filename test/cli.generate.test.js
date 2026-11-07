@@ -378,17 +378,17 @@ describe("CLI Generate - db-model-router-generate", function () {
     it("should generate valid model file content", function () {
       const usersModel = models.find((m) => m.table === "users");
       const content = generateModelFile(usersModel);
-      assert.ok(content.includes('require("db-model-router")'));
+      assert.ok(content.includes('from "db-model-router"'));
       assert.ok(content.includes('"users"'));
       assert.ok(content.includes('"user_id"'));
-      assert.ok(content.includes("module.exports"));
+      assert.ok(content.includes("export default users;"));
     });
 
     it("should preserve exact table name in exports", function () {
       const postTagsModel = models.find((m) => m.table === "post_tags");
       const content = generateModelFile(postTagsModel);
       assert.ok(content.includes("const post_tags = model("));
-      assert.ok(content.includes("module.exports = post_tags;"));
+      assert.ok(content.includes("export default post_tags;"));
     });
 
     it("should generate index file with exact table names", function () {
@@ -396,7 +396,7 @@ describe("CLI Generate - db-model-router-generate", function () {
       for (const m of models) {
         const varName = safeVarName(m.table);
         assert.ok(
-          content.includes(`const ${varName} = require("./${m.table}")`),
+          content.includes(`import ${varName} from "./${m.table}.js";`),
           `index should import ${m.table}`,
         );
         assert.ok(
@@ -466,11 +466,11 @@ describe("CLI Generate - db-model-router-generate", function () {
       const files = fs.readdirSync(OUTPUT_DIR).filter((f) => f.endsWith(".js"));
       for (const file of files) {
         const content = fs.readFileSync(path.join(OUTPUT_DIR, file), "utf8");
-        // Replace the require("db-model-router") with a mock so we can syntax-check
-        const testable = content.replace(
-          /require\("db-model-router"\)/g,
-          "{ db: {}, model: function() { return {} } }",
-        );
+        // Strip ESM import/export declarations to check valid JS expression/statements via new Function
+        const testable = content
+          .replace(/import dbModelRouter from "db-model-router";/g, "const dbModelRouter = {};")
+          .replace(/import [^;]+;/g, "")
+          .replace(/export (default )?[^;]+;/g, "");
         assert.doesNotThrow(
           () => new Function(testable),
           `${file} should have valid JS syntax`,

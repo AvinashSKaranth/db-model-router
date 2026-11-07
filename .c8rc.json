@@ -1,22 +1,16 @@
 {
   "all": true,
-  "include": [
-    "src/**/*.js",
-    "db-manager/**/*.js"
-  ],
+  "include": ["src/**/*.js"],
   "exclude": [
+    "node_modules/**",
+    "coverage/**",
     "test/**",
     "demo/**",
     "scripts/**",
-    "reports/**",
-    "coverage/**"
+    "benchmark/**",
+    "db-manager/**",
+    "types/**",
+    "src/serve.js"
   ],
-  "reporter": [
-    "text",
-    "text-summary",
-    "json-summary",
-    "html"
-  ],
-  "reports-dir": "./coverage",
-  "check-coverage": false
+  "reporter": ["text", "json-summary", "html"]
 }

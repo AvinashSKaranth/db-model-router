@@ -152,3 +152,4 @@ db-manager/.dbmanager.sqlite-wal
 # Benchmark output (generated HTML reports)
 benchmark/reports/
 benchmark/*.html
+benchmark/prisma/generated/

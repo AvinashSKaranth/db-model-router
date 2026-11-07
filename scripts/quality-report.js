@@ -34,6 +34,7 @@ let coverageSummary = {
 
 try {
   const unitDir = path.join(ROOT_DIR, "test", "unit");
+  const commandsDir = path.join(ROOT_DIR, "test", "commands");
   const adaptersDir = path.join(ROOT_DIR, "test", "adapters");
   const testDir = path.join(ROOT_DIR, "test");
   const testFiles = [
@@ -41,13 +42,30 @@ try {
       .readdirSync(unitDir)
       .filter((f) => f.endsWith(".test.js"))
       .map((f) => path.join("test", "unit", f)),
+    ...(fs.existsSync(commandsDir)
+      ? fs
+          .readdirSync(commandsDir)
+          .filter((f) => f.endsWith(".test.js"))
+          .map((f) => path.join("test", "commands", f))
+      : []),
     ...fs
       .readdirSync(adaptersDir)
       .filter((f) => f.startsWith("sqlite3.") && f.endsWith(".test.js"))
       .map((f) => path.join("test", "adapters", f)),
     ...fs
       .readdirSync(testDir)
-      .filter((f) => f.startsWith("encryption.") && f.endsWith(".test.js"))
+      .filter(
+        (f) =>
+          (f.startsWith("encryption.") ||
+            f.startsWith("cli-main") ||
+            f.startsWith("cli.generate") ||
+            f.startsWith("cli.init") ||
+            f.startsWith("diff-engine") ||
+            f.startsWith("flags") ||
+            f.startsWith("saas-structure") ||
+            f.startsWith("schema-")) &&
+          f.endsWith(".test.js"),
+      )
       .map((f) => path.join("test", f)),
   ];
 
@@ -843,6 +861,16 @@ const html = `<!DOCTYPE html>
 
 fs.writeFileSync(OUTPUT_HTML, html, "utf8");
 
+// Also output to docs/report/report.html and docs/report/index.html
+const DOCS_REPORT_DIR = path.join(ROOT_DIR, "docs", "report");
+if (!fs.existsSync(DOCS_REPORT_DIR)) {
+  fs.mkdirSync(DOCS_REPORT_DIR, { recursive: true });
+}
+const docsReportHtml = path.join(DOCS_REPORT_DIR, "report.html");
+const docsIndexHtml = path.join(DOCS_REPORT_DIR, "index.html");
+fs.writeFileSync(docsReportHtml, html, "utf8");
+fs.writeFileSync(docsIndexHtml, html, "utf8");
+
 // Ensure root report.html is deleted if it exists
 const rootReport = path.join(ROOT_DIR, "report.html");
 if (fs.existsSync(rootReport)) {
@@ -859,6 +887,7 @@ if (fs.existsSync(artifactDir)) {
 
 console.log("========================================================");
 console.log(`✔ Quality report generated successfully:`);
-console.log(`   - Output:   ${OUTPUT_HTML}`);
+console.log(`   - Reports:   ${OUTPUT_HTML}`);
+console.log(`   - Docs:      ${docsReportHtml}`);
 console.log(`   - Overall Score: ${overallScore}/100 (Grade ${grade})`);
 console.log("========================================================\n");
