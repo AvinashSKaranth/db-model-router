@@ -64,15 +64,24 @@ export interface ModelInstance<T = any> {
   find(data?: Record<string, any>, context?: any): Promise<FindResult<T>>;
   findOne(data?: Record<string, any>, context?: any): Promise<T | false>;
   list(data?: ListParams<T>, context?: any): Promise<FindResult<T>>;
+  withTx(tx: TransactionContext): ModelInstance<T>;
   pk: string;
   table: string;
   modelStructure: Record<string, string>;
   hooks: ModelHooks<T>;
 }
 
+export interface TransactionContext {
+  adapter: DatabaseAdapter;
+  query(sql: string, params?: any[]): Promise<any>;
+  model<T = any>(modelOrTable: ModelInstance<T> | string): ModelInstance<T>;
+  [key: string]: any;
+}
+
 export interface DatabaseAdapter {
   connect(config: any): Promise<any> | any;
   disconnect(): Promise<any> | any;
+  transaction<R = any>(fn: (tx: TransactionContext) => Promise<R>): Promise<R>;
   get(table: string, filter?: any[][][], sort?: any[], safeDelete?: string | null): Promise<FindResult<any>>;
   list(table: string, filter?: any[][][], sort?: any[], safeDelete?: string | null, page?: number, size?: number): Promise<FindResult<any>>;
   insert(table: string, data: any, unique?: any[]): Promise<any>;
@@ -99,6 +108,10 @@ export function route(
 
 export const db: DatabaseAdapter;
 
+export function transaction<R = any>(
+  fn: (tx: TransactionContext) => Promise<R>
+): Promise<R>;
+
 export function init(
   adapter: string,
   config?: any
@@ -108,5 +121,6 @@ export default {
   model,
   route,
   db,
+  transaction,
   init,
 };

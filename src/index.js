@@ -72,6 +72,12 @@ module.exports = {
   get initConfig() {
     return initConfig;
   },
+  transaction: async (fn) => {
+    if (!db || typeof db.transaction !== "function") {
+      throw new Error("Active database adapter does not support transactions.");
+    }
+    return db.transaction(fn);
+  },
   model,
   route,
   kafka,

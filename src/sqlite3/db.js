@@ -404,6 +404,67 @@ function namify(text) {
     .replace(/(^\w{1})|(\s+\w{1})/g, (letter) => letter.toUpperCase());
 }
 
+let txDepth = 0;
+
+async function transaction(fn) {
+  if (typeof fn !== "function") {
+    throw new Error("Transaction requires a callback function");
+  }
+  const isTopLevel = txDepth === 0;
+  const spName = `sp_${txDepth}`;
+  txDepth++;
+
+  if (isTopLevel) {
+    query("BEGIN");
+  } else {
+    query(`SAVEPOINT ${spName}`);
+  }
+
+  const kafkaBuffer = isTopLevel ? [] : null;
+  const tx = {
+    adapter: module.exports,
+    _kafkaBuffer: kafkaBuffer,
+    query: (sql, params) => query(sql, params),
+    model: (modelOrTable) => {
+      const modelFn = require("../commons/model");
+      const m =
+        typeof modelOrTable === "string"
+          ? modelFn(module.exports, modelOrTable)
+          : modelOrTable;
+      return typeof m?.withTx === "function" ? m.withTx(tx) : m;
+    },
+  };
+
+  try {
+    const result = await fn(tx);
+    if (isTopLevel) {
+      query("COMMIT");
+      if (kafkaBuffer && kafkaBuffer.length > 0) {
+        const { produce } = require("../commons/kafka");
+        for (const msg of kafkaBuffer) {
+          produce(msg.table, msg.action, msg.data);
+        }
+      }
+    } else {
+      query(`RELEASE SAVEPOINT ${spName}`);
+    }
+    txDepth--;
+    return result;
+  } catch (err) {
+    if (isTopLevel) {
+      try {
+        query("ROLLBACK");
+      } catch (_) {}
+    } else {
+      try {
+        query(`ROLLBACK TO SAVEPOINT ${spName}`);
+      } catch (_) {}
+    }
+    txDepth--;
+    throw err;
+  }
+}
+
 module.exports = {
   connect,
   get,
@@ -420,4 +481,5 @@ module.exports = {
   disconnect,
   close: disconnect,
   escapeId,
+  transaction,
 };

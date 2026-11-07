@@ -636,6 +636,174 @@ async function disconnect() {
   }
 }
 
+async function transaction(fn) {
+  if (typeof fn !== "function") {
+    throw new Error("Transaction requires a callback function");
+  }
+  const client = await pool.connect();
+  const kafkaBuffer = [];
+  try {
+    await client.query("BEGIN");
+
+    const txQuery = async (sql, parameter = []) => {
+      let cleanSql = sql;
+      if (typeof cleanSql === "string") {
+        cleanSql = cleanSql.replace(/^\/\*\s*PG_NATIVE\s*\*\/\s*/i, "");
+      }
+      const result = await client.query(cleanSql, parameter);
+      const isInsert = /^\s*INSERT\s/i.test(cleanSql);
+      if (isInsert) {
+        if (result.rows && result.rows.length > 0) {
+          const firstRow = result.rows[0];
+          const id = firstRow.id || firstRow[Object.keys(firstRow)[0]] || 0;
+          return { affectedRows: result.rowCount || 0, insertId: id };
+        }
+        return { affectedRows: result.rowCount || 0, insertId: 0 };
+      }
+      const isUpdate = /^\s*(UPDATE|DELETE|MERGE)\s/i.test(cleanSql);
+      if (isUpdate) {
+        return { affectedRows: result.rowCount || 0, insertId: 0 };
+      }
+      return mapResults(result);
+    };
+
+    const txAdapter = {
+      ...module.exports,
+      query: txQuery,
+      get: async (table, filter = [], sort = [], safeDelete = null) => {
+        const whereData = where(filter, safeDelete);
+        const sortData = sort_builder(sort);
+        if (whereData == null) throw new Error(WHERE_INVALID);
+        const sql = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query}`;
+        const rows = await txQuery(sql, whereData.value);
+        const count = await txAdapter.qcount(table, filter, safeDelete);
+        return { data: jsonSafeParse(rows), count };
+      },
+      list: async (
+        table,
+        filter = [],
+        sort = [],
+        safeDelete = null,
+        page = 0,
+        limit = 30,
+      ) => {
+        const whereData = where(filter, safeDelete);
+        const sortData = sort_builder(sort);
+        if (whereData == null) throw new Error(WHERE_INVALID);
+        const offset = page * limit;
+        const sql = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query} LIMIT ${limit} OFFSET ${offset}`;
+        const rows = await txQuery(sql, whereData.value);
+        const count = await txAdapter.qcount(table, filter, safeDelete);
+        return { data: jsonSafeParse(rows), count };
+      },
+      qcount: async (table, filter, safeDelete = null) => {
+        const whereData = where(filter, safeDelete);
+        if (whereData == null) return 0;
+        const sql = `SELECT count(*) AS number FROM ${escapeId(table)} ${whereData.query}`;
+        try {
+          const rows = await txQuery(sql, whereData.value);
+          return parseInt(rows[0]?.number) || 0;
+        } catch (_) {
+          return 0;
+        }
+      },
+      remove: async (table, filter, safeDelete = null) => {
+        const whereData = where(filter);
+        if (whereData == null) throw new Error(WHERE_INVALID);
+        if (whereData.value.length < 1) {
+          throw new Error("unable to remove as there are no filter attributes");
+        }
+        let sql;
+        let params;
+        if (safeDelete != null) {
+          sql = `UPDATE ${escapeId(table)} SET ${escapeId(safeDelete)} = TRUE ${whereData.query}`;
+          params = whereData.value;
+        } else {
+          sql = `DELETE FROM ${escapeId(table)} ${whereData.query}`;
+          params = whereData.value;
+        }
+        const result = await txQuery(sql, params);
+        const rows = result.affectedRows || 0;
+        return {
+          message: rows + " " + table + (rows > 1 ? "s" : "") + " removed",
+        };
+      },
+      insert: async (table, data, uniqueKeys = []) => {
+        let array = Array.isArray(data) ? data : [data];
+        const columns = Object.keys(array[0]);
+        if (uniqueKeys.length > 0) {
+          const colList = columns.map(escapeId).join(",");
+          const placeholders = columns.map((_, i) => "$" + (i + 1)).join(",");
+          const conflictTargets = uniqueKeys.flat().map(escapeId).join(",");
+          const updates = columns
+            .filter((c) => !uniqueKeys.flat().includes(c))
+            .map((c) => `${escapeId(c)} = EXCLUDED.${escapeId(c)}`)
+            .join(",");
+          const sql = `INSERT INTO ${escapeId(table)} (${colList}) VALUES (${placeholders}) ON CONFLICT (${conflictTargets}) DO UPDATE SET ${updates} RETURNING *`;
+          const vals = columns.map((c) => sanitizeValue(array[0][c]));
+          const res = await client.query(sql, vals);
+          const pk = await getPkColumn(table);
+          const id = pk && res.rows[0] ? res.rows[0][pk] : 0;
+          return {
+            rows: 1,
+            message: `1 ${namify(table)} is saved`,
+            type: "success",
+            id,
+          };
+        }
+        const pk = await getPkColumn(table);
+        const placeholders = columns.map((_, i) => "$" + (i + 1)).join(",");
+        let sql = `INSERT INTO ${escapeId(table)} (${columns.map(escapeId).join(",")}) VALUES (${placeholders})`;
+        if (pk) sql += ` RETURNING ${escapeId(pk)}`;
+        const vals = columns.map((c) => sanitizeValue(array[0][c]));
+        const res = await client.query(sql, vals);
+        const insertId = pk && res.rows && res.rows[0] ? res.rows[0][pk] : 0;
+        return {
+          rows: 1,
+          message: `1 ${namify(table)} is saved`,
+          type: "success",
+          id: insertId,
+        };
+      },
+      upsert: async (table, data, uniqueKeys = []) => {
+        return await txAdapter.insert(table, data, uniqueKeys);
+      },
+    };
+
+    const tx = {
+      adapter: txAdapter,
+      client,
+      _kafkaBuffer: kafkaBuffer,
+      query: (sql, params) => txQuery(sql, params),
+      model: (modelOrTable) => {
+        const modelFn = require("../commons/model");
+        const m =
+          typeof modelOrTable === "string"
+            ? modelFn(txAdapter, modelOrTable)
+            : modelOrTable;
+        return typeof m?.withTx === "function" ? m.withTx(tx) : m;
+      },
+    };
+
+    const res = await fn(tx);
+    await client.query("COMMIT");
+    if (kafkaBuffer.length > 0) {
+      const { produce } = require("../commons/kafka");
+      for (const msg of kafkaBuffer) {
+        produce(msg.table, msg.action, msg.data);
+      }
+    }
+    return res;
+  } catch (err) {
+    try {
+      await client.query("ROLLBACK");
+    } catch (_) {}
+    throw mapPgError(err);
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   connect,
   get,
@@ -653,4 +821,5 @@ module.exports = {
   close: disconnect,
   pool: null,
   getSqlCaptureLog,
+  transaction,
 };

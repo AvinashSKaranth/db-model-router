@@ -412,6 +412,14 @@ module.exports = function model(
     );
   }
 
+  const emitProduce = (t, action, payload) => {
+    if (option && option._kafkaBuffer) {
+      option._kafkaBuffer.push({ table: t, action, data: payload });
+    } else {
+      produce(t, action, payload);
+    }
+  };
+
   return {
     insert: async (data, context = {}) => {
       let isBulk = false;
@@ -446,14 +454,14 @@ module.exports = function model(
           decryptRows(record, encryptionMeta, activeEncryption?.keyring);
           if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
           if (hooks.afterCreate) record = await runItemHook(hooks.afterCreate, record, context);
-          produce(table, "insert", record);
+          emitProduce(table, "insert", record);
         }
         return record;
       }
       // Bulk Insert or non-id return
       if (hooks.afterSave) await hooks.afterSave(insertResult, context);
       if (hooks.afterCreate) await hooks.afterCreate(insertResult, context);
-      produce(table, "insert", payloadForProduce(data, encryptionMeta, activeEncryption?.keyring));
+      emitProduce(table, "insert", payloadForProduce(data, encryptionMeta, activeEncryption?.keyring));
       return insertResult;
     },
     update: async (data, context = {}) => {
@@ -473,7 +481,7 @@ module.exports = function model(
         updateResult = await db.upsert(table, data, unique);
         if (hooks.afterSave) await hooks.afterSave(updateResult, context);
         if (hooks.afterUpdate) await hooks.afterUpdate(updateResult, context);
-        produce(table, "update", payloadForProduce(data, encryptionMeta, activeEncryption?.keyring));
+        emitProduce(table, "update", payloadForProduce(data, encryptionMeta, activeEncryption?.keyring));
       } else {
         stripTimestampFields(data, allTimestampKeys);
         await validateInput(
@@ -493,7 +501,7 @@ module.exports = function model(
             decryptRows(record, encryptionMeta, activeEncryption?.keyring);
             if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
             if (hooks.afterUpdate) record = await runItemHook(hooks.afterUpdate, record, context);
-            produce(table, "update", record);
+            emitProduce(table, "update", record);
           }
           return record;
         } else if (data[0].hasOwnProperty(primary_key)) {
@@ -508,7 +516,7 @@ module.exports = function model(
             decryptRows(record, encryptionMeta, activeEncryption?.keyring);
             if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
             if (hooks.afterUpdate) record = await runItemHook(hooks.afterUpdate, record, context);
-            produce(table, "update", record);
+            emitProduce(table, "update", record);
             return record;
           } else return null;
         }
@@ -537,7 +545,7 @@ module.exports = function model(
         if (hooks.afterSave) await hooks.afterSave(updateResult, context);
         if (hooks.afterUpdate) await hooks.afterUpdate(updateResult, context);
         if (hooks.afterUpsert) await hooks.afterUpsert(updateResult, context);
-        produce(table, "upsert", payloadForProduce(data, encryptionMeta, activeEncryption?.keyring));
+        emitProduce(table, "upsert", payloadForProduce(data, encryptionMeta, activeEncryption?.keyring));
       } else {
         stripTimestampFields(data, allTimestampKeys);
         await validateInput(
@@ -559,7 +567,7 @@ module.exports = function model(
             if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
             if (hooks.afterUpdate) record = await runItemHook(hooks.afterUpdate, record, context);
             if (hooks.afterUpsert) record = await runItemHook(hooks.afterUpsert, record, context);
-            produce(table, "upsert", record);
+            emitProduce(table, "upsert", record);
           }
           return record;
         } else if (originalData.hasOwnProperty(primary_key)) {
@@ -572,7 +580,7 @@ module.exports = function model(
             if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
             if (hooks.afterUpdate) record = await runItemHook(hooks.afterUpdate, record, context);
             if (hooks.afterUpsert) record = await runItemHook(hooks.afterUpsert, record, context);
-            produce(table, "upsert", record);
+            emitProduce(table, "upsert", record);
             return record;
           } else return null;
         }
@@ -593,7 +601,7 @@ module.exports = function model(
       if (hooks.afterDelete) {
         await hooks.afterDelete(removeResult, context);
       }
-      produce(table, "delete", originalData);
+      emitProduce(table, "delete", originalData);
       return removeResult;
     },
     byId: async (id, options = {}, context = {}) => {
@@ -783,10 +791,25 @@ module.exports = function model(
         decryptRows(record, encryptionMeta, activeEncryption?.keyring);
         if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
         if (hooks.afterUpdate) record = await runItemHook(hooks.afterUpdate, record, context);
-        produce(table, "update", record);
+        emitProduce(table, "update", record);
         return record;
       }
       return null;
+    },
+    withTx: (tx) => {
+      const txAdapter = tx && tx.adapter ? tx.adapter : tx;
+      const txBuffer = tx && tx._kafkaBuffer ? tx._kafkaBuffer : null;
+      return model(
+        txAdapter,
+        table,
+        modelStructure,
+        primary_key,
+        unique,
+        {
+          ...option,
+          _kafkaBuffer: txBuffer,
+        },
+      );
     },
     pk: primary_key,
     modelStructure,
