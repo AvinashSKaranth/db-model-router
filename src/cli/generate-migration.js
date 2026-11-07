@@ -36,6 +36,7 @@ function parseColumnRule(rule) {
   const parts = rule.split("|");
   const isRequired = parts.includes("required");
 
+  let foundBaseType = false;
   let baseType = "string";
   let subType = null;
   const validators = [];
@@ -47,30 +48,10 @@ function parseColumnRule(rule) {
     const colonIdx = part.indexOf(":");
     const token = colonIdx > -1 ? part.slice(0, colonIdx) : part;
 
-    if (!baseType || baseType === "string") {
-      if (BASE_TYPES.has(token)) {
-        baseType = token;
-        subType = colonIdx > -1 ? part.slice(colonIdx + 1) : null;
-        continue;
-      }
-    }
-
-    // If we already found the base type, or this isn't a known type, it's a validator
-    if (BASE_TYPES.has(token) && baseType === "string" && token !== "string") {
+    if (!foundBaseType && BASE_TYPES.has(token)) {
       baseType = token;
       subType = colonIdx > -1 ? part.slice(colonIdx + 1) : null;
-    } else if (BASE_TYPES.has(part)) {
-      // Bare base type without colon, and we haven't set one yet
-      if (baseType === "string" && part !== "string") {
-        baseType = part;
-      } else if (baseType === "string" && part === "string") {
-        // already default, skip
-      } else {
-        validators.push(part);
-      }
-    } else if (BASE_TYPES.has(token)) {
-      baseType = token;
-      subType = colonIdx > -1 ? part.slice(colonIdx + 1) : null;
+      foundBaseType = true;
     } else {
       validators.push(part);
     }

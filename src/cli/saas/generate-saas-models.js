@@ -44,6 +44,7 @@ const MODEL_DEFINITIONS = [
     structure: {
       email: "required|string",
       phone: "string",
+      // eslint-disable-next-line sonarjs/no-hardcoded-passwords
       password_hash: "required|string",
       name: "required|string",
       unique_attribute: "required|string",

@@ -201,6 +201,7 @@ async function up(db, migrationsDir = "migrations", adapterType = "") {
 
   for (const file of pending) {
     if (file.ext === ".js") {
+      // eslint-disable-next-line security/detect-non-literal-require
       const migration = require(path.resolve(file.fullPath));
       if (typeof migration.up === "function") {
         await migration.up(db);
@@ -252,6 +253,7 @@ async function down(db, migrationsDir = "migrations", adapterType = "") {
   for (const m of batchMigrations) {
     const file = fileMap.get(m.id);
     if (file && file.ext === ".js") {
+      // eslint-disable-next-line security/detect-non-literal-require
       const migration = require(path.resolve(file.fullPath));
       if (typeof migration.down === "function") {
         await migration.down(db);

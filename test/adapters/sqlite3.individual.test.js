@@ -1,5 +1,4 @@
 process.env.NODE_ENV = "TEST";
-const crypto = require("crypto");
 const assert = require("assert");
 const db = require("../../src/sqlite3/db.js");
 const model = require("../../src/commons/model.js");

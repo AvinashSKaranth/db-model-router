@@ -3,7 +3,7 @@ const assert = require("assert");
 const db = require("../../src/sqlite3/db.js");
 const model = require("../../src/commons/model.js");
 const { jsonSafeParse, jsonStringify, wouldLosePrecision } = require("../../src/commons/function.js");
-const { dataToFilter, objectToFilter, parseFilterValue } = require("../../src/commons/validator.js");
+const { dataToFilter, objectToFilter } = require("../../src/commons/validator.js");
 
 describe("Null Impact & Bad Data Handling Tests", function () {
   const tableName = "bad_data_test_" + Date.now();

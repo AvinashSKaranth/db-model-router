@@ -42,7 +42,7 @@ function where(filter, safeDelete = null) {
       // Clone filter array to prevent in-place mutation of caller's data
       filterCopy = filter.map((group) => group.map((cond) => [...cond]));
     }
-  } catch (err) {
+  } catch {
     return null;
   }
 
@@ -281,7 +281,7 @@ async function qcount(table, filter, safeDelete = null) {
     let records = await getAllRecords(table);
     records = records.filter(whereData.query);
     return records.length;
-  } catch (err) {
+  } catch {
     return 0;
   }
 }
@@ -395,12 +395,11 @@ async function upsert(table, data, uniqueKeys = []) {
   return response;
 }
 
-async function insert(table, data, uniqueKeys = []) {
+async function insert(table, data, _uniqueKeys = []) {
   let array = Array.isArray(data) ? [...data] : [data];
   const total = array.length;
 
-  try {
-    let lastId = null;
+  let lastId = null;
     if (total === 1) {
       let pkVal = array[0][primaryKey];
       if (pkVal == null) {
@@ -449,13 +448,10 @@ async function insert(table, data, uniqueKeys = []) {
           : `${total} ${namify(table)}s are `) + "saved",
       type: "success",
     };
-    if (total === 1 && lastId != null) {
-      response.id = lastId;
-    }
-    return response;
-  } catch (err) {
-    throw err;
+  if (total === 1 && lastId != null) {
+    response.id = lastId;
   }
+  return response;
 }
 
 async function query(cmd, ...args) {
@@ -495,8 +491,8 @@ function sortItems(items, sort) {
 
 function namify(text) {
   return text
-    .replace("_", " ")
-    .replace(/(^\w{1})|(\s+\w{1})/g, (letter) => letter.toUpperCase());
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 module.exports = {

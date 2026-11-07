@@ -60,28 +60,5 @@ app.use("*", (req, res) => {
 app.listen(port, () => {
   console.log(`Example app listening at http://localhost:${port}`);
 });
-function authenticate(param) {
-  return function (req, res, next) {
-    // Is Loggedin
-    if (
-      !req.hasOwnProperty("session") ||
-      !req.session.hasOwnProperty("user_id")
-    ) {
-      res.status(401);
-      res.send({ message: "user not loggedin" });
-    } else {
-      // Is Role permitting the usage of this api
-      if (!param.role.includes(req.session.role_selected.role)) {
-        res.status(401);
-        res.send({ message: "user not allowed to access this endpoint" });
-      }
-      // Is Account Offering permitting the usage of this api
-      if (!req.session.role_selected.offering.includes(param.offering)) {
-        res.status(401);
-        res.send({ message: "user not allowed to access this endpoint" });
-      }
-      //TODO: fine grain control needs to be written
-    }
-  };
-}
+
 module.exports = app;

@@ -30,7 +30,7 @@ async function typesCommand(flags, outputContext) {
       outputContext.error(msg);
       return 1;
     }
-    throw new Error(msg);
+    throw new Error(msg, { cause: err });
   }
 
   const generatedDts = generateTypes(schema);

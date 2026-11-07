@@ -39,7 +39,7 @@ function ruleToTypeScript(ruleString) {
     typePart = parts.find((p) => p !== "required")?.split(":")[0] || "string";
   }
 
-  let tsType = "string";
+  let tsType;
   switch (typePart.toLowerCase()) {
     case "auto_increment":
       tsType = "number";

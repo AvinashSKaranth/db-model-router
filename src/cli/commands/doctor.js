@@ -89,7 +89,7 @@ async function doctor(args, flags, ctx) {
               driver,
             });
           }
-        } catch (_) {
+        } catch {
           // If package.json is unreadable, report driver as missing
           dependencies.ok = false;
           dependencies.missing.push({

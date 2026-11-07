@@ -2,18 +2,18 @@ const model = require("./commons/model.js");
 const route = require("./commons/route.js");
 const kafka = require("./commons/kafka.js");
 const encryption = require("./commons/encryption.js");
-const routers = {
-  mysql: "./mysql/db.js",
-  mariadb: "./mariadb/db.js",
-  postgresql: "./postgres/db.js",
-  postgres: "./postgres/db.js",
-  oracle: "./oracle/db.js",
-  sqlite3: "./sqlite3/db.js",
-  mssql: "./mssql/db.js",
-  cockroachdb: "./cockroachdb/db.js",
-  mongodb: "./mongodb/db.js",
-  redis: "./redis/db.js",
-  dynamodb: "./dynamodb/db.js",
+const adapterLoaders = {
+  mysql: () => require("./mysql/db.js"),
+  mariadb: () => require("./mariadb/db.js"),
+  postgresql: () => require("./postgres/db.js"),
+  postgres: () => require("./postgres/db.js"),
+  oracle: () => require("./oracle/db.js"),
+  sqlite3: () => require("./sqlite3/db.js"),
+  mssql: () => require("./mssql/db.js"),
+  cockroachdb: () => require("./cockroachdb/db.js"),
+  mongodb: () => require("./mongodb/db.js"),
+  redis: () => require("./redis/db.js"),
+  dynamodb: () => require("./dynamodb/db.js"),
 };
 
 let db = null;
@@ -21,14 +21,14 @@ let initConfig = null;
 
 function init(DB_TYPE, config) {
   const dbType = (DB_TYPE || "mysql").toLowerCase();
-  const routerPath = routers[dbType];
-  if (!routerPath) {
+  const loader = adapterLoaders[dbType];
+  if (!loader) {
     throw new Error(
-      `Unsupported DB_TYPE: "${dbType}". Supported: ${Object.keys(routers).join(", ")}`,
+      `Unsupported DB_TYPE: "${dbType}". Supported: ${Object.keys(adapterLoaders).join(", ")}`,
     );
   }
   try {
-    db = require(routerPath);
+    db = loader();
   } catch (err) {
     if (err.code === "MODULE_NOT_FOUND") {
       const driverMap = {
@@ -46,6 +46,7 @@ function init(DB_TYPE, config) {
       };
       throw new Error(
         `Missing driver for "${dbType}". Install it with: npm install ${driverMap[dbType] || dbType}`,
+        { cause: err },
       );
     }
     throw err;

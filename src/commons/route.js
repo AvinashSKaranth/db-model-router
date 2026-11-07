@@ -6,22 +6,25 @@ function resolveExpress(opts = {}) {
   ) {
     try {
       return require("ultimate-express");
-    } catch (_) {}
+    } catch (_) {
+      // fallback if ultimate-express is not installed
+    }
   }
   try {
     return require("express");
   } catch (_) {
+    // fallback to ultimate-express if express is not installed
     try {
       return require("ultimate-express");
     } catch (e) {
-      throw new Error("Neither 'express' nor 'ultimate-express' is installed.");
+      throw new Error("Neither 'express' nor 'ultimate-express' is installed.", { cause: e });
     }
   }
 }
 
 const { errorResponse } = require("./validator");
 const { toCSV, toXML, extractReservedParams, applySelect } = require("./model");
-const _ = require("lodash");
+const { getByPath } = require("./function");
 
 /**
  * Send response in the requested format (json, csv, xml).
@@ -68,7 +71,9 @@ module.exports = function route(model, override = {}, options = {}) {
               if (raw.trim()) {
                 try {
                   req.body = JSON.parse(raw);
-                } catch (_) {}
+                } catch (_) {
+                  // ignore malformed JSON fallback
+                }
               }
               resolve();
             });
@@ -304,7 +309,8 @@ function payloadOverride(payload, req, override) {
 function dataOverride(payload, req, override) {
   for (const key in override) {
     if (key.startsWith("$")) continue;
-    payload[key] = _.get(req, override[key], "");
+    const val = getByPath(req, override[key]);
+    payload[key] = val !== undefined ? val : "";
   }
   for (const key in payload) {
     if (payload[key] === "null") {

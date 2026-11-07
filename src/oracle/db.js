@@ -348,7 +348,7 @@ function where(filter, safeDelete = null) {
         filter = [[]];
       }
     }
-  } catch (err) {
+  } catch {
     return null;
   }
 
@@ -393,7 +393,10 @@ function where(filter, safeDelete = null) {
         conditionAnd.push(`${qCol} ${j[1]} (${placeholders})`);
         // Convert booleans to numbers for Oracle
         value.push(
-          ...j[2].map((v) => (typeof v === "boolean" ? (v ? 1 : 0) : v)),
+          ...j[2].map((v) => {
+            if (typeof v === "boolean") return v ? 1 : 0;
+            return v;
+          }),
         );
       } else if (j[1] === "like" || j[1] === "not like") {
         bindIdx++;
@@ -403,14 +406,12 @@ function where(filter, safeDelete = null) {
         bindIdx++;
         conditionAnd.push(`${qCol} ${j[1]} :${bindIdx}`);
         // Convert boolean to number for Oracle; coerce empty string to null (Oracle treats '' as NULL anyway)
-        const val =
-          typeof j[2] === "boolean"
-            ? j[2]
-              ? 1
-              : 0
-            : j[2] === ""
-              ? null
-              : j[2];
+        let val = j[2];
+        if (typeof val === "boolean") {
+          val = val ? 1 : 0;
+        } else if (val === "") {
+          val = null;
+        }
         value.push(val);
       }
     }
@@ -435,7 +436,6 @@ function sort_builder(sort) {
       dir = "DESC";
     } else if (col.startsWith("+")) {
       col = col.substring(1).trim();
-      dir = "ASC";
     }
     if (!col) continue;
     items.push(`${escapeId(col)} ${dir}`);
@@ -512,8 +512,8 @@ async function remove(table, filter, safeDelete = null) {
 
 function namify(text) {
   return text
-    .replace("_", " ")
-    .replace(/(^\w{1})|(\s+\w{1})/g, (letter) => letter.toUpperCase());
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 async function getPkColumn(table) {
@@ -533,7 +533,8 @@ async function getPkColumn(table) {
     } finally {
       await conn.close();
     }
-  } catch (e) {
+  } catch {
+    // Primary key detection failed; fall back to null
     pkCache[cleanTable] = null;
   }
   return pkCache[cleanTable];

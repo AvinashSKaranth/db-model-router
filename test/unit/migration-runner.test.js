@@ -7,7 +7,6 @@ const {
   createMigrationFile,
   ensureMigrationTable,
   getAppliedMigrations,
-  getMigrationFiles,
   up,
   down,
   status,

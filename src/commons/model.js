@@ -15,6 +15,8 @@ const {
 const encryption = require("./encryption");
 const { produce } = require("./kafka");
 
+const hasProp = (obj, key) => obj != null && Object.prototype.hasOwnProperty.call(obj, key);
+
 /**
  * Build a validation-safe copy of the model structure by stripping the
  * internal `encrypted` flag token (node-input-validator rejects unknown rules).
@@ -245,7 +247,7 @@ function applySelect(data, select_columns) {
 function pickKeys(obj, keys) {
   const result = {};
   for (const k of keys) {
-    if (obj.hasOwnProperty(k)) result[k] = obj[k];
+    if (hasProp(obj, k)) result[k] = obj[k];
   }
   return result;
 }
@@ -280,12 +282,10 @@ function toXML(data, rootName = "records", itemName = "record") {
   for (const item of items) {
     xml += "  <" + itemName + ">\n";
     for (const [key, val] of Object.entries(item)) {
-      const escaped =
-        val === null || val === undefined
-          ? ""
-          : typeof val === "object"
-            ? escapeXml(JSON.stringify(val))
-            : escapeXml(String(val));
+      let escaped = "";
+      if (val !== null && val !== undefined) {
+        escaped = typeof val === "object" ? escapeXml(JSON.stringify(val)) : escapeXml(String(val));
+      }
       xml += "    <" + key + ">" + escaped + "</" + key + ">\n";
     }
     xml += "  </" + itemName + ">\n";
@@ -325,21 +325,13 @@ const MODIFIED_AT_VARIANTS = [
 ];
 
 function buildTimestampKeys(option) {
-  let createdKeys = [];
-  let modifiedKeys = [];
+  let createdKeys = CREATED_AT_VARIANTS;
   if (option.created_at) {
-    createdKeys = Array.isArray(option.created_at)
-      ? option.created_at
-      : [option.created_at];
-  } else {
-    createdKeys = CREATED_AT_VARIANTS;
+    createdKeys = Array.isArray(option.created_at) ? option.created_at : [option.created_at];
   }
+  let modifiedKeys = MODIFIED_AT_VARIANTS;
   if (option.modified_at) {
-    modifiedKeys = Array.isArray(option.modified_at)
-      ? option.modified_at
-      : [option.modified_at];
-  } else {
-    modifiedKeys = MODIFIED_AT_VARIANTS;
+    modifiedKeys = Array.isArray(option.modified_at) ? option.modified_at : [option.modified_at];
   }
   return { createdKeys, modifiedKeys };
 }
@@ -403,7 +395,7 @@ module.exports = function model(
 
   const runHook = async (hookFn, payload, context) => {
     if (!hookFn) return payload;
-    if (payload && payload.hasOwnProperty("data") && Array.isArray(payload.data)) {
+    if (payload && hasProp(payload, "data") && Array.isArray(payload.data)) {
       for (let i = 0; i < payload.data.length; i++) {
         payload.data[i] = await runItemHook(hookFn, payload.data[i], context);
       }
@@ -443,7 +435,7 @@ module.exports = function model(
       let isBulk = false;
       if (hooks.beforeSave) data = await runHook(hooks.beforeSave, data, context);
       if (hooks.beforeCreate) data = await runHook(hooks.beforeCreate, data, context);
-      if (data.hasOwnProperty("data")) {
+      if (hasProp(data, "data")) {
         isBulk = true;
         RemovePK(primary_key, data.data);
         stripTimestampFields(data.data, allTimestampKeys);
@@ -465,7 +457,7 @@ module.exports = function model(
       encryptPayload(data, encryptionMeta, activeEncryption?.keyring, activeEncryption?.version);
       data = jsonStringify(data);
       const insertResult = await db.insert(table, data, unique);
-      if (!isBulk && insertResult.hasOwnProperty("id")) {
+      if (!isBulk && hasProp(insertResult, "id")) {
         const getResult = await db.get(table, [
           [[primary_key, "=", insertResult.id]],
         ]);
@@ -485,10 +477,9 @@ module.exports = function model(
       return insertResult;
     },
     update: async (data, context = {}) => {
-      let updateResult = null;
       if (hooks.beforeSave) data = await runHook(hooks.beforeSave, data, context);
       if (hooks.beforeUpdate) data = await runHook(hooks.beforeUpdate, data, context);
-      if (data.hasOwnProperty("data")) {
+      if (hasProp(data, "data")) {
         stripTimestampFields(data.data, allTimestampKeys);
         await validateInput(
           data,
@@ -498,10 +489,11 @@ module.exports = function model(
         data = RemoveUnknownData(modelStructure, data);
         encryptPayload(data, encryptionMeta, activeEncryption?.keyring, activeEncryption?.version);
         data = jsonStringify(data);
-        updateResult = await db.upsert(table, data, unique);
-        if (hooks.afterSave) await hooks.afterSave(updateResult, context);
-        if (hooks.afterUpdate) await hooks.afterUpdate(updateResult, context);
+        const bulkResult = await db.upsert(table, data, unique);
+        if (hooks.afterSave) await hooks.afterSave(bulkResult, context);
+        if (hooks.afterUpdate) await hooks.afterUpdate(bulkResult, context);
         emitProduce(table, "update", payloadForProduce(data, encryptionMeta, activeEncryption?.keyring));
+        return bulkResult;
       } else {
         stripTimestampFields(data, allTimestampKeys);
         await validateInput(
@@ -511,8 +503,8 @@ module.exports = function model(
         data = RemoveUnknownData(modelStructure, [data]);
         encryptPayload(data, encryptionMeta, activeEncryption?.keyring, activeEncryption?.version);
         data = jsonStringify(data);
-        updateResult = await db.upsert(table, data, unique);
-        if (updateResult.hasOwnProperty("id") && updateResult.id > 0) {
+        const updateResult = await db.upsert(table, data, unique);
+        if (hasProp(updateResult, "id") && updateResult.id > 0) {
           const getResult = await db.get(table, [
             [[primary_key, "=", updateResult.id]],
           ]);
@@ -524,7 +516,7 @@ module.exports = function model(
             emitProduce(table, "update", record);
           }
           return record;
-        } else if (data[0].hasOwnProperty(primary_key)) {
+        } else if (hasProp(data[0], primary_key)) {
           const result = await db.get(
             table,
             [[[primary_key, "=", data[0][primary_key]]]],
@@ -542,16 +534,15 @@ module.exports = function model(
         }
         if (hooks.afterSave) await hooks.afterSave(updateResult, context);
         if (hooks.afterUpdate) await hooks.afterUpdate(updateResult, context);
+        return updateResult;
       }
-      return updateResult;
     },
     upsert: async (data, context = {}) => {
       //* Same as Update but primary key is optional */
-      let updateResult = null;
       if (hooks.beforeSave) data = await runHook(hooks.beforeSave, data, context);
       if (hooks.beforeUpdate) data = await runHook(hooks.beforeUpdate, data, context);
       if (hooks.beforeUpsert) data = await runHook(hooks.beforeUpsert, data, context);
-      if (data.hasOwnProperty("data")) {
+      if (hasProp(data, "data")) {
         stripTimestampFields(data.data, allTimestampKeys);
         await validateInput(
           data,
@@ -561,11 +552,12 @@ module.exports = function model(
         data = RemoveUnknownData(modelStructure, data);
         encryptPayload(data, encryptionMeta, activeEncryption?.keyring, activeEncryption?.version);
         data = jsonStringify(data);
-        updateResult = await db.upsert(table, data, unique);
-        if (hooks.afterSave) await hooks.afterSave(updateResult, context);
-        if (hooks.afterUpdate) await hooks.afterUpdate(updateResult, context);
-        if (hooks.afterUpsert) await hooks.afterUpsert(updateResult, context);
+        const bulkResult = await db.upsert(table, data, unique);
+        if (hooks.afterSave) await hooks.afterSave(bulkResult, context);
+        if (hooks.afterUpdate) await hooks.afterUpdate(bulkResult, context);
+        if (hooks.afterUpsert) await hooks.afterUpsert(bulkResult, context);
         emitProduce(table, "upsert", payloadForProduce(data, encryptionMeta, activeEncryption?.keyring));
+        return bulkResult;
       } else {
         stripTimestampFields(data, allTimestampKeys);
         await validateInput(
@@ -576,8 +568,8 @@ module.exports = function model(
         data = RemoveUnknownData(modelStructure, [data]);
         encryptPayload(data, encryptionMeta, activeEncryption?.keyring, activeEncryption?.version);
         data = jsonStringify(data);
-        updateResult = await db.upsert(table, data, unique);
-        if (updateResult.hasOwnProperty("id")) {
+        const updateResult = await db.upsert(table, data, unique);
+        if (hasProp(updateResult, "id")) {
           const getResult = await db.get(table, [
             [[primary_key, "=", updateResult.id]],
           ]);
@@ -590,7 +582,7 @@ module.exports = function model(
             emitProduce(table, "upsert", record);
           }
           return record;
-        } else if (originalData.hasOwnProperty(primary_key)) {
+        } else if (hasProp(originalData, primary_key)) {
           const result = await db.get(table, [
             [[primary_key, "=", originalData[primary_key]]],
           ]);
@@ -607,8 +599,8 @@ module.exports = function model(
         if (hooks.afterSave) await hooks.afterSave(updateResult, context);
         if (hooks.afterUpdate) await hooks.afterUpdate(updateResult, context);
         if (hooks.afterUpsert) await hooks.afterUpsert(updateResult, context);
+        return updateResult;
       }
-      return updateResult;
     },
     remove: async (data, context = {}) => {
       if (hooks.beforeDelete) {
@@ -633,7 +625,7 @@ module.exports = function model(
       let opt = {};
       let ctx = context;
       if (options && typeof options === "object") {
-        if (options.hasOwnProperty("select_columns")) {
+        if (hasProp(options, "select_columns")) {
           opt = options;
         } else if (Object.keys(context).length === 0) {
           ctx = options;
@@ -671,11 +663,10 @@ module.exports = function model(
         throw err;
       }
     },
-    //TODO: Implement Sort Logic
     find: async (data, context = {}) => {
       const { select_columns, search } = extractReservedParams(data);
       let sort = [];
-      if (data.hasOwnProperty("sort")) {
+      if (hasProp(data, "sort")) {
         sort = normalizeSort(data.sort);
         delete data.sort;
       }
@@ -698,7 +689,7 @@ module.exports = function model(
     findOne: async (data, context = {}) => {
       const { select_columns, search } = extractReservedParams(data);
       let sort = [];
-      if (data.hasOwnProperty("sort")) {
+      if (hasProp(data, "sort")) {
         sort = normalizeSort(data.sort);
         delete data.sort;
       }
@@ -727,20 +718,20 @@ module.exports = function model(
       let page = 0;
       let size = 30;
       let sort = [];
-      if (data.hasOwnProperty("page")) {
+      if (hasProp(data, "page")) {
         page = parseInt(data.page, 10);
         if (isNaN(page) || page < 0) page = 0;
         delete data.page;
       }
-      if (data.hasOwnProperty("size") || data.hasOwnProperty("limit")) {
-        const rawSize = data.hasOwnProperty("size") ? data.size : data.limit;
+      if (hasProp(data, "size") || hasProp(data, "limit")) {
+        const rawSize = hasProp(data, "size") ? data.size : data.limit;
         size = parseInt(rawSize, 10);
         if (isNaN(size) || size < 1) size = 30;
         if (size > 200) size = 200;
         delete data.size;
         delete data.limit;
       }
-      if (data.hasOwnProperty("sort")) {
+      if (hasProp(data, "sort")) {
         sort = normalizeSort(data.sort);
         delete data.sort;
       }
@@ -772,7 +763,7 @@ module.exports = function model(
       if (hooks.beforeSave) data = await runItemHook(hooks.beforeSave, data, context);
       if (hooks.beforeUpdate) data = await runItemHook(hooks.beforeUpdate, data, context);
       stripTimestampFields(data, allTimestampKeys);
-      if (!data.hasOwnProperty(primary_key)) {
+      if (!hasProp(data, primary_key)) {
         throw new Error("Primary key is required for patch", {
           cause: { status: 422 },
         });
@@ -808,7 +799,7 @@ module.exports = function model(
       const merged = { ...existing.data[0] };
       for (const key of Object.keys(data)) {
         if (key === primary_key) continue;
-        if (modelStructure.hasOwnProperty(key)) {
+        if (hasProp(modelStructure, key)) {
           merged[key] = data[key];
         }
       }

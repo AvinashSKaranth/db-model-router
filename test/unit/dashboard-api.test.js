@@ -70,7 +70,7 @@ describe("GET /api/dashboard", function () {
         }
         return [];
       },
-      list: async (table, filter, sort, fields, page, limit) => {
+      list: async (table, _filter, _sort, _fields, _page, _limit) => {
         if (table === "users") return { data: [], count: 50 };
         if (table === "orders") return { data: [], count: 100 };
         return { data: [], count: 0 };

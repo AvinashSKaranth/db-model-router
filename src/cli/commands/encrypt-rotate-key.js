@@ -154,9 +154,10 @@ async function encryptRotateKey(args, flags, ctx) {
 
   ctx.log(`Rotating keys to version v${toVersion}:\n`);
   for (const r of results) {
-    ctx.log(
-      `  ${r.table}: ${r.changed} value(s) ${flags.dryRun ? "would be" : ""} rotated${r.errors && r.errors.length ? `, ${r.errors.length} error(s)` : ""}`,
-    );
+    const wouldBe = flags.dryRun ? "would be" : "";
+    const errorCount =
+      r.errors && r.errors.length ? `, ${r.errors.length} error(s)` : "";
+    ctx.log(`  ${r.table}: ${r.changed} value(s) ${wouldBe} rotated${errorCount}`);
     if (r.errors) {
       for (const e of r.errors) {
         ctx.log(`    - pk=${e.pk} field=${e.field}: ${e.message}`);

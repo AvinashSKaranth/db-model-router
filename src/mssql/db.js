@@ -202,7 +202,6 @@ function sort_builder(sort) {
       dir = "DESC";
     } else if (col.startsWith("+")) {
       col = col.substring(1).trim();
-      dir = "ASC";
     }
     if (!col) continue;
     items.push(`${escapeId(col)} ${dir}`);
@@ -233,7 +232,7 @@ function where(filter, safeDelete = null) {
         filter = [[]];
       }
     }
-  } catch (err) {
+  } catch {
     return null;
   }
 
@@ -377,8 +376,8 @@ async function remove(table, filter, safeDelete = null) {
 
 function namify(text) {
   return text
-    .replace("_", " ")
-    .replace(/(^\w{1})|(\s+\w{1})/g, (letter) => letter.toUpperCase());
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 /**
@@ -404,7 +403,7 @@ function escapeId(name) {
 
 const identityCache = {};
 async function getIdentityColumn(table) {
-  const cleanTable = table.replace(/[\[\]]/g, "").split(".").pop();
+  const cleanTable = table.replace(/[[\]]/g, "").split(".").pop();
   if (identityCache[cleanTable] !== undefined) return identityCache[cleanTable];
   try {
     const request = pool.request();

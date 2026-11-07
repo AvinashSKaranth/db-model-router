@@ -22,7 +22,9 @@ function resolveAndConnectDb(flags) {
       try {
         const schema = JSON.parse(fs.readFileSync(resolvedSchema, "utf-8"));
         if (schema.adapter) adapterType = schema.adapter;
-      } catch (_) {}
+      } catch {
+        // Ignore invalid schema JSON; fallback will apply
+      }
     }
   }
 

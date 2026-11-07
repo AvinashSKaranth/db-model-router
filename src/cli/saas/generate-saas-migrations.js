@@ -177,12 +177,10 @@ function migrationTimestamp(date) {
  * @returns {string}
  */
 function defaultTimestamp(adapter) {
-  switch (adapter) {
-    case "mssql":
-      return " DEFAULT GETDATE()";
-    default:
-      return " DEFAULT CURRENT_TIMESTAMP";
+  if (adapter === "mssql") {
+    return " DEFAULT GETDATE()";
   }
+  return " DEFAULT CURRENT_TIMESTAMP";
 }
 
 // ---------------------------------------------------------------------------
@@ -255,93 +253,6 @@ function generateCreateTableSQL(tableDef, adapter) {
 }
 
 // ---------------------------------------------------------------------------
-// NoSQL Migration Generation
-// ---------------------------------------------------------------------------
-
-/**
- * Generate a MongoDB migration JS file for a SaaS table (collection).
- * @param {object} tableDef - Table definition
- * @returns {string}
- */
-function generateMongoDBMigration(tableDef) {
-  const indexLines = [];
-
-  // Unique indexes
-  for (const cols of tableDef.unique) {
-    const indexObj = cols.map((c) => `${c}: 1`).join(", ");
-    indexLines.push(
-      `  await db.collection("${tableDef.name}").createIndex({ ${indexObj} }, { unique: true });`,
-    );
-  }
-
-  return `"use strict";
-
-module.exports = {
-  async up(db) {
-    await db.createCollection("${tableDef.name}");
-${indexLines.length > 0 ? indexLines.join("\n") + "\n" : ""}  },
-
-  async down(db) {
-    await db.collection("${tableDef.name}").drop();
-  },
-};
-`;
-}
-
-/**
- * Generate a DynamoDB migration JS file for a SaaS table.
- * @param {object} tableDef - Table definition
- * @returns {string}
- */
-function generateDynamoDBMigration(tableDef) {
-  const pk = tableDef.columns.find((c) => c.pk);
-  const pkName = pk ? pk.name : "id";
-
-  return `import { CreateTableCommand, DeleteTableCommand } from "@aws-sdk/client-dynamodb";
-
-export async function up(db) {
-  await db.send(new CreateTableCommand({
-    TableName: "${tableDef.name}",
-    KeySchema: [{ AttributeName: "${pkName}", KeyType: "HASH" }],
-    AttributeDefinitions: [{ AttributeName: "${pkName}", AttributeType: "N" }],
-    BillingMode: "PAY_PER_REQUEST",
-  }));
-}
-
-export async function down(db) {
-  await db.send(new DeleteTableCommand({ TableName: "${tableDef.name}" }));
-}
-`;
-}
-
-/**
- * Generate a Redis migration JS file for a SaaS table.
- * @param {object} tableDef - Table definition
- * @returns {string}
- */
-function generateRedisMigration(tableDef) {
-  return `"use strict";
-
-module.exports = {
-  async up(db) {
-    // Redis is schema-less. This migration is a placeholder.
-    // Data for "${tableDef.name}" will be stored as hash keys: ${tableDef.name}:<id>
-    console.log("Redis: ${tableDef.name} collection ready (schema-less).");
-  },
-
-  async down(db) {
-    // Warning: this deletes ALL keys matching the pattern
-    // In production, use SCAN instead of KEYS
-    const keys = await db.keys("${tableDef.name}:*");
-    if (keys.length > 0) {
-      await db.del(...keys);
-    }
-  },
-};
-`;
-}
-
-// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -356,12 +267,14 @@ module.exports = {
  * @returns {Array<{ relPath: string, content: string }>}
  */
 function generateSaasMigrations(adapter, timestamp) {
-  const baseDate =
-    timestamp instanceof Date
-      ? timestamp
-      : typeof timestamp === "number"
-        ? new Date(timestamp)
-        : new Date();
+  let baseDate;
+  if (timestamp instanceof Date) {
+    baseDate = timestamp;
+  } else if (typeof timestamp === "number") {
+    baseDate = new Date(timestamp);
+  } else {
+    baseDate = new Date();
+  }
 
   const isSql = SQL_ADAPTERS.includes(adapter);
   const tsStr = migrationTimestamp(baseDate);
@@ -381,7 +294,6 @@ function generateSaasMigrations(adapter, timestamp) {
     ];
   } else if (adapter === "mongodb") {
     // Single JS file with all MongoDB collection setups
-    const parts = TABLE_DEFINITIONS.map((td) => generateMongoDBMigration(td));
     const content = `"use strict";
 
 module.exports = {

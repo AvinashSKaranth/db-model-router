@@ -184,7 +184,7 @@ function where(filter, safeDelete = null, columnTypes = {}) {
       // Clone filter array to prevent in-place mutation of caller's data
       filterCopy = filter.map((group) => group.map((cond) => [...cond]));
     }
-  } catch (err) {
+  } catch {
     return null;
   }
 
@@ -309,7 +309,8 @@ async function getTableColumns(table) {
       cols[row.column_name] = row.data_type.toLowerCase();
     }
     tableColumnsCache[table] = cols;
-  } catch (_) {
+  } catch {
+    // fallback if table columns cannot be introspected
     return {};
   }
   return tableColumnsCache[table] || {};
@@ -383,8 +384,8 @@ async function remove(table, filter, safeDelete = null) {
 
 function namify(text) {
   return text
-    .replace("_", " ")
-    .replace(/(^\w{1})|(\s+\w{1})/g, (letter) => letter.toUpperCase());
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 async function getPkColumn(table) {
@@ -404,7 +405,8 @@ async function getPkColumn(table) {
     } finally {
       client.release();
     }
-  } catch (e) {
+  } catch {
+    // fallback if PK cannot be determined
     pkCache[table] = null;
   }
   return pkCache[table];

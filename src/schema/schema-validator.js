@@ -15,8 +15,8 @@ const VALID_ADAPTERS = new Set([
 
 const VALID_FRAMEWORKS = new Set(["express", "ultimate-express"]);
 
-const COLUMN_RULE_RE =
-  /^(encrypted\|)?(required\|)?(string|integer|numeric|boolean|object|datetime|auto_increment)(:[^|]+)?(\|[^|]+)*$/;
+// eslint-disable-next-line security/detect-unsafe-regex
+const COLUMN_RULE_RE = /^(encrypted\|)?(required\|)?(string|integer|numeric|boolean|object|datetime|auto_increment)(:[^|]+)?(\|[^|]+)*$/;
 
 // Field types that may carry the `encrypted` flag. object columns must use
 // dotted JSON-key encryption instead; auto_increment is managed by the DB.
@@ -240,12 +240,11 @@ function validateEncryptionOptions(encryption, errors) {
     });
   }
   const version = encryption.version;
-  if (version === undefined) {
-    errors.push({
-      path: "options.encryption.version",
-      message: "options.encryption.version must be a positive integer",
-    });
-  } else if (!Number.isInteger(version) || version < 1) {
+  if (
+    version === undefined ||
+    !Number.isInteger(version) ||
+    version < 1
+  ) {
     errors.push({
       path: "options.encryption.version",
       message: "options.encryption.version must be a positive integer",

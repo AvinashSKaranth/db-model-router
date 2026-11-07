@@ -23,7 +23,7 @@ function safeVarName(name) {
 /**
  * Generate a route file for a single model.
  */
-function generateRouteFile(tableName, modelsRelPath) {
+function generateRouteFile(tableName, _modelsRelPath) {
   const varName = safeVarName(tableName);
   return `import dbModelRouter from "db-model-router";
 import express from "express";
@@ -95,7 +95,7 @@ function generateChildRouteFile(
   childTable,
   parentTable,
   fkColumn,
-  modelsRelPath,
+  _modelsRelPath,
 ) {
   const varName = safeVarName(childTable);
   return `import dbModelRouter from "db-model-router";
@@ -160,13 +160,6 @@ function generateRoutesIndexFile(tableNames, relationships = [], options = {}) {
 
   imports += "\nexport default router;\n";
   return imports;
-}
-
-/**
- * Generate the routes index file (simple version, no relationships).
- */
-function generateSimpleRoutesIndexFile(tableNames) {
-  return generateRoutesIndexFile(tableNames, []);
 }
 
 /**
@@ -517,7 +510,7 @@ async function main() {
       execFileSync(process.execPath, [generateScript, ...generateArgs], {
         stdio: "inherit",
       });
-    } catch (err) {
+    } catch {
       console.error("Model generation failed.");
       process.exit(1);
     }
@@ -604,7 +597,6 @@ async function main() {
 
   // Generate OpenAPI spec if model metadata is available
   try {
-    const { introspectSQLite3 } = require("./generate-model.js");
     // Try to read model files to extract metadata for OpenAPI
     const { generateOpenAPISpec } = require("./generate-openapi.js");
     const modelMeta = [];
@@ -623,7 +615,7 @@ async function main() {
       fs.writeFileSync(specPath, JSON.stringify(spec, null, 2));
       console.log(`  Created ${specPath}`);
     }
-  } catch (e) {
+  } catch {
     // OpenAPI generation is optional, don't fail
   }
 
@@ -683,15 +675,15 @@ function parseModelFile(content, tableName) {
   try {
     // Extract structure JSON
     const structMatch = content.match(
-      /model\(\s*\n?\s*db,\s*\n?\s*"[^"]+",\s*\n?\s*(\{[\s\S]*?\}),/,
+      /model\(\s*db,\s*"[^"]+",\s*(\{[\s\S]*?\}),/,
     );
     if (!structMatch) return null;
     const structure = JSON.parse(structMatch[1]);
     // Extract primary key
-    const pkMatch = content.match(/"([^"]+)",\s*\n?\s*\[/);
+    const pkMatch = content.match(/"([^"]+)",\s*\[/);
     const primary_key = pkMatch ? pkMatch[1] : "id";
     return { table: tableName, structure, primary_key };
-  } catch (e) {
+  } catch {
     return null;
   }
 }

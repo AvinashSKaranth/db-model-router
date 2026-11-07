@@ -90,7 +90,7 @@ function where(filter, safeDelete = null) {
       // Clone filter array to prevent in-place mutation of caller's data
       filterCopy = filter.map((group) => group.map((cond) => [...cond]));
     }
-  } catch (err) {
+  } catch {
     return null;
   }
 
@@ -401,8 +401,8 @@ function arrayParam(number) {
 
 function namify(text) {
   return text
-    .replace("_", " ")
-    .replace(/(^\w{1})|(\s+\w{1})/g, (letter) => letter.toUpperCase());
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 module.exports = {

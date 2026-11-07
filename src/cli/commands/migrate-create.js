@@ -18,7 +18,7 @@ async function migrateCreateCommand(flags, outputContext) {
   }
 
   const dir = flags.dir || flags.migrations || "migrations";
-  const { fileName, fullPath } = createMigrationFile(name, dir);
+  const { fullPath } = createMigrationFile(name, dir);
 
   const msg = `Created migration file: ${path.relative(process.cwd(), fullPath)}`;
   if (outputContext) {

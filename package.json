@@ -30,6 +30,8 @@
     "demo:create-mysql": "node scripts/demo-create.js mysql",
     "demo:create-mariadb": "node scripts/demo-create.js mariadb",
     "demo:create-postgres": "node scripts/demo-create.js postgres",
+    "benchmark": "node benchmark/run.js --all",
+    "benchmark:generate": "prisma generate --schema benchmark/prisma/schema.prisma",
     "review": "ocr review",
     "review:master": "ocr review --from master --to HEAD",
     "scan": "ocr scan",
@@ -128,9 +130,12 @@
     "@aws-sdk/lib-dynamodb": "^3.1164.0",
     "@eslint/js": "^10.0.1",
     "@faker-js/faker": "^10.4.0",
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
     "better-sqlite3": "^12.9.0",
     "c8": "^12.0.0",
     "dotenv-cli": "^11.0.0",
+    "drizzle-orm": "^0.45.4",
     "eslint": "^10.14.0",
     "eslint-plugin-security": "^4.2.1",
     "eslint-plugin-sonarjs": "^4.2.2",
@@ -145,7 +150,10 @@
     "mysql2": "^3.22.3",
     "oracledb": "^26.0.0",
     "pg": "^8.23.1",
+    "prisma": "^7.10.1",
+    "sequelize": "^6.37.8",
     "supertest": "^6.2.4",
+    "tsx": "^4.23.15",
     "ultimate-express": "^2.2.4"
   },
   "overrides": {
@@ -156,7 +164,8 @@
     "image-size": "^2.1.0",
     "diff": "^8.0.3",
     "glob": "^14.0.4",
-    "minimatch": "^11.0.5"
+    "minimatch": "^11.0.5",
+    "uuid": "^11.1.1"
   },
   "allowScripts": {
     "@alibaba-group/open-code-review@1.11.0": true

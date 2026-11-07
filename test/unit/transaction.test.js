@@ -147,7 +147,7 @@ describe("Cross-Model ACID Transaction Management", function () {
           });
           throw new Error("Inner error");
         });
-      } catch (e) {
+      } catch {
         // Handled inner error
       }
 

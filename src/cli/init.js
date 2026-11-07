@@ -38,8 +38,9 @@ function ensurePackageJson() {
     return;
   }
   try {
+    // eslint-disable-next-line sonarjs/no-os-command-from-path
     execSync("npm init -y", { stdio: "inherit" });
-  } catch (err) {
+  } catch {
     console.error("Error: npm init failed or was aborted.");
     process.exit(1);
   }
@@ -220,7 +221,7 @@ function updatePackageJson(answers, outputDir) {
   let raw;
   try {
     raw = fs.readFileSync("package.json", "utf8");
-  } catch (err) {
+  } catch {
     console.error("Error: Could not read package.json.");
     process.exit(1);
   }
@@ -228,7 +229,7 @@ function updatePackageJson(answers, outputDir) {
   let pkg;
   try {
     pkg = JSON.parse(raw);
-  } catch (err) {
+  } catch {
     console.error(
       "Error: package.json contains invalid JSON. Please fix it manually and re-run.",
     );
@@ -238,7 +239,10 @@ function updatePackageJson(answers, outputDir) {
   const { dependencies, devDependencies } = collectDependencies(answers);
   const scripts = getScripts(outputDir);
 
-  const normalizedOutput = outputDir ? outputDir.replace(/\/+$/, "") : "";
+  let normalizedOutput = outputDir || "";
+  while (normalizedOutput.endsWith("/") || normalizedOutput.endsWith("\\")) {
+    normalizedOutput = normalizedOutput.slice(0, -1);
+  }
   const importPrefix = normalizedOutput ? `./${normalizedOutput}/` : "./";
 
   pkg.type = "module";
@@ -268,8 +272,9 @@ function updatePackageJson(answers, outputDir) {
 function runInstall() {
   console.log("\nInstalling dependencies...\n");
   try {
+    // eslint-disable-next-line sonarjs/no-os-command-from-path
     execSync("npm install", { stdio: "inherit" });
-  } catch (err) {
+  } catch {
     console.error(
       "\nError: npm install failed. Please run the following command manually:",
     );

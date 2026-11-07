@@ -221,7 +221,7 @@ function generateCredentialsContent(password) {
  * @param {string} adapter - Database adapter name (accepted for API consistency)
  * @returns {Array<{ relPath: string, content: string }>}
  */
-function generateSaasSeeds(adapter) {
+function generateSaasSeeds(_adapter) {
   const password = crypto.randomBytes(16).toString("hex");
 
   return [

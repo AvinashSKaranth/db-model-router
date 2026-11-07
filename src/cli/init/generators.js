@@ -211,13 +211,13 @@ function buildEnvContent(answers, mode, secrets) {
     lines.push(
       `APP_NAME=${mode === "placeholder" ? "your_app_name" : "my-app"}`,
     );
-    lines.push(`LOG_LEVEL=${mode === "placeholder" ? "info" : "info"}`);
+    lines.push("LOG_LEVEL=info");
     // LOKI_HOST: empty by default, set a URL to enable Loki transport
     if (answers.loki && mode === "default") {
       lines.push("LOKI_HOST=http://localhost:3100");
     } else {
       lines.push(
-        `LOKI_HOST=${mode === "placeholder" ? "http://your-loki-host:3100" : ""}`,
+        `LOKI_HOST=${mode === "placeholder" ? "https://your-loki-host:3100" : ""}`,
       );
     }
   }
@@ -248,43 +248,6 @@ function generateEnvExample(answers) {
 // ---------------------------------------------------------------------------
 // App.js generator (template-literal based)
 // ---------------------------------------------------------------------------
-
-/**
- * Generate the db.connect() block for the selected database.
- * @param {string} database
- * @returns {string}
- */
-function dbConnectBlock(database) {
-  if (database === "dynamodb") {
-    return `db.connect({
-  region: process.env.AWS_REGION,
-  endpoint: process.env.AWS_ENDPOINT,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  },
-});`;
-  }
-  if (database === "redis") {
-    return `db.connect({
-  host: process.env.DB_HOST || "localhost",
-  port: process.env.DB_PORT || 6379,
-  password: process.env.DB_PASS,
-});`;
-  }
-  if (database === "sqlite3") {
-    return `db.connect({
-  database: process.env.DB_NAME || "./data/data.db",
-});`;
-  }
-  return `db.connect({
-  host: process.env.DB_HOST || "localhost",
-  port: process.env.DB_PORT,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-});`;
-}
 
 /**
  * Return just the connect config properties (indented, no wrapper).
@@ -318,45 +281,6 @@ function dbConnectArgs(database) {
   user: process.env.DB_USER,
   password: process.env.DB_PASS,
 `;
-}
-
-/**
- * Generate session middleware block for app.js.
- * @param {import('./types').InitAnswers} answers
- * @returns {string}
- */
-function sessionBlock(answers) {
-  if (answers.session === "redis") {
-    const redisConfig =
-      answers.database === "redis"
-        ? `  host: process.env.DB_HOST || "localhost",
-  port: process.env.DB_PORT || 6379,
-  password: process.env.DB_PASS,`
-        : `  host: process.env.REDIS_HOST || "localhost",
-  port: process.env.REDIS_PORT || 6379,
-  password: process.env.REDIS_PASS,`;
-
-    return `
-// Session with Redis store
-const redisClient = new Redis({
-${redisConfig}
-});
-app.use(session({
-  store: new RedisStore({ client: redisClient }),
-  secret: process.env.SESSION_SECRET || "change-me",
-  resave: false,
-  saveUninitialized: false,
-}));`;
-  }
-
-  const label = answers.session === "database" ? "database" : "in-memory";
-  return `
-// Session with ${label} store
-app.use(session({
-  secret: process.env.SESSION_SECRET || "change-me",
-  resave: false,
-  saveUninitialized: false,
-}));`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1168,7 +1092,7 @@ export default function configureSession() {
  * @param {string} [outputDir] - relative output directory
  * @returns {string}
  */
-function generateMigrateModule(answers, outputDir) {
+function generateMigrateModule(answers, _outputDir) {
   const isNoSql = NOSQL_DATABASES.includes(answers.database);
   // commons/migrate.js and migrations/ are sibling dirs inside the same outputDir
   const migrationsRel = "../migrations";
@@ -1327,7 +1251,7 @@ if (isMain) {
  * @param {string} [outputDir] - relative output directory
  * @returns {string}
  */
-function generateAddMigrationModule(answers, outputDir) {
+function generateAddMigrationModule(answers, _outputDir) {
   const isNoSql = NOSQL_DATABASES.includes(answers.database);
   const ext = isNoSql ? "js" : "sql";
   const template = isNoSql

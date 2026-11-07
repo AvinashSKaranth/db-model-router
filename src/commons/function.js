@@ -10,17 +10,15 @@ function jsonSafeParse(obj) {
       try {
         // Pre-process: find numeric literals in the JSON that would lose precision.
         const safed = trimmed.replace(
-          /(?<=[:,[]\s*)-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?(?=\s*[,}\]])/g,
-          (match) => {
-            if (wouldLosePrecision(match)) {
-              return '"' + match + '"';
-            }
-            return match;
+          /* eslint-disable-next-line security/detect-unsafe-regex */
+          /([:[,]\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?=[,\s\]}])/g,
+          (_match, prefix, num) => {
+            return prefix + (wouldLosePrecision(num) ? '"' + num + '"' : num);
           },
         );
         return JSON.parse(safed);
-      } catch (_err) {
-        // If the regex approach fails, fall back to standard reviver
+      } catch {
+        // Fallback to standard reviver if regex transformation fails
         try {
           return JSON.parse(trimmed, (key, value) => {
             if (
@@ -32,7 +30,8 @@ function jsonSafeParse(obj) {
             }
             return value;
           });
-        } catch (_err2) {
+        } catch {
+          // Fallback to original object if parsing fails
           return obj;
         }
       }
@@ -139,7 +138,7 @@ function empty(obj) {
 
 function objectSelecter(obj, picker) {
   for (let i of picker) {
-    if (obj.hasOwnProperty(i)) {
+    if (Object.prototype.hasOwnProperty.call(obj, i)) {
       obj = obj[i];
     } else {
       return null;
@@ -149,17 +148,25 @@ function objectSelecter(obj, picker) {
 }
 
 /**
- * Read a value from a nested object using an array path.
+ * Read a value from a nested object using an array path or dot-separated string path.
  * @param {object} obj
- * @param {string[]} path - e.g. ["identity", "dob"]
+ * @param {string[]|string} path - e.g. ["identity", "dob"] or "headers.x-status"
  * @returns {*} value at path, or undefined
  */
 function getByPath(obj, path) {
-  if (!obj || typeof obj !== "object" || !Array.isArray(path)) {
+  let parts;
+  if (Array.isArray(path)) {
+    parts = path;
+  } else if (typeof path === "string") {
+    parts = path.split(".");
+  } else {
+    return undefined;
+  }
+  if (!obj || typeof obj !== "object") {
     return undefined;
   }
   let cur = obj;
-  for (const segment of path) {
+  for (const segment of parts) {
     if (cur === null || cur === undefined) return undefined;
     if (typeof cur !== "object") return undefined;
     cur = cur[segment];

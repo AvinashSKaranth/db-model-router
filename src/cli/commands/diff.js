@@ -3,7 +3,6 @@
 const fs = require("fs");
 const path = require("path");
 const { parseSchema } = require("../../schema/schema-parser");
-const { SchemaValidationError } = require("../../schema/schema-validator");
 const { schemaToModelMeta } = require("../../schema/schema-to-meta");
 const { computeDiff } = require("../diff-engine");
 

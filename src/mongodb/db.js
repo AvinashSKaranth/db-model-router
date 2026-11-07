@@ -55,7 +55,7 @@ function where(filter, safeDelete = null) {
       // Clone filter array to prevent in-place mutation of caller's data
       filterCopy = filter.map((group) => group.map((cond) => [...cond]));
     }
-  } catch (err) {
+  } catch {
     return null;
   }
 
@@ -105,7 +105,7 @@ function where(filter, safeDelete = null) {
       ) {
         try {
           val = new ObjectId(val);
-        } catch (e) {
+        } catch {
           /* keep as string */
         }
       }
@@ -260,7 +260,7 @@ async function upsert(table, data, uniqueKeys = []) {
       ) {
         try {
           val = new ObjectId(val);
-        } catch (e) {
+        } catch {
           /* keep as string */
         }
       }
@@ -289,7 +289,7 @@ async function upsert(table, data, uniqueKeys = []) {
   return response;
 }
 
-async function insert(table, data, uniqueKeys = []) {
+async function insert(table, data, _uniqueKeys = []) {
   let array = Array.isArray(data) ? [...data] : [data];
   const total = array.length;
   const col = database.collection(table);
@@ -300,7 +300,7 @@ async function insert(table, data, uniqueKeys = []) {
       const result = await col.insertOne(array[0]);
       lastId = result.insertedId;
     } else {
-      const result = await col.insertMany(array, { ordered: false });
+      await col.insertMany(array, { ordered: false });
       // For bulk, no single id to return
     }
 
@@ -361,8 +361,8 @@ function buildSort(sort) {
 
 function namify(text) {
   return text
-    .replace("_", " ")
-    .replace(/(^\w{1})|(\s+\w{1})/g, (letter) => letter.toUpperCase());
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 module.exports = {

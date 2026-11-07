@@ -1,5 +1,4 @@
 process.env.NODE_ENV = "TEST";
-const crypto = require("crypto");
 const assert = require("assert");
 const express = require("express");
 const request = require("supertest");

@@ -190,7 +190,7 @@ function where(filter, safeDelete = null, columnTypes = {}) {
         filter = [[]];
       }
     }
-  } catch (err) {
+  } catch {
     return null;
   }
 
@@ -336,7 +336,8 @@ async function getTableColumns(table) {
     } finally {
       client.release();
     }
-  } catch (_) {
+  } catch {
+    // fallback if column cache lookup fails
     return {};
   }
   return tableColumnsCache[table] || {};
@@ -410,8 +411,8 @@ async function remove(table, filter, safeDelete = null) {
 
 function namify(text) {
   return text
-    .replace("_", " ")
-    .replace(/(^\w{1})|(\s+\w{1})/g, (letter) => letter.toUpperCase());
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 async function getPkColumn(table) {
@@ -445,7 +446,8 @@ async function getPkColumn(table) {
     } finally {
       client.release();
     }
-  } catch (e) {
+  } catch {
+    // fallback if pk cannot be determined
     return null;
   }
   return pkCache[table];
@@ -898,7 +900,9 @@ async function transaction(fn) {
   } catch (err) {
     try {
       await client.query("ROLLBACK");
-    } catch (_) {}
+    } catch {
+      // rollback error ignored
+    }
     throw mapPgError(err);
   } finally {
     client.release();

@@ -439,8 +439,8 @@ function resolveSortIdentifiers(sortData) {
 
 function namify(text) {
   return text
-    .replace("_", " ")
-    .replace(/(^\w)|(\s+\w)/g, (letter) => letter.toUpperCase());
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 let txDepth = 0;

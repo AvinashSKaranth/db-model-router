@@ -56,7 +56,10 @@ describe("Commons & SQLite Deep Coverage Test Suite", function () {
 
       // Deleting property when value is undefined
       fn.setByPath(obj, ["user", "profile", "name"], undefined);
-      assert.strictEqual(obj.user.profile.hasOwnProperty("name"), false);
+      assert.strictEqual(
+        Object.prototype.hasOwnProperty.call(obj.user.profile, "name"),
+        false,
+      );
 
       // Intermediate is not an object
       const nonObj = { user: "string-value" };
@@ -456,11 +459,11 @@ describe("Commons & SQLite Deep Coverage Test Suite", function () {
     });
 
     it("handles nested transactions with savepoints and commit", async function () {
-      await sqliteDb.transaction(async (tx1) => {
+      await sqliteDb.transaction(async (_tx1) => {
         sqliteDb.query("INSERT INTO deep_cov_items (title) VALUES ('Outer Tx')");
 
         // Nested savepoint
-        await sqliteDb.transaction(async (tx2) => {
+        await sqliteDb.transaction(async (_tx2) => {
           sqliteDb.query("INSERT INTO deep_cov_items (title) VALUES ('Inner Savepoint')");
         });
       });
@@ -595,7 +598,7 @@ describe("Commons & SQLite Deep Coverage Test Suite", function () {
         ["id"],
         {
           hooks: {
-            beforeFind: async (f) => {
+            beforeFind: async (_f) => {
               // Modify filter
               return [[["title", "=", "Sort Test A"]]];
             },
