@@ -148,6 +148,16 @@
     "supertest": "^6.2.4",
     "ultimate-express": "^2.2.4"
   },
+  "overrides": {
+    "node-input-validator": {
+      "file-type": "^12.4.2"
+    },
+    "serialize-javascript": "^7.1.4",
+    "image-size": "^2.1.0",
+    "diff": "^8.0.3",
+    "glob": "^14.0.4",
+    "minimatch": "^11.0.5"
+  },
   "allowScripts": {
     "@alibaba-group/open-code-review@1.11.0": true
   }
