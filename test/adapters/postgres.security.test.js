@@ -10,6 +10,13 @@ const tableName =
     .replace(/[-T:.Z]/g, "")
     .slice(0, 14);
 
+const intTableName =
+  "test_sec_int_" +
+  new Date()
+    .toISOString()
+    .replace(/[-T:.Z]/g, "")
+    .slice(0, 14);
+
 describe("PostgreSQL Security & Clean Architecture Tests", function () {
   this.timeout(15000);
 
@@ -32,11 +39,21 @@ describe("PostgreSQL Security & Clean Architecture Tests", function () {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
     );
+
+    await db.query(
+      `CREATE TABLE ${intTableName} (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR NOT NULL,
+        age INTEGER,
+        is_deleted INTEGER DEFAULT 0
+      )`,
+    );
   });
 
   after(async function () {
     try {
       await db.query(`DROP TABLE IF EXISTS ${tableName}`);
+      await db.query(`DROP TABLE IF EXISTS ${intTableName}`);
     } catch (_) {}
     await db.disconnect();
   });
@@ -150,5 +167,71 @@ describe("PostgreSQL Security & Clean Architecture Tests", function () {
     // byId should return null because of safeDelete filter
     const fetched = await secModel.byId(record.id);
     assert.strictEqual(fetched, null);
+  });
+
+  it("should correctly handle soft delete with integer column (safeDelete = 0/1)", async function () {
+    const intModel = model(
+      db,
+      intTableName,
+      {
+        id: "integer",
+        name: "required|string",
+        age: "integer",
+        is_deleted: "integer",
+      },
+      "id",
+      ["id"],
+      { safeDelete: "is_deleted" },
+    );
+
+    const record = await intModel.insert({
+      name: "Integer Soft Delete User",
+      age: 30,
+      is_deleted: 0,
+    });
+    assert.ok(record.id > 0);
+
+    // Verify it can be fetched before deletion
+    const active = await intModel.byId(record.id);
+    assert.strictEqual(active.name, "Integer Soft Delete User");
+
+    // Remove should soft-delete (setting integer is_deleted = 1)
+    await intModel.remove(record.id);
+
+    // Direct query to verify it was set to 1 (not boolean true)
+    const raw = await db.query(`SELECT is_deleted FROM ${intTableName} WHERE id = $1`, [
+      record.id,
+    ]);
+    assert.strictEqual(raw[0].is_deleted, 1);
+
+    // byId and list should return null / empty because safeDelete binds 0 (not false)
+    const fetched = await intModel.byId(record.id);
+    assert.strictEqual(fetched, null);
+
+    const listResult = await intModel.list({ name: "Integer Soft Delete User" });
+    assert.strictEqual(listResult.data.length, 0);
+  });
+
+  it("should coerce empty string and boolean filters on integer/numeric columns without 500", async function () {
+    const intModel = model(
+      db,
+      intTableName,
+      {
+        id: "integer",
+        name: "required|string",
+        age: "integer",
+        is_deleted: "integer",
+      },
+      "id",
+      ["id"],
+    );
+
+    // Empty string filter on integer column (like GET /users?age=) should coerce to null without throwing 22P02
+    const resEmpty = await intModel.list({ age: "" });
+    assert.ok(Array.isArray(resEmpty.data));
+
+    // Boolean filter on integer column should coerce to 1/0 without throwing 22P02
+    const resBool = await intModel.list({ age: true });
+    assert.ok(Array.isArray(resBool.data));
   });
 });

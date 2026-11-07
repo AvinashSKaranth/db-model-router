@@ -1550,6 +1550,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Enable request body parsing for HTTP QUERY method (required for ultimate-express)
+if (typeof app.set === "function") {
+  app.set("body methods", ["POST", "PUT", "PATCH", "DELETE", "QUERY"]);
+}
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

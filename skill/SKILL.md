@@ -53,7 +53,7 @@ db-model-router init                                  # → full project from sc
 npm install db-model-router <framework> <driver>
 ```
 
-Frameworks: `express` or `ultimate-express` (auto-detected; prefers ultimate-express when both present).
+Frameworks: `express` or `ultimate-express` (auto-detected; prefers ultimate-express when both present. When using ultimate-express, configure `app.set("body methods", ["POST", "PUT", "PATCH", "DELETE", "QUERY"])` to buffer request bodies for the HTTP QUERY method).
 
 | Adapter       | Driver                                           | Install                                                                |
 | ------------- | ------------------------------------------------ | ---------------------------------------------------------------------- |

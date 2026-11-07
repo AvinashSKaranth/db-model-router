@@ -17,7 +17,10 @@ describe("Database Migration CLI Commands (migrate:*)", function () {
     }
   });
 
-  after(function () {
+  after(async function () {
+    try {
+      await require("../../src/sqlite3/db.js").disconnect();
+    } catch (_) {}
     try {
       fs.rmSync(tmpCliDir, { recursive: true, force: true });
     } catch (_) {}

@@ -170,7 +170,7 @@ async function query(sql, parameter = []) {
 }
 
 // WHERE builder — produces native PostgreSQL WHERE clauses with $N bind params
-function where(filter, safeDelete = null) {
+function where(filter, safeDelete = null, columnTypes = {}) {
   if (filter !== null && filter !== "" && !Array.isArray(filter)) {
     return null;
   }
@@ -200,8 +200,10 @@ function where(filter, safeDelete = null) {
   );
 
   if (safeDelete !== null) {
+    const isBool = columnTypes[safeDelete] === "bool";
+    const safeDeleteVal = isBool ? false : 0;
     for (const filterItem of filterCopy) {
-      filterItem.push([safeDelete, "=", false]);
+      filterItem.push([safeDelete, "=", safeDeleteVal]);
     }
   }
 
@@ -233,27 +235,51 @@ function where(filter, safeDelete = null) {
         return null;
       }
 
+      const colName = j[0];
+      const colType = columnTypes[colName];
+      const isNumeric =
+        colType &&
+        ["int2", "int4", "int8", "float4", "float8", "numeric"].includes(colType);
+      const isBool = colType === "bool";
+
+      const coerceValue = (v) => {
+        if (isNumeric) {
+          if (v === "" || v === null || v === undefined) return null;
+          if (typeof v === "boolean") return v ? 1 : 0;
+          return v;
+        }
+        if (isBool) {
+          if (v === "" || v === null || v === undefined) return null;
+          if (v === 1 || v === "1" || v === "true" || v === true) return true;
+          if (v === 0 || v === "0" || v === "false" || v === false) return false;
+          return v;
+        }
+        return v;
+      };
+
       if (op === "in" || op === "not in") {
-        const placeholders = j[2]
+        const coercedArray = j[2].map(coerceValue);
+        const placeholders = coercedArray
           .map(() => {
             bindIdx++;
             return "$" + bindIdx;
           })
           .join(",");
-        conditionAnd.push(`${escapeId(j[0])} ${op.toUpperCase()} (${placeholders})`);
-        value.push(...j[2]);
+        conditionAnd.push(`${escapeId(colName)} ${op.toUpperCase()} (${placeholders})`);
+        value.push(...coercedArray);
       } else if (op === "like" || op === "ilike" || op === "not like" || op === "not ilike") {
         const isNot = op.startsWith("not");
         const pgOp = isNot ? "NOT ILIKE" : "ILIKE";
         bindIdx++;
-        conditionAnd.push(`${escapeId(j[0])} ${pgOp} $${bindIdx}`);
+        conditionAnd.push(`${escapeId(colName)} ${pgOp} $${bindIdx}`);
         const rawVal = String(j[2] ?? "");
         const val = rawVal.includes("%") ? rawVal : "%" + rawVal + "%";
         value.push(val);
       } else {
+        const coerced = coerceValue(j[2]);
         bindIdx++;
-        conditionAnd.push(`${escapeId(j[0])} ${j[1]} $${bindIdx}`);
-        value.push(j[2]);
+        conditionAnd.push(`${escapeId(colName)} ${j[1]} $${bindIdx}`);
+        value.push(coerced);
       }
     }
     conditionOr.push(conditionAnd.join(" AND "));
@@ -283,14 +309,45 @@ function sort_builder(sort) {
   return { query: items.length > 0 ? "ORDER BY " + items.join(", ") : "", value: [] };
 }
 
+const tableColumnsCache = {};
+
+async function getTableColumns(table) {
+  if (tableColumnsCache[table] !== undefined) return tableColumnsCache[table];
+  try {
+    const cleanName = table.replace(/^.*"\."?/, "").replace(/"/g, "");
+    const client = await pool.connect();
+    try {
+      const res = await client.query(
+        `SELECT a.attname AS column_name, t.typname AS data_type 
+         FROM pg_attribute a 
+         JOIN pg_class c ON c.oid = a.attrelid 
+         JOIN pg_type t ON t.oid = a.atttypid 
+         WHERE c.relname = $1 AND a.attnum >= 1`,
+        [cleanName],
+      );
+      const cols = {};
+      for (const row of res.rows) {
+        cols[row.column_name] = row.data_type.toLowerCase();
+      }
+      tableColumnsCache[table] = cols;
+    } finally {
+      client.release();
+    }
+  } catch (_) {
+    return {};
+  }
+  return tableColumnsCache[table] || {};
+}
+
 async function get(table, filter = [], sort = [], safeDelete = null) {
-  const whereData = where(filter, safeDelete);
+  const columnTypes = await getTableColumns(table);
+  const whereData = where(filter, safeDelete, columnTypes);
   const sortData = sort_builder(sort);
   if (whereData == null) throw new Error(WHERE_INVALID);
 
   const sql = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query}`;
   const rows = await query(sql, whereData.value);
-  const count = await qcount(table, filter, safeDelete);
+  const count = await qcount(table, filter, safeDelete, columnTypes);
   return { data: jsonSafeParse(rows), count };
 }
 
@@ -302,19 +359,21 @@ async function list(
   page = 0,
   limit = 30,
 ) {
-  const whereData = where(filter, safeDelete);
+  const columnTypes = await getTableColumns(table);
+  const whereData = where(filter, safeDelete, columnTypes);
   const sortData = sort_builder(sort);
   if (whereData == null) throw new Error(WHERE_INVALID);
 
   const offset = page * limit;
   const sql = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query} LIMIT ${limit} OFFSET ${offset}`;
   const rows = await query(sql, whereData.value);
-  const count = await qcount(table, filter, safeDelete);
+  const count = await qcount(table, filter, safeDelete, columnTypes);
   return { data: jsonSafeParse(rows), count };
 }
 
-async function qcount(table, filter, safeDelete = null) {
-  const whereData = where(filter, safeDelete);
+async function qcount(table, filter, safeDelete = null, passedColumnTypes = null) {
+  const columnTypes = passedColumnTypes || (await getTableColumns(table));
+  const whereData = where(filter, safeDelete, columnTypes);
   if (whereData == null) return 0;
   const sql = `SELECT count(*) AS number FROM ${escapeId(table)} ${whereData.query}`;
   try {
@@ -329,7 +388,8 @@ async function qcount(table, filter, safeDelete = null) {
 }
 
 async function remove(table, filter, safeDelete = null) {
-  const whereData = where(filter);
+  const columnTypes = await getTableColumns(table);
+  const whereData = where(filter, null, columnTypes);
   if (whereData == null) throw new Error(WHERE_INVALID);
   if (whereData.value.length < 1) {
     throw new Error("unable to remove as there are no filter attributes");
@@ -338,7 +398,9 @@ async function remove(table, filter, safeDelete = null) {
   let sql;
   let params;
   if (safeDelete != null) {
-    sql = `UPDATE ${escapeId(table)} SET ${escapeId(safeDelete)} = TRUE ${whereData.query}`;
+    const isBool = columnTypes[safeDelete] === "bool";
+    const setVal = isBool ? "TRUE" : "1";
+    sql = `UPDATE ${escapeId(table)} SET ${escapeId(safeDelete)} = ${setVal} ${whereData.query}`;
     params = whereData.value;
   } else {
     sql = `DELETE FROM ${escapeId(table)} ${whereData.query}`;
@@ -671,12 +733,13 @@ async function transaction(fn) {
       ...module.exports,
       query: txQuery,
       get: async (table, filter = [], sort = [], safeDelete = null) => {
-        const whereData = where(filter, safeDelete);
+        const columnTypes = await getTableColumns(table);
+        const whereData = where(filter, safeDelete, columnTypes);
         const sortData = sort_builder(sort);
         if (whereData == null) throw new Error(WHERE_INVALID);
         const sql = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query}`;
         const rows = await txQuery(sql, whereData.value);
-        const count = await txAdapter.qcount(table, filter, safeDelete);
+        const count = await txAdapter.qcount(table, filter, safeDelete, columnTypes);
         return { data: jsonSafeParse(rows), count };
       },
       list: async (
@@ -687,17 +750,19 @@ async function transaction(fn) {
         page = 0,
         limit = 30,
       ) => {
-        const whereData = where(filter, safeDelete);
+        const columnTypes = await getTableColumns(table);
+        const whereData = where(filter, safeDelete, columnTypes);
         const sortData = sort_builder(sort);
         if (whereData == null) throw new Error(WHERE_INVALID);
         const offset = page * limit;
         const sql = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query} LIMIT ${limit} OFFSET ${offset}`;
         const rows = await txQuery(sql, whereData.value);
-        const count = await txAdapter.qcount(table, filter, safeDelete);
+        const count = await txAdapter.qcount(table, filter, safeDelete, columnTypes);
         return { data: jsonSafeParse(rows), count };
       },
-      qcount: async (table, filter, safeDelete = null) => {
-        const whereData = where(filter, safeDelete);
+      qcount: async (table, filter, safeDelete = null, passedColumnTypes = null) => {
+        const columnTypes = passedColumnTypes || (await getTableColumns(table));
+        const whereData = where(filter, safeDelete, columnTypes);
         if (whereData == null) return 0;
         const sql = `SELECT count(*) AS number FROM ${escapeId(table)} ${whereData.query}`;
         try {
@@ -708,7 +773,8 @@ async function transaction(fn) {
         }
       },
       remove: async (table, filter, safeDelete = null) => {
-        const whereData = where(filter);
+        const columnTypes = await getTableColumns(table);
+        const whereData = where(filter, null, columnTypes);
         if (whereData == null) throw new Error(WHERE_INVALID);
         if (whereData.value.length < 1) {
           throw new Error("unable to remove as there are no filter attributes");
@@ -716,7 +782,9 @@ async function transaction(fn) {
         let sql;
         let params;
         if (safeDelete != null) {
-          sql = `UPDATE ${escapeId(table)} SET ${escapeId(safeDelete)} = TRUE ${whereData.query}`;
+          const isBool = columnTypes[safeDelete] === "bool";
+          const setVal = isBool ? "TRUE" : "1";
+          sql = `UPDATE ${escapeId(table)} SET ${escapeId(safeDelete)} = ${setVal} ${whereData.query}`;
           params = whereData.value;
         } else {
           sql = `DELETE FROM ${escapeId(table)} ${whereData.query}`;

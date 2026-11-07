@@ -557,6 +557,11 @@ Schema types: `string`, `integer`, `boolean`, `object`. Prefix with `required|` 
 // Works with either express or ultimate-express
 const express = require("express"); // or require("ultimate-express")
 const app = express();
+
+// If using ultimate-express, enable body buffering for HTTP QUERY method:
+if (typeof app.set === "function") {
+  app.set("body methods", ["POST", "PUT", "PATCH", "DELETE", "QUERY"]);
+}
 app.use(express.json());
 
 app.use("/users", route(users));

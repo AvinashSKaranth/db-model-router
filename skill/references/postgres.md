@@ -31,10 +31,10 @@ PG_DB=test_db
 
 ## Notes
 
-- Supports MySQL-style `?` placeholders in raw `db.query()` calls — they are auto-translated to `$1, $2, ...`
+- Uses native PostgreSQL `$1, $2, ...` parameterized query binding in raw `db.query()` calls
 - `SERIAL` / `BIGSERIAL` primary keys are auto-detected via `pg_index`
 - `ON CONFLICT` is used for upsert operations
-- Includes a SQL translator layer that converts common MySQL DDL/DML to PostgreSQL syntax
+- Supports both boolean and integer soft-delete columns (auto-detects column type)
 - `like` / `not like` filter operators (and the `?search=` parameter) compile to **`ILIKE` / `NOT ILIKE`** — case-insensitive substring matching. The value is wrapped as `%term%`.
 
 ## Table Creation

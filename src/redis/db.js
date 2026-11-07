@@ -184,9 +184,12 @@ async function getAllRecords(table) {
       pipe.hgetall(key);
     }
     const results = await pipe.exec();
-    for (const [err, hash] of results) {
-      if (!err && hash && Object.keys(hash).length > 0) {
-        records.push(parseRecord(hash));
+    if (results) {
+      for (const [err, hash] of results) {
+        if (err) throw err;
+        if (hash && Object.keys(hash).length > 0) {
+          records.push(parseRecord(hash));
+        }
       }
     }
   }
@@ -317,7 +320,12 @@ async function remove(table, filter, safeDelete = null) {
           pipe.hset(`${table}:${pkVal}`, safeDelete, "1");
         }
       }
-      await pipe.exec();
+      const results = await pipe.exec();
+      if (results) {
+        for (const [err] of results) {
+          if (err) throw err;
+        }
+      }
     }
   } else {
     const keysToDelete = allMatch
@@ -422,7 +430,12 @@ async function insert(table, data, uniqueKeys = []) {
           pipe.hset(`${table}:${pkVal}`, flat);
           lastId = pkVal;
         }
-        await pipe.exec();
+        const results = await pipe.exec();
+      if (results) {
+        for (const [err] of results) {
+          if (err) throw err;
+        }
+      }
       }
     }
 

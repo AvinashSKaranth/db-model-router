@@ -1,10 +1,24 @@
-const express = (() => {
-  try {
-    return require("ultimate-express");
-  } catch (_) {
-    return require("express");
+function resolveExpress(opts = {}) {
+  if (opts.express) return opts.express;
+  if (
+    opts.framework === "ultimate-express" ||
+    process.env.DBMR_FRAMEWORK === "ultimate-express"
+  ) {
+    try {
+      return require("ultimate-express");
+    } catch (_) {}
   }
-})();
+  try {
+    return require("express");
+  } catch (_) {
+    try {
+      return require("ultimate-express");
+    } catch (e) {
+      throw new Error("Neither 'express' nor 'ultimate-express' is installed.");
+    }
+  }
+}
+
 const { errorResponse } = require("./validator");
 const { toCSV, toXML, extractReservedParams, applySelect } = require("./model");
 const _ = require("lodash");
@@ -26,15 +40,50 @@ function sendFormatted(res, data, contentType) {
   return res.status(200).send(data);
 }
 
-module.exports = function route(model, override = {}) {
-  const router = express.Router({ mergeParams: true });
+module.exports = function route(model, override = {}, options = {}) {
+  const opts = {
+    ...(typeof options === "object" && options !== null ? options : {}),
+    ...(override && override.$express ? { express: override.$express } : {}),
+    ...(override && override.$router ? { router: override.$router } : {}),
+    ...(override && override.$framework ? { framework: override.$framework } : {}),
+  };
+  const router = opts.router || resolveExpress(opts).Router({ mergeParams: true });
 
   const registerQuery = (path, handler) => {
+    const queryHandler = async (req, res, next) => {
+      if (
+        req.method === "QUERY" &&
+        (!req.body ||
+          typeof req.body !== "object" ||
+          Object.keys(req.body).length === 0)
+      ) {
+        // Fallback buffer & parse JSON if framework body parser skipped QUERY (e.g. default ultimate-express)
+        if (typeof req.on === "function" && req.readable) {
+          await new Promise((resolve) => {
+            let raw = "";
+            req.on("data", (chunk) => {
+              raw += chunk;
+            });
+            req.on("end", () => {
+              if (raw.trim()) {
+                try {
+                  req.body = JSON.parse(raw);
+                } catch (_) {}
+              }
+              resolve();
+            });
+            req.on("error", () => resolve());
+          });
+        }
+      }
+      return handler(req, res, next);
+    };
+
     if (typeof router.query === "function") {
-      router.query(path, handler);
+      router.query(path, queryHandler);
     } else {
       router.all(path, (req, res, next) => {
-        if (req.method === "QUERY") return handler(req, res, next);
+        if (req.method === "QUERY") return queryHandler(req, res, next);
         next();
       });
     }
@@ -254,6 +303,7 @@ function payloadOverride(payload, req, override) {
 
 function dataOverride(payload, req, override) {
   for (const key in override) {
+    if (key.startsWith("$")) continue;
     payload[key] = _.get(req, override[key], "");
   }
   for (const key in payload) {

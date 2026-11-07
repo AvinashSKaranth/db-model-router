@@ -144,7 +144,7 @@ When modifying core behavior, `serve.js` is useful for quick manual verification
 ## Important Patterns
 
 - **Peer dependencies:** All database drivers and Express variants are optional peer dependencies. The library throws a helpful `MODULE_NOT_FOUND` message telling the user exactly what to install.
-- **Soft deletes:** Pass `{ safeDelete: "is_deleted" }` as the model option. The adapter's `get`/`list`/`remove` methods automatically filter on `safeDelete = 0` and `remove` becomes an UPDATE when `safeDelete` is set.
+- **Soft deletes:** Pass `{ safeDelete: "is_deleted" }` as the model option. The adapter's `get`/`list`/`remove` methods automatically filter on `safeDelete = 0` (or `false` for boolean columns in Postgres/CockroachDB) and `remove` becomes an UPDATE when `safeDelete` is set.
 - **Timestamp handling:** `model.js` auto-strips `created_at` / `modified_at` variants from payloads before validation. Adapters do NOT need to handle this.
 - **Bulk chunking:** SQL adapters chunk bulk inserts/updates at 999 rows per statement to stay within parameter limits.
 - **JSON columns:** `object` type columns are stringified on insert/update and parsed on read via `jsonSafeParse` / `jsonStringify` in `function.js`.
