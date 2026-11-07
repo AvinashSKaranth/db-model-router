@@ -3,6 +3,7 @@
   "version": "1.0.22",
   "description": "Generative API Creation using mysql2 and express libraries in node js",
   "main": "src/index.js",
+  "types": "types/index.d.ts",
   "bin": {
     "db-model-router": "src/cli/main.js"
   },

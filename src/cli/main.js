@@ -11,6 +11,7 @@ const helpCmd = require("./commands/help");
 const dbManagerCmd = require("./commands/db-manager");
 const encryptScanCmd = require("./commands/encrypt-scan");
 const encryptRotateKeyCmd = require("./commands/encrypt-rotate-key");
+const typesCmd = require("./commands/types");
 
 /**
  * Map of subcommand names to their handler functions.
@@ -23,6 +24,7 @@ const COMMANDS = {
   "db-manager": dbManagerCmd,
   "encrypt:scan": encryptScanCmd,
   "encrypt:rotate-key": encryptRotateKeyCmd,
+  types: typesCmd,
   help: helpCmd,
 };
 
@@ -37,6 +39,7 @@ const COMMAND_DESCRIPTIONS = {
   "db-manager": "Start a live database management UI",
   "encrypt:scan": "Scan/backfill unencrypted values in encrypted fields",
   "encrypt:rotate-key": "Rotate field-level encryption keys",
+  types: "Generate TypeScript interface definitions from dbmr.schema.json",
   help: "Show help for a command",
 };
 
@@ -48,6 +51,11 @@ const COMMAND_FLAGS = {
     ["[schemaPath]", "Path to schema file (default: ./dbmr.schema.json)"],
     ["--dry-run", "Preview planned files without writing"],
     ["--no-install", "Skip npm install after scaffolding"],
+  ],
+  types: [
+    ["--from <path>", "Schema file (default: dbmr.schema.json)"],
+    ["--out <path>", "Output file path (default: types/models.d.ts)"],
+    ["--stdout", "Output to stdout instead of writing to disk"],
   ],
   inspect: [
     ["--type <adapter>", "Database adapter (required)"],
