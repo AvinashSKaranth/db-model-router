@@ -7,8 +7,7 @@ const path = require("path");
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 const REPORTS_DIR = path.join(ROOT_DIR, "reports");
-const OUTPUT_HTML_ROOT = path.join(ROOT_DIR, "report.html");
-const OUTPUT_HTML_REPORTS = path.join(REPORTS_DIR, "report.html");
+const OUTPUT_HTML = path.join(REPORTS_DIR, "report.html");
 
 const c8Bin = path.join(ROOT_DIR, "node_modules", "c8", "bin", "c8.js");
 const mochaBin = path.join(ROOT_DIR, "node_modules", "mocha", "bin", "mocha.js");
@@ -842,8 +841,15 @@ const html = `<!DOCTYPE html>
 </body>
 </html>`;
 
-fs.writeFileSync(OUTPUT_HTML_ROOT, html, "utf8");
-fs.writeFileSync(OUTPUT_HTML_REPORTS, html, "utf8");
+fs.writeFileSync(OUTPUT_HTML, html, "utf8");
+
+// Ensure root report.html is deleted if it exists
+const rootReport = path.join(ROOT_DIR, "report.html");
+if (fs.existsSync(rootReport)) {
+  try {
+    fs.unlinkSync(rootReport);
+  } catch (_) {}
+}
 
 // Also copy to artifact dir if present
 const artifactDir = "C:\\Users\\Avina\\.gemini\\antigravity-cli\\brain\\8eb00fbc-2e4a-4ddd-be33-09068d66519a";
@@ -853,7 +859,6 @@ if (fs.existsSync(artifactDir)) {
 
 console.log("========================================================");
 console.log(`✔ Quality report generated successfully:`);
-console.log(`   - Root:     ${OUTPUT_HTML_ROOT}`);
-console.log(`   - Reports:  ${OUTPUT_HTML_REPORTS}`);
+console.log(`   - Output:   ${OUTPUT_HTML}`);
 console.log(`   - Overall Score: ${overallScore}/100 (Grade ${grade})`);
 console.log("========================================================\n");
