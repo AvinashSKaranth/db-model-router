@@ -188,6 +188,12 @@ function renderReport(reportsDir, outPath) {
   const out = outPath || path.join(reportsDir, `postgres-${fileTs}.html`);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, html);
+  const docsOut = path.join(__dirname, "..", "docs", "benchmark", "index.html");
+  if (fs.existsSync(path.dirname(docsOut))) {
+    try {
+      fs.writeFileSync(docsOut, html);
+    } catch (_) {}
+  }
   return out;
 }
 
