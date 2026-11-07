@@ -187,7 +187,8 @@ function where(filter, safeDelete = null) {
   };
 }
 
-function get(table, filter = [], sort = [], safeDelete = null) {
+function get(table, filter = [], sort = [], safeDelete = null, options = {}) {
+  const { count = true, limit } = options || {};
   const whereData = where(filter, safeDelete);
   const sortData = sort_builder(sort);
   if (whereData == null) {
@@ -195,10 +196,13 @@ function get(table, filter = [], sort = [], safeDelete = null) {
   }
 
   const sortQuery = resolveSortIdentifiers(sortData);
-  const statement = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortQuery}`.trim();
+  let statement = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortQuery}`.trim();
+  if (limit != null) {
+    statement += ` LIMIT ${parseInt(limit, 10)}`;
+  }
   const rows = db.prepare(statement).all(...whereData.value);
-  const count = qcount(table, filter, safeDelete);
-  return { data: jsonSafeParse(rows), count };
+  const c = count !== false ? qcount(table, filter, safeDelete) : rows.length;
+  return { data: jsonSafeParse(rows), count: c };
 }
 
 function list(
@@ -283,6 +287,31 @@ function upsert(table, data, uniqueKeys = []) {
     sql = `INSERT INTO ${escapeId(table)} (${colList}) VALUES (${placeholders}) ON CONFLICT(${conflictCols}) DO NOTHING`;
   }
 
+  if (total === 1) {
+    let sqlSingle;
+    if (updateSet) {
+      sqlSingle = `INSERT INTO ${escapeId(table)} (${colList}) VALUES (${placeholders}) ON CONFLICT(${conflictCols}) DO UPDATE SET ${updateSet} RETURNING *`;
+    } else {
+      sqlSingle = `INSERT INTO ${escapeId(table)} (${colList}) VALUES (${placeholders}) ON CONFLICT(${conflictCols}) DO NOTHING RETURNING *`;
+    }
+    try {
+      const stmtSingle = db.prepare(sqlSingle);
+      const vals = columns.map((c) => array[0][c]);
+      const returnedRow = stmtSingle.get(...vals);
+      if (returnedRow) {
+        return {
+          rows: 1,
+          message: `1 ${namify(table)} is saved`,
+          type: "success",
+          id: Number(returnedRow.id ?? 0),
+          record: jsonSafeParse(returnedRow),
+        };
+      }
+    } catch (_) {
+      // Fallback if sqlite version does not support RETURNING
+    }
+  }
+
   const stmt = db.prepare(sql);
   let lastId = 0;
 
@@ -343,6 +372,31 @@ function insert(table, data, uniqueKeys = []) {
     sql = `INSERT OR IGNORE INTO ${escapeId(table)} (${colList}) VALUES (${placeholders})`;
   } else {
     sql = `INSERT INTO ${escapeId(table)} (${colList}) VALUES (${placeholders})`;
+  }
+
+  if (total === 1) {
+    let sqlSingle;
+    if (uniqueKeys && uniqueKeys.length > 0) {
+      sqlSingle = `INSERT OR IGNORE INTO ${escapeId(table)} (${colList}) VALUES (${placeholders}) RETURNING *`;
+    } else {
+      sqlSingle = `INSERT INTO ${escapeId(table)} (${colList}) VALUES (${placeholders}) RETURNING *`;
+    }
+    try {
+      const stmtSingle = db.prepare(sqlSingle);
+      const vals = columns.map((c) => array[0][c]);
+      const returnedRow = stmtSingle.get(...vals);
+      if (returnedRow) {
+        return {
+          rows: 1,
+          message: `1 ${namify(table)} is saved`,
+          type: "success",
+          id: Number(returnedRow.id ?? 0),
+          record: jsonSafeParse(returnedRow),
+        };
+      }
+    } catch (_) {
+      // Fallback if sqlite version does not support RETURNING
+    }
   }
 
   const stmt = db.prepare(sql);

@@ -177,7 +177,8 @@ function where(filter, safeDelete = null) {
   };
 }
 
-async function get(table, filter = [], sort = [], safeDelete = null) {
+async function get(table, filter = [], sort = [], safeDelete = null, options = {}) {
+  const { limit } = options || {};
   const whereData = where(filter, safeDelete);
   if (whereData == null) {
     throw new Error(WHERE_INVALID);
@@ -190,7 +191,7 @@ async function get(table, filter = [], sort = [], safeDelete = null) {
     params.ExpressionAttributeNames = whereData.names;
   }
 
-  // Scan all items (handle pagination internally to get all results)
+  // Scan items (handle pagination internally to get results)
   let items = [];
   let lastKey = undefined;
   do {
@@ -198,11 +199,17 @@ async function get(table, filter = [], sort = [], safeDelete = null) {
     const result = await docClient.send(new ScanCommand(params));
     items = items.concat(result.Items || []);
     lastKey = result.LastEvaluatedKey;
+    if (limit != null && items.length >= limit && (!sort || sort.length === 0)) {
+      break;
+    }
   } while (lastKey);
 
   // Apply sort in-memory
   if (sort && sort.length > 0) {
     items = sortItems(items, sort);
+  }
+  if (limit != null && items.length > limit) {
+    items = items.slice(0, parseInt(limit, 10));
   }
 
   return { data: jsonSafeParse(items), count: items.length };

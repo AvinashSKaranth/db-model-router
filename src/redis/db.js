@@ -229,7 +229,8 @@ function flattenForHash(data) {
   return flat;
 }
 
-async function get(table, filter = [], sort = [], safeDelete = null) {
+async function get(table, filter = [], sort = [], safeDelete = null, options = {}) {
+  const { count = true, limit } = options || {};
   const whereData = where(filter, safeDelete);
   if (whereData == null) {
     throw new Error(WHERE_INVALID);
@@ -241,8 +242,12 @@ async function get(table, filter = [], sort = [], safeDelete = null) {
   if (sort && sort.length > 0) {
     records = sortItems(records, sort);
   }
+  const totalCount = records.length;
+  if (limit != null) {
+    records = records.slice(0, parseInt(limit, 10));
+  }
 
-  return { data: jsonSafeParse(records), count: records.length };
+  return { data: jsonSafeParse(records), count: count !== false ? totalCount : records.length };
 }
 
 async function list(

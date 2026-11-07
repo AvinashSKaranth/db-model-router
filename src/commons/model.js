@@ -457,18 +457,28 @@ module.exports = function model(
       encryptPayload(data, encryptionMeta, activeEncryption?.keyring, activeEncryption?.version);
       data = jsonStringify(data);
       const insertResult = await db.insert(table, data, unique);
-      if (!isBulk && hasProp(insertResult, "id")) {
-        const getResult = await db.get(table, [
-          [[primary_key, "=", insertResult.id]],
-        ]);
-        let record = getResult.count > 0 ? getResult["data"][0] : null;
+      if (!isBulk) {
+        let record = insertResult.record || null;
+        if (!record && hasProp(insertResult, "id") && insertResult.id) {
+          const getResult = await db.get(
+            table,
+            [[[primary_key, "=", insertResult.id]]],
+            [],
+            null,
+            { count: false, limit: 1 },
+          );
+          record = getResult.count > 0 ? getResult["data"][0] : null;
+        }
         if (record) {
           decryptRows(record, encryptionMeta, activeEncryption?.keyring);
           if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
           if (hooks.afterCreate) record = await runItemHook(hooks.afterCreate, record, context);
           emitProduce(table, "insert", record);
+          return record;
         }
-        return record;
+        if (hasProp(insertResult, "id")) {
+          return null;
+        }
       }
       // Bulk Insert or non-id return
       if (hooks.afterSave) await hooks.afterSave(insertResult, context);
@@ -504,33 +514,35 @@ module.exports = function model(
         encryptPayload(data, encryptionMeta, activeEncryption?.keyring, activeEncryption?.version);
         data = jsonStringify(data);
         const updateResult = await db.upsert(table, data, unique);
-        if (hasProp(updateResult, "id") && updateResult.id > 0) {
-          const getResult = await db.get(table, [
-            [[primary_key, "=", updateResult.id]],
-          ]);
-          let record = getResult.count > 0 ? getResult["data"][0] : null;
-          if (record) {
-            decryptRows(record, encryptionMeta, activeEncryption?.keyring);
-            if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
-            if (hooks.afterUpdate) record = await runItemHook(hooks.afterUpdate, record, context);
-            emitProduce(table, "update", record);
-          }
-          return record;
-        } else if (hasProp(data[0], primary_key)) {
+        let record = updateResult.record || null;
+        if (!record && hasProp(updateResult, "id") && updateResult.id > 0) {
+          const getResult = await db.get(
+            table,
+            [[[primary_key, "=", updateResult.id]]],
+            [],
+            option.safeDelete,
+            { count: false, limit: 1 },
+          );
+          record = getResult.count > 0 ? getResult["data"][0] : null;
+        } else if (!record && hasProp(data[0], primary_key)) {
           const result = await db.get(
             table,
             [[[primary_key, "=", data[0][primary_key]]]],
             [],
             option.safeDelete,
+            { count: false, limit: 1 },
           );
-          if (result.count > 0) {
-            let record = result["data"][0];
-            decryptRows(record, encryptionMeta, activeEncryption?.keyring);
-            if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
-            if (hooks.afterUpdate) record = await runItemHook(hooks.afterUpdate, record, context);
-            emitProduce(table, "update", record);
-            return record;
-          } else return null;
+          record = result.count > 0 ? result["data"][0] : null;
+        }
+        if (record) {
+          decryptRows(record, encryptionMeta, activeEncryption?.keyring);
+          if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
+          if (hooks.afterUpdate) record = await runItemHook(hooks.afterUpdate, record, context);
+          emitProduce(table, "update", record);
+          return record;
+        }
+        if ((hasProp(updateResult, "id") && updateResult.id > 0) || hasProp(data[0], primary_key)) {
+          return null;
         }
         if (hooks.afterSave) await hooks.afterSave(updateResult, context);
         if (hooks.afterUpdate) await hooks.afterUpdate(updateResult, context);
@@ -569,32 +581,36 @@ module.exports = function model(
         encryptPayload(data, encryptionMeta, activeEncryption?.keyring, activeEncryption?.version);
         data = jsonStringify(data);
         const updateResult = await db.upsert(table, data, unique);
-        if (hasProp(updateResult, "id")) {
-          const getResult = await db.get(table, [
-            [[primary_key, "=", updateResult.id]],
-          ]);
-          let record = getResult.count > 0 ? getResult["data"][0] : null;
-          if (record) {
-            decryptRows(record, encryptionMeta, activeEncryption?.keyring);
-            if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
-            if (hooks.afterUpdate) record = await runItemHook(hooks.afterUpdate, record, context);
-            if (hooks.afterUpsert) record = await runItemHook(hooks.afterUpsert, record, context);
-            emitProduce(table, "upsert", record);
-          }
+        let record = updateResult.record || null;
+        if (!record && hasProp(updateResult, "id") && updateResult.id) {
+          const getResult = await db.get(
+            table,
+            [[[primary_key, "=", updateResult.id]]],
+            [],
+            option.safeDelete,
+            { count: false, limit: 1 },
+          );
+          record = getResult.count > 0 ? getResult["data"][0] : null;
+        } else if (!record && hasProp(originalData, primary_key)) {
+          const result = await db.get(
+            table,
+            [[[primary_key, "=", originalData[primary_key]]]],
+            [],
+            option.safeDelete,
+            { count: false, limit: 1 },
+          );
+          record = result.count > 0 ? result["data"][0] : null;
+        }
+        if (record) {
+          decryptRows(record, encryptionMeta, activeEncryption?.keyring);
+          if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
+          if (hooks.afterUpdate) record = await runItemHook(hooks.afterUpdate, record, context);
+          if (hooks.afterUpsert) record = await runItemHook(hooks.afterUpsert, record, context);
+          emitProduce(table, "upsert", record);
           return record;
-        } else if (hasProp(originalData, primary_key)) {
-          const result = await db.get(table, [
-            [[primary_key, "=", originalData[primary_key]]],
-          ]);
-          if (result.count > 0) {
-            let record = result["data"][0];
-            decryptRows(record, encryptionMeta, activeEncryption?.keyring);
-            if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
-            if (hooks.afterUpdate) record = await runItemHook(hooks.afterUpdate, record, context);
-            if (hooks.afterUpsert) record = await runItemHook(hooks.afterUpsert, record, context);
-            emitProduce(table, "upsert", record);
-            return record;
-          } else return null;
+        }
+        if (hasProp(updateResult, "id") || hasProp(originalData, primary_key)) {
+          return null;
         }
         if (hooks.afterSave) await hooks.afterSave(updateResult, context);
         if (hooks.afterUpdate) await hooks.afterUpdate(updateResult, context);
@@ -645,6 +661,7 @@ module.exports = function model(
           filter,
           [],
           option.safeDelete,
+          { count: false, limit: 1 },
         );
         if (result.count > 0) {
           let record = result["data"][0];
@@ -699,7 +716,13 @@ module.exports = function model(
         const f = await hooks.beforeFind(filter, context);
         if (f !== undefined && Array.isArray(f)) filter = f;
       }
-      let result = await db.get(table, filter, sort, option.safeDelete);
+      let result = await db.get(
+        table,
+        filter,
+        sort,
+        option.safeDelete,
+        { count: false, limit: 1 },
+      );
       if (result.count > 0) {
         let record = result["data"][0];
         decryptRows(record, encryptionMeta, activeEncryption?.keyring);
@@ -791,6 +814,7 @@ module.exports = function model(
         [[[primary_key, "=", pkValue]]],
         [],
         option.safeDelete,
+        { count: false, limit: 1 },
       );
       if (existing.count === 0) return null;
       // Decrypt the stored record so the merged payload stays plaintext
@@ -816,6 +840,7 @@ module.exports = function model(
         [[[primary_key, "=", pkValue]]],
         [],
         option.safeDelete,
+        { count: false, limit: 1 },
       );
       if (result.count > 0) {
         let record = result.data[0];

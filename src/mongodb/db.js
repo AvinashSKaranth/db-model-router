@@ -163,7 +163,8 @@ function where(filter, safeDelete = null) {
   return { query: mongoQuery, value: [] };
 }
 
-async function get(table, filter = [], sort = [], safeDelete = null) {
+async function get(table, filter = [], sort = [], safeDelete = null, options = {}) {
+  const { count = true, limit } = options || {};
   const whereData = where(filter, safeDelete);
   if (whereData == null) {
     throw new Error(WHERE_INVALID);
@@ -171,9 +172,13 @@ async function get(table, filter = [], sort = [], safeDelete = null) {
 
   const col = database.collection(table);
   const mongoSort = buildSort(sort);
-  const rows = await col.find(whereData.query).sort(mongoSort).toArray();
-  const count = await col.countDocuments(whereData.query);
-  return { data: jsonSafeParse(rows), count };
+  let cursor = col.find(whereData.query).sort(mongoSort);
+  if (limit != null) {
+    cursor = cursor.limit(parseInt(limit, 10));
+  }
+  const rows = await cursor.toArray();
+  const c = count !== false ? await col.countDocuments(whereData.query) : rows.length;
+  return { data: jsonSafeParse(rows), count: c };
 }
 
 async function list(

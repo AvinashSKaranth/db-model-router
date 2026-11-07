@@ -446,16 +446,20 @@ function sort_builder(sort) {
   };
 }
 
-async function get(table, filter = [], sort = [], safeDelete = null) {
+async function get(table, filter = [], sort = [], safeDelete = null, options = {}) {
+  const { count = true, limit } = options || {};
   const whereData = where(filter, safeDelete);
   const sortData = sort_builder(sort);
   if (whereData == null) throw new Error(WHERE_INVALID);
 
   const qTable = escapeId(table);
-  const sql = `SELECT * FROM ${qTable} ${whereData.query} ${sortData.query}`.trim();
+  let sql = `SELECT * FROM ${qTable} ${whereData.query} ${sortData.query}`.trim();
+  if (limit != null) {
+    sql += ` FETCH NEXT ${parseInt(limit, 10)} ROWS ONLY`;
+  }
   const rows = await query(sql, whereData.value);
-  const count = await qcount(table, filter, safeDelete);
-  return { data: jsonSafeParse(rows), count };
+  const c = count !== false ? await qcount(table, filter, safeDelete) : rows.length;
+  return { data: jsonSafeParse(rows), count: c };
 }
 
 async function list(

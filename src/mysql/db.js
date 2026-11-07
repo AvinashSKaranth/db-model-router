@@ -145,18 +145,25 @@ function where(filter, safeDelete = null) {
   };
 }
 
-async function get(table, filter = [], sort = [], safeDelete = null) {
+async function get(table, filter = [], sort = [], safeDelete = null, options = {}) {
+  const { count = true, limit } = options || {};
   const whereData = where(filter, safeDelete);
   const sortData = sort_builder(sort);
   if (whereData == null) {
     throw new Error(WHERE_INVALID);
   }
-  const statement = `SELECT * FROM ?? ${whereData.query} ${sortData.query};`.trim();
+  let statement = `SELECT * FROM ?? ${whereData.query} ${sortData.query}`.trim();
+  const params = [table, ...whereData.value, ...sortData.value];
+  if (limit != null) {
+    statement += ` LIMIT ?`;
+    params.push(parseInt(limit, 10));
+  }
+  statement += `;`;
   const [results] = await pool
     .promise()
-    .query(statement, [table, ...whereData.value, ...sortData.value]);
-  const count = await qcount(table, filter, safeDelete);
-  return { data: jsonSafeParse(results), count };
+    .query(statement, params);
+  const c = count !== false ? await qcount(table, filter, safeDelete) : results.length;
+  return { data: jsonSafeParse(results), count: c };
 }
 
 async function list(

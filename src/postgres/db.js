@@ -343,16 +343,20 @@ async function getTableColumns(table) {
   return tableColumnsCache[table] || {};
 }
 
-async function get(table, filter = [], sort = [], safeDelete = null) {
+async function get(table, filter = [], sort = [], safeDelete = null, options = {}) {
+  const { count = true, limit } = options || {};
   const columnTypes = await getTableColumns(table);
   const whereData = where(filter, safeDelete, columnTypes);
   const sortData = sort_builder(sort);
   if (whereData == null) throw new Error(WHERE_INVALID);
 
-  const sql = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query}`;
+  let sql = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query}`;
+  if (limit != null) {
+    sql += ` LIMIT ${parseInt(limit, 10)}`;
+  }
   const rows = await query(sql, whereData.value);
-  const count = await qcount(table, filter, safeDelete, columnTypes);
-  return { data: jsonSafeParse(rows), count };
+  const c = count !== false ? await qcount(table, filter, safeDelete, columnTypes) : rows.length;
+  return { data: jsonSafeParse(rows), count: c };
 }
 
 async function list(
@@ -467,19 +471,20 @@ async function insert(table, data, uniqueKeys = []) {
     const row = array[0];
     const vals = columns.map((c) => sanitizeValue(row[c]));
     const placeholders = columns.map((_, i) => "$" + (i + 1)).join(",");
-    let sql = `INSERT INTO ${escapeId(table)} (${columns.map(escapeId).join(",")}) VALUES (${placeholders})`;
-    if (pk) sql += ` RETURNING ${escapeId(pk)}`;
+    const sql = `INSERT INTO ${escapeId(table)} (${columns.map(escapeId).join(",")}) VALUES (${placeholders}) RETURNING *`;
 
     const client = await pool.connect();
     try {
       const result = await client.query(sql, vals);
+      const returnedRow = result.rows && result.rows[0];
       const insertId =
-        pk && result.rows && result.rows[0] ? result.rows[0][pk] : 0;
+        pk && returnedRow ? returnedRow[pk] : 0;
       return {
         rows: 1,
         message: `1 ${namify(table)} is saved`,
         type: "success",
         id: insertId,
+        record: returnedRow ? jsonSafeParse(returnedRow) : undefined,
       };
     } catch (e) {
       throw mapPgError(e);
@@ -534,6 +539,43 @@ async function _insertOnConflict(table, array, columns, uniqueKeys, total) {
   const pk = await getPkColumn(table);
   const conflictCols = uniqueKeys.map(escapeId).join(",");
   const colList = columns.map(escapeId).join(",");
+
+  if (total === 1) {
+    const client = await pool.connect();
+    try {
+      const vals = columns.map((c) => sanitizeValue(array[0][c]));
+      const placeholders = columns.map((_, i) => "$" + (i + 1)).join(",");
+      const sql = `INSERT INTO ${escapeId(table)} (${colList}) VALUES (${placeholders}) ON CONFLICT (${conflictCols}) DO NOTHING RETURNING *`;
+      const result = await client.query(sql, vals);
+      const row = result.rows && result.rows[0];
+      if (row && pk) {
+        lastId = row[pk] || 0;
+      } else if (!row && uniqueKeys.length > 0 && pk) {
+        const whereClause = uniqueKeys
+          .map((k, idx) => `${escapeId(k)} = $${idx + 1}`)
+          .join(" AND ");
+        const existingRes = await client.query(
+          `SELECT ${escapeId(pk)} FROM ${escapeId(table)} WHERE ${whereClause}`,
+          uniqueKeys.map((k) => sanitizeValue(array[0][k])),
+        );
+        if (existingRes.rows && existingRes.rows[0]) {
+          lastId = existingRes.rows[0][pk];
+        }
+      }
+      return {
+        rows: 1,
+        message: `1 ${namify(table)} is saved`,
+        type: "success",
+        id: lastId,
+        record: row ? jsonSafeParse(row) : undefined,
+      };
+    } catch (e) {
+      throw mapPgError(e);
+    } finally {
+      client.release();
+    }
+  }
+
   const maxBatch = Math.max(1, Math.floor(65000 / columns.length));
   const BATCH_SIZE = Math.min(1000, maxBatch);
 
@@ -629,6 +671,7 @@ async function upsert(table, data, uniqueKeys = []) {
   const nonUniqueColumns = columns.filter((c) => !uniqueKeys.includes(c));
   const pk = await getPkColumn(table);
   let lastId = 0;
+  let responseRecord = null;
   const maxBatch = Math.max(1, Math.floor(65000 / columns.length));
   const BATCH_SIZE = Math.min(1000, maxBatch);
 
@@ -661,11 +704,21 @@ async function upsert(table, data, uniqueKeys = []) {
       } else {
         sql += ` DO NOTHING`;
       }
-      if (pk) sql += ` RETURNING ${escapeId(pk)}`;
+      if (total === 1) {
+        sql += ` RETURNING *`;
+      } else if (pk) {
+        sql += ` RETURNING ${escapeId(pk)}`;
+      }
 
       const result = await client.query(sql, allParams);
-      if (pk && result.rows && result.rows.length > 0) {
-        lastId = result.rows[result.rows.length - 1][pk] || lastId;
+      if (result.rows && result.rows.length > 0) {
+        const row = result.rows[result.rows.length - 1];
+        if (pk && row[pk]) {
+          lastId = row[pk];
+        }
+        if (total === 1) {
+          responseRecord = jsonSafeParse(row);
+        }
       }
     }
 
@@ -685,7 +738,10 @@ async function upsert(table, data, uniqueKeys = []) {
         : `${total} ${namify(table)}s are `) + "saved",
     type: "success",
   };
-  if (total === 1) response.id = lastId;
+  if (total === 1) {
+    response.id = lastId;
+    if (responseRecord) response.record = responseRecord;
+  }
   return response;
 }
 
@@ -730,15 +786,19 @@ async function transaction(fn) {
     const txAdapter = {
       ...module.exports,
       query: txQuery,
-      get: async (table, filter = [], sort = [], safeDelete = null) => {
+      get: async (table, filter = [], sort = [], safeDelete = null, options = {}) => {
+        const { count = true, limit } = options || {};
         const columnTypes = await getTableColumns(table);
         const whereData = where(filter, safeDelete, columnTypes);
         const sortData = sort_builder(sort);
         if (whereData == null) throw new Error(WHERE_INVALID);
-        const sql = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query}`;
+        let sql = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query}`;
+        if (limit != null) {
+          sql += ` LIMIT ${parseInt(limit, 10)}`;
+        }
         const rows = await txQuery(sql, whereData.value);
-        const count = await txAdapter.qcount(table, filter, safeDelete, columnTypes);
-        return { data: jsonSafeParse(rows), count };
+        const c = count !== false ? await txAdapter.qcount(table, filter, safeDelete, columnTypes) : rows.length;
+        return { data: jsonSafeParse(rows), count: c };
       },
       list: async (
         table,
@@ -796,6 +856,7 @@ async function transaction(fn) {
         const columns = Object.keys(array[0]);
         const pk = await getPkColumn(table);
         let lastId = 0;
+        let lastRecord = null;
 
         for (const row of array) {
           const colList = columns.map(escapeId).join(",");
@@ -807,11 +868,20 @@ async function transaction(fn) {
           } else {
             sql = `INSERT INTO ${escapeId(table)} (${colList}) VALUES (${placeholders})`;
           }
-          if (pk) sql += ` RETURNING ${escapeId(pk)}`;
+          if (total === 1) {
+            sql += ` RETURNING *`;
+          } else if (pk) {
+            sql += ` RETURNING ${escapeId(pk)}`;
+          }
           const vals = columns.map((c) => sanitizeValue(row[c]));
           const res = await client.query(sql, vals);
-          if (res.rows && res.rows[0] && pk) {
-            lastId = res.rows[0][pk];
+          if (res.rows && res.rows[0]) {
+            if (pk && res.rows[0][pk]) {
+              lastId = res.rows[0][pk];
+            }
+            if (total === 1) {
+              lastRecord = jsonSafeParse(res.rows[0]);
+            }
           } else if (uniqueKeys && uniqueKeys.length > 0 && pk) {
             const whereClause = uniqueKeys
               .map((k, idx) => `${escapeId(k)} = $${idx + 1}`)
@@ -825,12 +895,14 @@ async function transaction(fn) {
             }
           }
         }
-        return {
+        const resp = {
           rows: total,
           message: `${total} ${namify(table)}${total > 1 ? "s are" : " is"} saved`,
           type: "success",
           id: lastId,
         };
+        if (total === 1 && lastRecord) resp.record = lastRecord;
+        return resp;
       },
       upsert: async (table, data, uniqueKeys = []) => {
         let array = Array.isArray(data) ? data : [data];
@@ -838,6 +910,7 @@ async function transaction(fn) {
         const columns = Object.keys(array[0]);
         const pk = await getPkColumn(table);
         let lastId = 0;
+        let lastRecord = null;
 
         for (const row of array) {
           const colList = columns.map(escapeId).join(",");
@@ -857,19 +930,30 @@ async function transaction(fn) {
           } else {
             sql = `INSERT INTO ${escapeId(table)} (${colList}) VALUES (${placeholders})`;
           }
-          if (pk) sql += ` RETURNING ${escapeId(pk)}`;
+          if (total === 1) {
+            sql += ` RETURNING *`;
+          } else if (pk) {
+            sql += ` RETURNING ${escapeId(pk)}`;
+          }
           const vals = columns.map((c) => sanitizeValue(row[c]));
           const res = await client.query(sql, vals);
-          if (res.rows && res.rows[0] && pk) {
-            lastId = res.rows[0][pk];
+          if (res.rows && res.rows[0]) {
+            if (pk && res.rows[0][pk]) {
+              lastId = res.rows[0][pk];
+            }
+            if (total === 1) {
+              lastRecord = jsonSafeParse(res.rows[0]);
+            }
           }
         }
-        return {
+        const resp = {
           rows: total,
           message: `${total} ${namify(table)}${total > 1 ? "s are" : " is"} saved`,
           type: "success",
           id: lastId,
         };
+        if (total === 1 && lastRecord) resp.record = lastRecord;
+        return resp;
       },
     };
 

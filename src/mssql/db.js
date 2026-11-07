@@ -296,20 +296,25 @@ function where(filter, safeDelete = null) {
   };
 }
 
-async function get(table, filter = [], sort = [], safeDelete = null) {
+async function get(table, filter = [], sort = [], safeDelete = null, options = {}) {
+  const { count = true, limit } = options || {};
   const whereData = where(filter, safeDelete);
   const sortData = sort_builder(sort);
   if (whereData == null) throw new Error(WHERE_INVALID);
 
-  const sqlStr = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query}`.trim();
+  let topClause = "";
+  if (limit != null) {
+    topClause = `TOP (${parseInt(limit, 10)}) `;
+  }
+  const sqlStr = `SELECT ${topClause}* FROM ${escapeId(table)} ${whereData.query} ${sortData.query}`.trim();
   const request = pool.request();
   for (let i = 0; i < whereData.value.length; i++) {
     request.input("param" + i, whereData.value[i]);
   }
   const result = await request.query(sqlStr);
   const rows = jsonSafeParse(mapRecordset(result.recordset || []));
-  const count = await qcount(table, filter, safeDelete);
-  return { data: rows, count };
+  const c = count !== false ? await qcount(table, filter, safeDelete) : rows.length;
+  return { data: rows, count: c };
 }
 
 async function list(
@@ -429,6 +434,7 @@ async function upsert(table, data, uniqueKeys = []) {
   const nonUniqueColumns = columns.filter((c) => !uniqueKeys.includes(c));
   const identityCol = await getIdentityColumn(table);
   let lastId = 0;
+  let responseRecord = null;
   // MSSQL has a 2100 parameter limit per request
   const MAX_PARAMS = 2000;
   const BATCH_SIZE = Math.max(1, Math.floor(MAX_PARAMS / columns.length));
@@ -482,6 +488,9 @@ async function upsert(table, data, uniqueKeys = []) {
       if (result.recordset && result.recordset.length > 0) {
         const lastRow = result.recordset[result.recordset.length - 1];
         lastId = lastRow.id || lastRow[Object.keys(lastRow)[0]] || lastId;
+        if (total === 1) {
+          responseRecord = jsonSafeParse(mapRecordset([lastRow])[0]);
+        }
       }
     }
     await transaction.commit();
@@ -498,7 +507,10 @@ async function upsert(table, data, uniqueKeys = []) {
         : `${total} ${namify(table)}s are `) + "saved",
     type: "success",
   };
-  if (total === 1) response.id = lastId;
+  if (total === 1) {
+    response.id = lastId;
+    if (responseRecord) response.record = responseRecord;
+  }
   return response;
 }
 
@@ -545,11 +557,13 @@ async function insert(table, data, uniqueKeys = []) {
       const insertId = insertedRow
         ? insertedRow.id || insertedRow[Object.keys(insertedRow)[0]] || 0
         : 0;
+      const parsedRow = insertedRow ? jsonSafeParse(mapRecordset([insertedRow])[0]) : undefined;
       return {
         rows: 1,
         message: `1 ${namify(table)} is saved`,
         type: "success",
         id: insertId,
+        record: parsedRow,
       };
     } catch (e) {
       throw mapMssqlError(e);
