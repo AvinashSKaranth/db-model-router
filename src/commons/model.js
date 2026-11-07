@@ -375,6 +375,31 @@ module.exports = function model(
   const { createdKeys, modifiedKeys } = buildTimestampKeys(option);
   const allTimestampKeys = [...createdKeys, ...modifiedKeys];
 
+  const hooks = option?.hooks || {};
+
+  const runItemHook = async (hookFn, item, context) => {
+    if (!hookFn || !item || typeof item !== "object") return item;
+    const res = await hookFn(item, context);
+    return res !== undefined && typeof res === "object" ? res : item;
+  };
+
+  const runHook = async (hookFn, payload, context) => {
+    if (!hookFn) return payload;
+    if (payload && payload.hasOwnProperty("data") && Array.isArray(payload.data)) {
+      for (let i = 0; i < payload.data.length; i++) {
+        payload.data[i] = await runItemHook(hookFn, payload.data[i], context);
+      }
+      return payload;
+    } else if (Array.isArray(payload)) {
+      for (let i = 0; i < payload.length; i++) {
+        payload[i] = await runItemHook(hookFn, payload[i], context);
+      }
+      return payload;
+    } else {
+      return await runItemHook(hookFn, payload, context);
+    }
+  };
+
   // Compile encryption metadata once per model from the structure rules.
   const encryptionMeta = encryption.compileEncryptionMeta(modelStructure);
   const validatorStructure = buildValidatorStructure(modelStructure);
@@ -388,8 +413,10 @@ module.exports = function model(
   }
 
   return {
-    insert: async (data) => {
+    insert: async (data, context = {}) => {
       let isBulk = false;
+      if (hooks.beforeSave) data = await runHook(hooks.beforeSave, data, context);
+      if (hooks.beforeCreate) data = await runHook(hooks.beforeCreate, data, context);
       if (data.hasOwnProperty("data")) {
         isBulk = true;
         RemovePK(primary_key, data.data);
@@ -414,19 +441,25 @@ module.exports = function model(
         const getResult = await db.get(table, [
           [[primary_key, "=", insertResult.id]],
         ]);
-        const record = getResult.count > 0 ? getResult["data"][0] : null;
+        let record = getResult.count > 0 ? getResult["data"][0] : null;
         if (record) {
           decryptRows(record, encryptionMeta, activeEncryption?.keyring);
+          if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
+          if (hooks.afterCreate) record = await runItemHook(hooks.afterCreate, record, context);
           produce(table, "insert", record);
         }
         return record;
       }
-      //TODO: Bulk Insert -> Return inserted objects
+      // Bulk Insert or non-id return
+      if (hooks.afterSave) await hooks.afterSave(insertResult, context);
+      if (hooks.afterCreate) await hooks.afterCreate(insertResult, context);
       produce(table, "insert", payloadForProduce(data, encryptionMeta, activeEncryption?.keyring));
       return insertResult;
     },
-    update: async (data) => {
+    update: async (data, context = {}) => {
       let updateResult = null;
+      if (hooks.beforeSave) data = await runHook(hooks.beforeSave, data, context);
+      if (hooks.beforeUpdate) data = await runHook(hooks.beforeUpdate, data, context);
       if (data.hasOwnProperty("data")) {
         stripTimestampFields(data.data, allTimestampKeys);
         await validateInput(
@@ -438,7 +471,8 @@ module.exports = function model(
         encryptPayload(data, encryptionMeta, activeEncryption?.keyring, activeEncryption?.version);
         data = jsonStringify(data);
         updateResult = await db.upsert(table, data, unique);
-        //TODO: Bulk Update -> Return updated objects
+        if (hooks.afterSave) await hooks.afterSave(updateResult, context);
+        if (hooks.afterUpdate) await hooks.afterUpdate(updateResult, context);
         produce(table, "update", payloadForProduce(data, encryptionMeta, activeEncryption?.keyring));
       } else {
         stripTimestampFields(data, allTimestampKeys);
@@ -454,9 +488,11 @@ module.exports = function model(
           const getResult = await db.get(table, [
             [[primary_key, "=", updateResult.id]],
           ]);
-          const record = getResult.count > 0 ? getResult["data"][0] : null;
+          let record = getResult.count > 0 ? getResult["data"][0] : null;
           if (record) {
             decryptRows(record, encryptionMeta, activeEncryption?.keyring);
+            if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
+            if (hooks.afterUpdate) record = await runItemHook(hooks.afterUpdate, record, context);
             produce(table, "update", record);
           }
           return record;
@@ -468,17 +504,25 @@ module.exports = function model(
             option.safeDelete,
           );
           if (result.count > 0) {
-            decryptRows(result["data"], encryptionMeta, activeEncryption?.keyring);
-            produce(table, "update", result["data"][0]);
-            return result["data"][0];
+            let record = result["data"][0];
+            decryptRows(record, encryptionMeta, activeEncryption?.keyring);
+            if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
+            if (hooks.afterUpdate) record = await runItemHook(hooks.afterUpdate, record, context);
+            produce(table, "update", record);
+            return record;
           } else return null;
         }
+        if (hooks.afterSave) await hooks.afterSave(updateResult, context);
+        if (hooks.afterUpdate) await hooks.afterUpdate(updateResult, context);
       }
       return updateResult;
     },
-    upsert: async (data) => {
+    upsert: async (data, context = {}) => {
       //* Same as Update but primary key is optional */
       let updateResult = null;
+      if (hooks.beforeSave) data = await runHook(hooks.beforeSave, data, context);
+      if (hooks.beforeUpdate) data = await runHook(hooks.beforeUpdate, data, context);
+      if (hooks.beforeUpsert) data = await runHook(hooks.beforeUpsert, data, context);
       if (data.hasOwnProperty("data")) {
         stripTimestampFields(data.data, allTimestampKeys);
         await validateInput(
@@ -490,7 +534,9 @@ module.exports = function model(
         encryptPayload(data, encryptionMeta, activeEncryption?.keyring, activeEncryption?.version);
         data = jsonStringify(data);
         updateResult = await db.upsert(table, data, unique);
-        //TODO: Bulk Upsert -> Return Inserted/Updated objects
+        if (hooks.afterSave) await hooks.afterSave(updateResult, context);
+        if (hooks.afterUpdate) await hooks.afterUpdate(updateResult, context);
+        if (hooks.afterUpsert) await hooks.afterUpsert(updateResult, context);
         produce(table, "upsert", payloadForProduce(data, encryptionMeta, activeEncryption?.keyring));
       } else {
         stripTimestampFields(data, allTimestampKeys);
@@ -507,9 +553,12 @@ module.exports = function model(
           const getResult = await db.get(table, [
             [[primary_key, "=", updateResult.id]],
           ]);
-          const record = getResult.count > 0 ? getResult["data"][0] : null;
+          let record = getResult.count > 0 ? getResult["data"][0] : null;
           if (record) {
             decryptRows(record, encryptionMeta, activeEncryption?.keyring);
+            if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
+            if (hooks.afterUpdate) record = await runItemHook(hooks.afterUpdate, record, context);
+            if (hooks.afterUpsert) record = await runItemHook(hooks.afterUpsert, record, context);
             produce(table, "upsert", record);
           }
           return record;
@@ -518,35 +567,69 @@ module.exports = function model(
             [[primary_key, "=", originalData[primary_key]]],
           ]);
           if (result.count > 0) {
-            decryptRows(result["data"], encryptionMeta, activeEncryption?.keyring);
-            produce(table, "upsert", result["data"][0]);
-            return result["data"][0];
+            let record = result["data"][0];
+            decryptRows(record, encryptionMeta, activeEncryption?.keyring);
+            if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
+            if (hooks.afterUpdate) record = await runItemHook(hooks.afterUpdate, record, context);
+            if (hooks.afterUpsert) record = await runItemHook(hooks.afterUpsert, record, context);
+            produce(table, "upsert", record);
+            return record;
           } else return null;
         }
+        if (hooks.afterSave) await hooks.afterSave(updateResult, context);
+        if (hooks.afterUpdate) await hooks.afterUpdate(updateResult, context);
+        if (hooks.afterUpsert) await hooks.afterUpsert(updateResult, context);
       }
       return updateResult;
     },
-    remove: async (data) => {
+    remove: async (data, context = {}) => {
+      if (hooks.beforeDelete) {
+        const res = await hooks.beforeDelete(data, context);
+        if (res !== undefined) data = res;
+      }
       const originalData = Array.isArray(data) ? [...data] : { ...data };
       let filter = dataToFilter(jsonSafeParse(data), primary_key);
       const removeResult = await db.remove(table, filter, option.safeDelete);
+      if (hooks.afterDelete) {
+        await hooks.afterDelete(removeResult, context);
+      }
       produce(table, "delete", originalData);
       return removeResult;
     },
-    byId: async (id, options = {}) => {
+    byId: async (id, options = {}, context = {}) => {
+      let opt = {};
+      let ctx = context;
+      if (options && typeof options === "object") {
+        if (options.hasOwnProperty("select_columns")) {
+          opt = options;
+        } else if (Object.keys(context).length === 0) {
+          ctx = options;
+        } else {
+          opt = options;
+        }
+      }
       let type = getType(id);
       if (type === "string" || type === "number") {
+        let filter = [[[primary_key, "=", id]]];
+        if (hooks.beforeFind) {
+          const f = await hooks.beforeFind(filter, ctx);
+          if (f !== undefined && Array.isArray(f)) filter = f;
+        }
         const result = await db.get(
           table,
-          [[[primary_key, "=", id]]],
+          filter,
           [],
           option.safeDelete,
         );
         if (result.count > 0) {
           let record = result["data"][0];
           decryptRows(record, encryptionMeta, activeEncryption?.keyring);
-          if (options.select_columns)
-            record = applySelect(record, options.select_columns);
+          if (opt.select_columns)
+            record = applySelect(record, opt.select_columns);
+          if (hooks.afterFind) {
+            const h = await hooks.afterFind([record], ctx);
+            if (h !== undefined && Array.isArray(h) && h.length > 0) record = h[0];
+          }
           return record;
         } else return null;
       } else {
@@ -554,7 +637,7 @@ module.exports = function model(
       }
     },
     //TODO: Implement Sort Logic
-    find: async (data) => {
+    find: async (data, context = {}) => {
       const { select_columns, search } = extractReservedParams(data);
       let sort = [];
       if (data.hasOwnProperty("sort")) {
@@ -564,13 +647,21 @@ module.exports = function model(
       }
       let filter = dataToFilter(jsonSafeParse(data), primary_key);
       filter = applySearch(filter, option.search_columns, search);
+      if (hooks.beforeFind) {
+        const f = await hooks.beforeFind(filter, context);
+        if (f !== undefined && Array.isArray(f)) filter = f;
+      }
       const result = await db.get(table, filter, sort, option.safeDelete);
       decryptRows(result.data, encryptionMeta, activeEncryption?.keyring);
       if (select_columns)
         result.data = applySelect(result.data, select_columns);
+      if (hooks.afterFind) {
+        const h = await hooks.afterFind(result.data, context);
+        if (h !== undefined && Array.isArray(h)) result.data = h;
+      }
       return result;
     },
-    findOne: async (data) => {
+    findOne: async (data, context = {}) => {
       const { select_columns, search } = extractReservedParams(data);
       let sort = [];
       if (data.hasOwnProperty("sort")) {
@@ -580,17 +671,25 @@ module.exports = function model(
       }
       let filter = dataToFilter(jsonSafeParse(data), primary_key);
       filter = applySearch(filter, option.search_columns, search);
+      if (hooks.beforeFind) {
+        const f = await hooks.beforeFind(filter, context);
+        if (f !== undefined && Array.isArray(f)) filter = f;
+      }
       let result = await db.get(table, filter, sort, option.safeDelete);
       if (result.count > 0) {
         let record = result["data"][0];
         decryptRows(record, encryptionMeta, activeEncryption?.keyring);
         if (select_columns) record = applySelect(record, select_columns);
+        if (hooks.afterFind) {
+          const h = await hooks.afterFind([record], context);
+          if (h !== undefined && Array.isArray(h) && h.length > 0) record = h[0];
+        }
         return record;
       } else {
         return false;
       }
     },
-    list: async (data) => {
+    list: async (data, context = {}) => {
       const { select_columns, search } = extractReservedParams(data);
       let page = 0;
       let size = 30;
@@ -614,6 +713,10 @@ module.exports = function model(
       }
       let filter = dataToFilter(jsonSafeParse(data), primary_key);
       filter = applySearch(filter, option.search_columns, search);
+      if (hooks.beforeFind) {
+        const f = await hooks.beforeFind(filter, context);
+        if (f !== undefined && Array.isArray(f)) filter = f;
+      }
       sort = jsonSafeParse(sort);
       const result = await db.list(
         table,
@@ -626,10 +729,16 @@ module.exports = function model(
       decryptRows(result.data, encryptionMeta, activeEncryption?.keyring);
       if (select_columns)
         result.data = applySelect(result.data, select_columns);
+      if (hooks.afterFind) {
+        const h = await hooks.afterFind(result.data, context);
+        if (h !== undefined && Array.isArray(h)) result.data = h;
+      }
       return result;
     },
-    patch: async (data) => {
+    patch: async (data, context = {}) => {
       // Partial update — fetch existing, merge patch fields, then upsert
+      if (hooks.beforeSave) data = await runItemHook(hooks.beforeSave, data, context);
+      if (hooks.beforeUpdate) data = await runItemHook(hooks.beforeUpdate, data, context);
       stripTimestampFields(data, allTimestampKeys);
       if (!data.hasOwnProperty(primary_key)) {
         throw new Error("Primary key is required for patch", {
@@ -670,15 +779,19 @@ module.exports = function model(
         option.safeDelete,
       );
       if (result.count > 0) {
-        decryptRows(result.data, encryptionMeta, activeEncryption?.keyring);
-        produce(table, "update", result["data"][0]);
-        return result["data"][0];
+        let record = result.data[0];
+        decryptRows(record, encryptionMeta, activeEncryption?.keyring);
+        if (hooks.afterSave) record = await runItemHook(hooks.afterSave, record, context);
+        if (hooks.afterUpdate) record = await runItemHook(hooks.afterUpdate, record, context);
+        produce(table, "update", record);
+        return record;
       }
       return null;
     },
     pk: primary_key,
     modelStructure,
     table,
+    hooks,
   };
 };
 

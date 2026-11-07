@@ -52,7 +52,7 @@ module.exports = function route(model, override = {}) {
     // route only needs select_columns/output_content_type for response shaping.
     if (search !== null && search !== undefined) payload.search = search;
     model
-      .find(payload)
+      .find(payload, { req, user: req.user })
       .then((response) => {
         if (response.count > 0) {
           let record = response.data[0];
@@ -77,7 +77,7 @@ module.exports = function route(model, override = {}) {
     // Re-attach search so the model layer can apply it against search_columns.
     if (search !== null && search !== undefined) payload.search = search;
     model
-      .list(payload)
+      .list(payload, { req, user: req.user })
       .then((response) => {
         sendFormatted(res, response, output_content_type);
       })
@@ -92,7 +92,7 @@ module.exports = function route(model, override = {}) {
       let payload = payloadOverride(req.body || {}, req, override);
       delete payload[model.pk];
       model
-        .insert(payload)
+        .insert(payload, { req, user: req.user })
         .then((response) => {
           res.status(200).send(response);
         })
@@ -106,11 +106,11 @@ module.exports = function route(model, override = {}) {
       let validateAccessPayload = payloadOverride({}, req, override);
       validateAccessPayload[model.pk] = req.params.id;
       model
-        .findOne(validateAccessPayload)
+        .findOne(validateAccessPayload, { req, user: req.user })
         .then((found) => {
           if (found) {
             model
-              .update(payload)
+              .update(payload, { req, user: req.user })
               .then((response) => {
                 res.status(200).send(response);
               })
@@ -131,11 +131,11 @@ module.exports = function route(model, override = {}) {
       let validateAccessPayload = payloadOverride({}, req, override);
       validateAccessPayload[model.pk] = req.params.id;
       model
-        .findOne(validateAccessPayload)
+        .findOne(validateAccessPayload, { req, user: req.user })
         .then((found) => {
           if (found) {
             model
-              .patch(payload)
+              .patch(payload, { req, user: req.user })
               .then((response) => {
                 res.status(200).send(response);
               })
@@ -156,11 +156,11 @@ module.exports = function route(model, override = {}) {
       let validateAccessPayload = payloadOverride({}, req, override);
       validateAccessPayload[model.pk] = req.params.id;
       model
-        .findOne(validateAccessPayload)
+        .findOne(validateAccessPayload, { req, user: req.user })
         .then((found) => {
           if (found) {
             model
-              .remove(payload)
+              .remove(payload, { req, user: req.user })
               .then((response) => {
                 res.status(200).send(response);
               })
@@ -185,7 +185,7 @@ module.exports = function route(model, override = {}) {
       }
       let payload = payloadOverride(req.body.data, req, override);
       model
-        .insert({ data: payload })
+        .insert({ data: payload }, { req, user: req.user })
         .then((response) => {
           res.status(200).send(response);
         })
@@ -202,7 +202,7 @@ module.exports = function route(model, override = {}) {
       }
       let payload = payloadOverride(req.body.data, req, override);
       model
-        .update({ data: payload })
+        .update({ data: payload }, { req, user: req.user })
         .then((response) => {
           res.status(200).send(response);
         })
@@ -225,7 +225,7 @@ module.exports = function route(model, override = {}) {
         payload = payloadOverride(req.body, req, override);
       }
       model
-        .remove(payload)
+        .remove(payload, { req, user: req.user })
         .then((response) => {
           res.status(200).send(response);
         })
