@@ -892,7 +892,7 @@
           <div class="bench-bar-group">
             <div class="bench-bar-label">
               <span>db-model-router</span>
-              <span class="cell-winner">21.6 ops/s (56.4ms p95)</span>
+              <span class="cell-winner">22.2 ops/s (45.0ms)</span>
             </div>
             <div class="bench-bar-bg"><div class="bench-bar-fill bar-dbmr" style="width: 100%;"></div></div>
           </div>
@@ -900,39 +900,39 @@
           <div class="bench-bar-group">
             <div class="bench-bar-label">
               <span>Drizzle ORM</span>
-              <span>19.1 ops/s (68.4ms p95)</span>
+              <span>21.4 ops/s (46.7ms)</span>
             </div>
-            <div class="bench-bar-bg"><div class="bench-bar-fill bar-drizzle" style="width: 88%;"></div></div>
+            <div class="bench-bar-bg"><div class="bench-bar-fill bar-drizzle" style="width: 96%;"></div></div>
           </div>
 
           <div class="bench-bar-group">
             <div class="bench-bar-label">
               <span>Sequelize</span>
-              <span>14.4 ops/s (162.6ms p95)</span>
+              <span>21.2 ops/s (47.2ms)</span>
             </div>
-            <div class="bench-bar-bg"><div class="bench-bar-fill bar-sequelize" style="width: 66%;"></div></div>
+            <div class="bench-bar-bg"><div class="bench-bar-fill bar-sequelize" style="width: 95%;"></div></div>
           </div>
 
           <div class="bench-bar-group">
             <div class="bench-bar-label">
               <span>Prisma</span>
-              <span>7.4 ops/s (153.3ms p95)</span>
+              <span>8.6 ops/s (116.3ms)</span>
             </div>
-            <div class="bench-bar-bg"><div class="bench-bar-fill bar-prisma" style="width: 34%;"></div></div>
+            <div class="bench-bar-bg"><div class="bench-bar-fill bar-prisma" style="width: 39%;"></div></div>
           </div>
         </div>
 
         <div class="bench-card bench-highlight">
           <div class="bench-card-title">
             <span>Bulk Insert (10,000 Rows)</span>
-            <span class="pill" style="margin:0; padding:0.2rem 0.6rem; font-size:0.75rem;">3x Prisma</span>
+            <span class="pill" style="margin:0; padding:0.2rem 0.6rem; font-size:0.75rem;">dbmr 1st</span>
           </div>
           <div class="bench-card-sub">Throughput in operations / second (higher is better)</div>
 
           <div class="bench-bar-group">
             <div class="bench-bar-label">
               <span>db-model-router</span>
-              <span class="cell-winner">2.4 ops/s (420ms p95)</span>
+              <span class="cell-winner">2.6 ops/s (390.8ms)</span>
             </div>
             <div class="bench-bar-bg"><div class="bench-bar-fill bar-dbmr" style="width: 100%;"></div></div>
           </div>
@@ -940,65 +940,65 @@
           <div class="bench-bar-group">
             <div class="bench-bar-label">
               <span>Drizzle ORM</span>
-              <span>1.9 ops/s (518ms p95)</span>
+              <span>2.2 ops/s (454.5ms)</span>
             </div>
-            <div class="bench-bar-bg"><div class="bench-bar-fill bar-drizzle" style="width: 79%;"></div></div>
+            <div class="bench-bar-bg"><div class="bench-bar-fill bar-drizzle" style="width: 85%;"></div></div>
           </div>
 
           <div class="bench-bar-group">
             <div class="bench-bar-label">
               <span>Sequelize</span>
-              <span>1.9 ops/s (524ms p95)</span>
+              <span>2.1 ops/s (476.2ms)</span>
             </div>
-            <div class="bench-bar-bg"><div class="bench-bar-fill bar-sequelize" style="width: 79%;"></div></div>
+            <div class="bench-bar-bg"><div class="bench-bar-fill bar-sequelize" style="width: 81%;"></div></div>
           </div>
 
           <div class="bench-bar-group">
             <div class="bench-bar-label">
               <span>Prisma</span>
-              <span>0.8 ops/s (1,230ms p95)</span>
+              <span>0.9 ops/s (1,111ms)</span>
             </div>
-            <div class="bench-bar-bg"><div class="bench-bar-fill bar-prisma" style="width: 33%;"></div></div>
+            <div class="bench-bar-bg"><div class="bench-bar-fill bar-prisma" style="width: 35%;"></div></div>
           </div>
         </div>
 
-        <div class="bench-card">
+        <div class="bench-card bench-highlight">
           <div class="bench-card-title">
-            <span>Paginated Read (Page 10)</span>
-            <span class="pill" style="margin:0; padding:0.2rem 0.6rem; font-size:0.75rem;">857 ops/s</span>
+            <span>JSONB Roundtrip</span>
+            <span class="pill" style="margin:0; padding:0.2rem 0.6rem; font-size:0.75rem;">dbmr 1st</span>
           </div>
           <div class="bench-card-sub">Throughput in operations / second (higher is better)</div>
 
           <div class="bench-bar-group">
             <div class="bench-bar-label">
-              <span>Sequelize</span>
-              <span>902.1 ops/s</span>
-            </div>
-            <div class="bench-bar-bg"><div class="bench-bar-fill bar-sequelize" style="width: 100%;"></div></div>
-          </div>
-
-          <div class="bench-bar-group">
-            <div class="bench-bar-label">
               <span>db-model-router</span>
-              <span class="cell-winner">857.8 ops/s</span>
+              <span class="cell-winner">437.6 ops/s (2.29ms)</span>
             </div>
-            <div class="bench-bar-bg"><div class="bench-bar-fill bar-dbmr" style="width: 95%;"></div></div>
+            <div class="bench-bar-bg"><div class="bench-bar-fill bar-dbmr" style="width: 100%;"></div></div>
           </div>
 
           <div class="bench-bar-group">
             <div class="bench-bar-label">
               <span>Drizzle ORM</span>
-              <span>689.9 ops/s</span>
+              <span>425.8 ops/s (2.35ms)</span>
             </div>
-            <div class="bench-bar-bg"><div class="bench-bar-fill bar-drizzle" style="width: 76%;"></div></div>
+            <div class="bench-bar-bg"><div class="bench-bar-fill bar-drizzle" style="width: 97%;"></div></div>
+          </div>
+
+          <div class="bench-bar-group">
+            <div class="bench-bar-label">
+              <span>Sequelize</span>
+              <span>393.1 ops/s (2.54ms)</span>
+            </div>
+            <div class="bench-bar-bg"><div class="bench-bar-fill bar-sequelize" style="width: 90%;"></div></div>
           </div>
 
           <div class="bench-bar-group">
             <div class="bench-bar-label">
               <span>Prisma</span>
-              <span>473.7 ops/s</span>
+              <span>342.4 ops/s (2.92ms)</span>
             </div>
-            <div class="bench-bar-bg"><div class="bench-bar-fill bar-prisma" style="width: 52%;"></div></div>
+            <div class="bench-bar-bg"><div class="bench-bar-fill bar-prisma" style="width: 78%;"></div></div>
           </div>
         </div>
       </div>
@@ -1019,59 +1019,67 @@
           <tbody>
             <tr>
               <td><strong>Bulk Insert (1,000 rows)</strong></td>
-              <td class="cell-winner">21.6 ops/s (56.4ms)</td>
-              <td>19.1 ops/s (68.4ms)</td>
-              <td>7.4 ops/s (153.3ms)</td>
-              <td>14.4 ops/s (162.6ms)</td>
-              <td><span class="nav-badge">+192% vs Prisma</span></td>
+              <td class="cell-winner">22.2 ops/s (45.0ms)</td>
+              <td>21.4 ops/s (46.7ms)</td>
+              <td>8.6 ops/s (116.3ms)</td>
+              <td>21.2 ops/s (47.2ms)</td>
+              <td><span class="nav-badge">+158% vs Prisma</span></td>
             </tr>
             <tr>
               <td><strong>Bulk Insert (10,000 rows)</strong></td>
-              <td class="cell-winner">2.4 ops/s (420ms)</td>
-              <td>1.9 ops/s (518ms)</td>
-              <td>0.8 ops/s (1,230ms)</td>
-              <td>1.9 ops/s (524ms)</td>
-              <td><span class="nav-badge">+200% vs Prisma</span></td>
+              <td class="cell-winner">2.6 ops/s (390.8ms)</td>
+              <td>2.2 ops/s (454.5ms)</td>
+              <td>0.9 ops/s (1,111ms)</td>
+              <td>2.1 ops/s (476.2ms)</td>
+              <td><span class="nav-badge">+189% vs Prisma</span></td>
             </tr>
             <tr>
               <td><strong>Bulk Insert (100 rows)</strong></td>
-              <td>131.0 ops/s</td>
-              <td class="cell-winner">136.0 ops/s</td>
-              <td>64.9 ops/s</td>
-              <td>73.8 ops/s</td>
-              <td><span class="nav-badge">+102% vs Prisma</span></td>
-            </tr>
-            <tr>
-              <td><strong>Paginated List (Page 10)</strong></td>
-              <td class="cell-winner">857.8 ops/s</td>
-              <td>689.9 ops/s</td>
-              <td>473.7 ops/s</td>
-              <td>902.1 ops/s</td>
-              <td><span class="nav-badge">+81% vs Prisma</span></td>
-            </tr>
-            <tr>
-              <td><strong>Delete by Primary Key</strong></td>
-              <td class="cell-winner">591.6 ops/s</td>
-              <td>594.6 ops/s</td>
-              <td>481.2 ops/s</td>
-              <td>574.0 ops/s</td>
-              <td><span class="nav-badge">+23% vs Prisma</span></td>
+              <td>132.6 ops/s (7.5ms)</td>
+              <td class="cell-winner">153.0 ops/s (6.5ms)</td>
+              <td>71.7 ops/s (13.9ms)</td>
+              <td>143.0 ops/s (7.0ms)</td>
+              <td><span class="nav-badge">+85% vs Prisma</span></td>
             </tr>
             <tr>
               <td><strong>Single Row Read (PK)</strong></td>
-              <td class="cell-winner">2,101.5 ops/s</td>
-              <td>1,830.3 ops/s</td>
-              <td>1,478.2 ops/s</td>
-              <td>1,426.7 ops/s</td>
-              <td><span class="nav-badge">+42% vs Prisma</span></td>
+              <td>2,111.2 ops/s (0.47ms)</td>
+              <td class="cell-winner">2,166.8 ops/s (0.46ms)</td>
+              <td>1,622.0 ops/s (0.62ms)</td>
+              <td>1,963.8 ops/s (0.51ms)</td>
+              <td><span class="nav-badge">+30% vs Prisma</span></td>
+            </tr>
+            <tr>
+              <td><strong>Single Row Write (insert_single)</strong></td>
+              <td>524.1 ops/s (1.91ms)</td>
+              <td class="cell-winner">531.6 ops/s (1.88ms)</td>
+              <td>429.5 ops/s (2.33ms)</td>
+              <td>506.6 ops/s (1.97ms)</td>
+              <td><span class="nav-badge">+22% vs Prisma</span></td>
+            </tr>
+            <tr>
+              <td><strong>Delete by Primary Key</strong></td>
+              <td class="cell-winner">624.2 ops/s (1.60ms)</td>
+              <td>598.7 ops/s (1.67ms)</td>
+              <td>524.9 ops/s (1.91ms)</td>
+              <td>609.2 ops/s (1.64ms)</td>
+              <td><span class="nav-badge">dbmr 1st (+19% vs Prisma)</span></td>
             </tr>
             <tr>
               <td><strong>JSONB Roundtrip</strong></td>
-              <td class="cell-winner">412.8 ops/s</td>
-              <td>346.6 ops/s</td>
-              <td>299.1 ops/s</td>
-              <td>351.1 ops/s</td>
-              <td><span class="nav-badge">+38% vs Prisma</span></td>
+              <td class="cell-winner">437.6 ops/s (2.29ms)</td>
+              <td>425.8 ops/s (2.35ms)</td>
+              <td>342.4 ops/s (2.92ms)</td>
+              <td>393.1 ops/s (2.54ms)</td>
+              <td><span class="nav-badge">dbmr 1st (+28% vs Prisma)</span></td>
+            </tr>
+            <tr>
+              <td><strong>Paginated List (Page 10)</strong></td>
+              <td>899.7 ops/s (1.11ms)</td>
+              <td class="cell-winner">937.0 ops/s (1.07ms)</td>
+              <td>445.3 ops/s (2.25ms)</td>
+              <td>908.9 ops/s (1.10ms)</td>
+              <td><span class="nav-badge">+102% vs Prisma</span></td>
             </tr>
           </tbody>
         </table>
