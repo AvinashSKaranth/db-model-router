@@ -46,7 +46,7 @@ const adapters = {
     connect: (d) =>
       d.connect({
         host: process.env.MYSQL_HOST || "localhost",
-        port: parseInt(process.env.MYSQL_PORT || "3306"),
+        port: parseInt(process.env.MYSQL_PORT || process.env.DB_PORT || "3308", 10),
         user: process.env.MYSQL_USER || "root",
         password: process.env.MYSQL_PASSWORD || "password",
         database: process.env.MYSQL_DB || "test_db",

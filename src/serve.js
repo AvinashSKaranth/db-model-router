@@ -30,7 +30,7 @@ dbModule.db.connect({
   user: process.env.DB_USER,
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
-  port: process.env.DB_PORT,
+  port: process.env.DB_PORT || process.env.MYSQL_PORT || 3308,
   charset: "utf8mb4",
 });
 const test = model(

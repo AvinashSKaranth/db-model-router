@@ -4,8 +4,8 @@ let crypto = require("crypto");
 let table = "test-" + crypto.randomUUID();
 const assert = require("assert");
 const faker = require("faker");
-const { db, model } = require("../src/index.js");
 const app = require("../src/serve.js");
+const { db, model } = require("../src/index.js");
 let test = model(
   db,
   table,
@@ -23,6 +23,17 @@ let test = model(
 );
 describe("Model Function Safe Delete", function () {
   before(function (done) {
+    const restRouter = require("../src/index.js");
+    restRouter.init("mysql");
+    restRouter.db.connect({
+      connectionLimit: 100,
+      host: process.env.DB_HOST || "localhost",
+      user: process.env.DB_USER || "root",
+      password: process.env.DB_PASS || "password",
+      database: process.env.DB_NAME || "test_db",
+      port: process.env.DB_PORT || process.env.MYSQL_PORT || 3308,
+      charset: "utf8mb4",
+    });
     db.query(
       "CREATE TABLE IF NOT EXISTS`" +
         table +
@@ -37,15 +48,19 @@ describe("Model Function Safe Delete", function () {
         "`modified_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()," +
         "PRIMARY KEY (`test_id`)" +
         ") ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8mb4"
-    ).then((data) => {
-      console.log(data);
-      done();
-    });
+    )
+      .then((data) => {
+        console.log(data);
+        done();
+      })
+      .catch(done);
   });
   after(function (done) {
-    db.query("DROP TABLE `" + table + "`;").then(() => {
-      done();
-    });
+    db.query("DROP TABLE `" + table + "`;")
+      .then(() => {
+        done();
+      })
+      .catch(done);
   });
   let test_id = 0;
   let payload = {

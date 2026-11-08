@@ -9,7 +9,7 @@ const { db } = require("../src/index.js");
 describe("Database Functions", function () {
   before(function (done) {
     db.query(
-      "CREATE TABLE IF NOT EXISTS`" +
+      "CREATE TABLE IF NOT EXISTS `" +
         table +
         "` (" +
         "`test_id` int(11) NOT NULL AUTO_INCREMENT," +
@@ -18,14 +18,18 @@ describe("Database Functions", function () {
         "`modified_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()," +
         "PRIMARY KEY (`test_id`)" +
         ") ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=utf8mb4"
-    ).then((data) => {
-      done();
-    });
+    )
+      .then(() => {
+        done();
+      })
+      .catch(done);
   });
   after(function (done) {
-    db.query("DROP TABLE `" + table + "`;").then(() => {
-      done();
-    });
+    db.query("DROP TABLE `" + table + "`;")
+      .then(() => {
+        done();
+      })
+      .catch(done);
   });
   describe("Single Entry", function () {
     let name = faker.name.findName();

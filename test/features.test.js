@@ -77,6 +77,17 @@ describe("Feature Expansion Tests", function () {
 
     after(function () {
       db.disconnect();
+      const restRouter = require("../src/index.js");
+      restRouter.init("mysql");
+      restRouter.db.connect({
+        connectionLimit: 100,
+        host: process.env.DB_HOST || "localhost",
+        user: process.env.DB_USER || "root",
+        password: process.env.DB_PASS || "password",
+        database: process.env.DB_NAME || "test_db",
+        port: process.env.DB_PORT || process.env.MYSQL_PORT || 3308,
+        charset: "utf8mb4",
+      });
     });
 
     it("should create a model without passing db (uses singleton)", function () {
@@ -142,6 +153,17 @@ describe("Feature Expansion Tests", function () {
 
     after(function () {
       db.disconnect();
+      const restRouter = require("../src/index.js");
+      restRouter.init("mysql");
+      restRouter.db.connect({
+        connectionLimit: 100,
+        host: process.env.DB_HOST || "localhost",
+        user: process.env.DB_USER || "root",
+        password: process.env.DB_PASS || "password",
+        database: process.env.DB_NAME || "test_db",
+        port: process.env.DB_PORT || process.env.MYSQL_PORT || 3308,
+        charset: "utf8mb4",
+      });
     });
 
     it("should return only selected columns in find()", async function () {
@@ -276,6 +298,17 @@ describe("Feature Expansion Tests", function () {
 
     after(function () {
       db.disconnect();
+      const restRouter = require("../src/index.js");
+      restRouter.init("mysql");
+      restRouter.db.connect({
+        connectionLimit: 100,
+        host: process.env.DB_HOST || "localhost",
+        user: process.env.DB_USER || "root",
+        password: process.env.DB_PASS || "password",
+        database: process.env.DB_NAME || "test_db",
+        port: process.env.DB_PORT || process.env.MYSQL_PORT || 3308,
+        charset: "utf8mb4",
+      });
     });
 
     it("should patch only provided fields", async function () {

@@ -19,6 +19,43 @@ const adapterLoaders = {
 let db = null;
 let initConfig = null;
 
+const dbProxy = new Proxy(
+  {},
+  {
+    get(_target, prop) {
+      if (prop === "then") return undefined;
+      if (!db) {
+        throw new Error(
+          "Database not initialized. Call init(DB_TYPE) before using db methods.",
+        );
+      }
+      const val = db[prop];
+      if (typeof val === "function") {
+        return val.bind(db);
+      }
+      return val;
+    },
+    set(_target, prop, value) {
+      if (!db) {
+        throw new Error(
+          "Database not initialized. Call init(DB_TYPE) before using db methods.",
+        );
+      }
+      db[prop] = value;
+      return true;
+    },
+    has(_target, prop) {
+      return db ? prop in db : false;
+    },
+    ownKeys(_target) {
+      return db ? Reflect.ownKeys(db) : [];
+    },
+    getOwnPropertyDescriptor(_target, prop) {
+      return db ? Object.getOwnPropertyDescriptor(db, prop) : undefined;
+    },
+  },
+);
+
 function init(DB_TYPE, config) {
   const dbType = (DB_TYPE || "mysql").toLowerCase();
   const loader = adapterLoaders[dbType];
@@ -68,7 +105,7 @@ function init(DB_TYPE, config) {
 module.exports = {
   init,
   get db() {
-    return db;
+    return dbProxy;
   },
   get initConfig() {
     return initConfig;
