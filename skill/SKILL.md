@@ -74,13 +74,13 @@ Frameworks: `express` or `ultimate-express` (auto-detected; prefers ultimate-exp
 
 ```js
 // CJS
-const { init, db, model, route } = require("db-model-router");
+const { init, db, model, route, transaction } = require("db-model-router");
 
 // ESM (generated projects)
 import dbModelRouter from "db-model-router";
-const { init, db, model, route } = dbModelRouter;
+const { init, db, model, route, transaction } = dbModelRouter;
 
-init("postgres"); // call BEFORE db.connect() — do NOT destructure db before init()
+init("postgres"); // call BEFORE db.connect() / db operations
 db.connect({ host, port: 5432, user, password, database });
 
 const users = model(
@@ -104,7 +104,7 @@ const users = model(
 app.use("/users", route(users));
 ```
 
-> **Critical**: Call `init()` before `db.connect()`. Default adapter is `mysql`. Do NOT destructure `db` before `init()` — it is a getter.
+> **Critical**: Call `init()` before `db.connect()`. Default adapter is `mysql`. `db` is exported as a dynamic Proxy that routes calls to the initialized adapter.
 > **ESM note**: The library is CJS. Generated ESM projects must use default import (above) — NOT named `import { init }`.
 
 For adapter-specific connect options (ports, env vars, upsert behavior), read the relevant file from `references/`.
@@ -152,6 +152,12 @@ await m.list({ search: "alice", status: "active" })                   // (col0 L
 // DELETE — safeDelete: sets column=1; without: hard delete
 await m.remove(1)
 await m.remove({ name: "Bob" })
+
+// TRANSACTIONS — atomic multi-model ACID execution
+await transaction(async (tx) => {
+  const user = await tx.model(users).insert({ name: "Alice", email: "a@b.com" });
+  await tx.model(accounts).insert({ user_id: user.id, balance: 1000 });
+});
 ```
 
 ---
@@ -402,6 +408,43 @@ Starts a built-in web dashboard for browsing and managing your database. Feature
 
 Requires a `.env` file with `DB_TYPE` and connection variables.
 
+### `types` — Generate TypeScript definitions
+
+```bash
+db-model-router types [--from dbmr.schema.json] [--out types/models.d.ts] [--stdout]
+```
+
+Generates TypeScript interface definitions for all models defined in the schema.
+
+### `migrate:*` — Unified Migration Commands
+
+```bash
+# Create a timestamped migration file
+db-model-router migrate:create <name> [--dir migrations]
+
+# Apply pending migrations forward
+db-model-router migrate:up [--env .env] [--dir migrations]
+
+# Rollback last migration batch
+db-model-router migrate:down [--env .env] [--dir migrations]
+
+# View applied and pending migration status
+db-model-router migrate:status [--env .env] [--dir migrations]
+```
+
+### `encrypt:*` — Transparent Field Encryption Tools
+
+```bash
+# Scan database for unencrypted values in encrypted fields
+db-model-router encrypt:scan [--tables t1,t2] [--env .env]
+
+# Backfill and encrypt unencrypted values in-place
+db-model-router encrypt:scan --apply [--dry-run]
+
+# Re-encrypt existing ciphertext envelopes to newest active key version
+db-model-router encrypt:rotate-key [--tables t1,t2] [--dry-run]
+```
+
 ---
 
 ## Schema-Driven Workflow (dbmr.schema.json)
@@ -474,7 +517,9 @@ Requires a `.env` file with `DB_TYPE` and connection variables.
 
 ### Column Rules
 
-Format: `[required|]<type>[:<subtype>][|<validator>...]`
+Format: `[encrypted|][required|]<type>[:<subtype>][|<validator>...]`
+
+Prefix with `encrypted|` for AES-256-GCM field encryption (`encrypted` must precede `required`). Allowed encryptable types: `string`, `integer`, `numeric`, `boolean`, `datetime`. For partial JSON encryption inside an `object` column, use dot notation (e.g. `"profile": "object"`, `"profile.dob": "encrypted|datetime"`).
 
 Include ALL columns in schema (PK, timestamps, softDelete). The generator auto-excludes them from model `structure`.
 
@@ -611,6 +656,58 @@ When `logger=true`: adds `APP_NAME LOG_LEVEL LOKI_HOST`.
 
 ---
 
+## Field-Level Encryption (AES-256-GCM)
+
+Transparent application-level encryption for sensitive columns and nested JSON fields. Values are automatically encrypted into `enc:v<N>:<base64>` envelopes on write and decrypted on read.
+
+### Schema Declaration
+
+Prefix any encryptable column (`string`, `integer`, `numeric`, `boolean`, `datetime`) or nested object field with `encrypted`:
+
+```json
+{
+  "columns": {
+    "ssn": "encrypted|required|string",
+    "salary": "encrypted|numeric",
+    "birth_date": "encrypted|datetime",
+    "profile": "object",
+    "profile.dob": "encrypted|datetime"
+  }
+}
+```
+
+> `encrypted` must appear **before** `required` (e.g. `encrypted|required|string`).
+
+### Runtime Configuration
+
+```js
+init("postgres", {
+  encryption: {
+    key: "env:APP_ENCRYPTION_KEY", // or 32-byte base64 string
+    version: 1,
+    keys: {
+      "1": "env:OLD_KEY",
+      "2": "env:NEW_KEY",
+    },
+  },
+});
+```
+
+### CLI Utilities
+
+```bash
+# Scan and report unencrypted rows in encrypted columns
+db-model-router encrypt:scan [--tables users] [--env .env]
+
+# Backfill and encrypt unencrypted values in-place
+db-model-router encrypt:scan --apply [--dry-run]
+
+# Rotate existing ciphertext envelopes to newest active key version
+db-model-router encrypt:rotate-key [--tables users] [--dry-run]
+```
+
+---
+
 ## Kafka Event Production
 
 Built-in Kafka support. When `KAFKA_BROKER` env var is set, every write operation automatically produces a Kafka event per affected row.
@@ -692,7 +789,7 @@ Topic: `{KAFKA_TOPIC_PREFIX}.{table_name}` (e.g. `dbmr.users`)
 
 ## Rules
 
-1. `init()` before `db.connect()`. Don't destructure `db` before `init()` — it's a getter.
+1. `init()` before `db.connect()`. `db` is exported as a dynamic Proxy that forwards calls to the active adapter once `init()` runs.
 2. Generated projects are ESM. The library is CJS. Use default import: `import dbModelRouter from "db-model-router"; const { init, db } = dbModelRouter;`
 3. `model structure` excludes: PK, timestamps, soft-delete, and `auto_increment` cols — the generator handles this.
 4. `update()`/`patch()` require PK in payload. `upsert()` PK is optional.
@@ -709,3 +806,6 @@ Topic: `{KAFKA_TOPIC_PREFIX}.{table_name}` (e.g. `dbmr.users`)
 15. When `options.saasStructure` is `true` (default), do NOT define `users`, `tenants`, `roles`, or `role_permissions` in `dbmr.schema.json` — they are already generated with models, routes, middleware, and migrations. Only add your product-specific tables to the schema. `init` is first-buildout only (refuses if `app.js` exists) — add new tables/models/routes manually (migration + model + route mount in `routes/index.js`).
 16. Kafka is opt-in via `KAFKA_BROKER` env var. Call `kafka.init()` after `db.connect()`. Each write op produces one event per row to `{prefix}.{table}` topic.
 17. `search` is a **reserved** query param — never a column filter. It only takes effect when the model has `option.search_columns` set (config-only). It OR-joins a `LIKE %term%` across those columns and AND-combines with other filters. Works on `find`/`findOne`/`list` and the `GET /:id` + `GET /` routes.
+18. Field-level encryption: prefix rules with `encrypted|` (must precede `required|`). Encrypts on write and decrypts on read using AES-256-GCM. Unencrypted legacy values pass through reads safely without errors.
+19. Transactions: use `const { transaction } = dbModelRouter; await transaction(async (tx) => { await tx.model(m).insert(...); })` for atomic cross-table ACID operations.
+20. Single-record writes on PostgreSQL, CockroachDB, and SQLite3 use `RETURNING *` (`OUTPUT inserted.*` on MSSQL) to eliminate redundant re-fetch round trips.

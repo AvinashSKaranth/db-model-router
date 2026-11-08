@@ -1,6 +1,6 @@
 # db-model-router
 
-A database-agnostic REST API generator for Node.js. Works with Express or ultimate-express (a high-performance drop-in replacement). Define a model, get a full CRUD API with filtering, pagination, and bulk operations — backed by any of 9 supported databases.
+A database-agnostic REST API generator for Node.js. Works with Express or ultimate-express (a high-performance drop-in replacement). Define a model, get a full CRUD API with filtering, pagination, and bulk operations — backed by any of 10 supported databases.
 
 ## Build a REST API with AI
 
@@ -254,14 +254,21 @@ The `db-model-router` command is the unified entry point. `init` is the only bui
 db-model-router <subcommand> [flags]
 ```
 
-| Subcommand    | Description                                                          |
-| ------------- | -------------------------------------------------------------------- |
-| `init`        | **First buildout only.** Scaffold the full project from `dbmr.schema.json` |
-| `inspect`     | Introspect a live database and produce a `dbmr.schema.json`          |
-| `doctor`      | Validate schema, check dependencies, verify generated files in sync  |
-| `diff`        | Preview what changes regeneration would make (read-only)             |
-| `db-manager`  | Start a live database management UI                                   |
-| `help`        | Show help for a command                                               |
+| Subcommand            | Description                                                                  |
+| --------------------- | ---------------------------------------------------------------------------- |
+| `init`                | **First buildout only.** Scaffold the full project from `dbmr.schema.json`   |
+| `inspect`             | Introspect a live database and produce a `dbmr.schema.json`                  |
+| `doctor`              | Validate schema, check dependencies, verify generated files in sync          |
+| `diff`                | Preview what changes regeneration would make (read-only)                     |
+| `db-manager`          | Start a live database management UI                                          |
+| `types`               | Generate TypeScript definitions (`models.d.ts`) from `dbmr.schema.json`      |
+| `migrate:create`      | Create a new timestamped SQL or JS migration file                            |
+| `migrate:up`          | Run pending database migrations forward                                      |
+| `migrate:down`        | Rollback the last applied migration batch                                    |
+| `migrate:status`      | View migration status and history                                            |
+| `encrypt:scan`        | Scan for unencrypted values in encrypted fields and optionally backfill       |
+| `encrypt:rotate-key`  | Re-encrypt existing ciphertext envelopes to a new key version               |
+| `help`                | Show help for a command                                                      |
 
 #### Universal Flags
 
@@ -468,6 +475,54 @@ Preview changes between the current generated files and what the schema would pr
 ```bash
 db-model-router diff --from dbmr.schema.json
 db-model-router diff --json
+```
+
+#### `types`
+
+Generate TypeScript definitions (`models.d.ts`) directly from `dbmr.schema.json`.
+
+| Flag / Arg      | Description                                                    |
+| --------------- | -------------------------------------------------------------- |
+| `--from <path>` | Path to schema file (default: `dbmr.schema.json`)              |
+| `--out <path>`  | Output file path (default: `types/models.d.ts`)                |
+| `--stdout`      | Print definitions to stdout instead of writing to disk         |
+
+```bash
+db-model-router types
+db-model-router types --from ./dbmr.schema.json --out ./src/types/models.d.ts
+```
+
+#### `migrate:create`, `migrate:up`, `migrate:down`, `migrate:status`
+
+Manage database migrations via the unified CLI runner.
+
+```bash
+# Create a new migration file
+db-model-router migrate:create add_orders_table [--dir migrations]
+
+# Run pending migrations forward
+db-model-router migrate:up [--env .env] [--dir migrations]
+
+# Rollback the last migration batch
+db-model-router migrate:down [--env .env] [--dir migrations]
+
+# View status of applied and pending migrations
+db-model-router migrate:status [--env .env] [--dir migrations]
+```
+
+#### `encrypt:scan` and `encrypt:rotate-key`
+
+Tools for managing transparent application-level field encryption.
+
+```bash
+# Scan tables for unencrypted values in columns marked as encrypted
+db-model-router encrypt:scan [--tables users,orders] [--env .env]
+
+# Backfill and encrypt unencrypted values in-place
+db-model-router encrypt:scan --apply [--dry-run]
+
+# Rotate ciphertext envelopes to the newly active key version
+db-model-router encrypt:rotate-key [--tables users] [--dry-run]
 ```
 
 #### `help`
@@ -713,6 +768,55 @@ await users.remove(1);
 await users.remove({ name: "Bob" });
 ```
 
+### patch(data)
+
+Partial update — only modifies the specified fields (requires PK in payload):
+
+```js
+const user = await users.patch({ id: 1, age: 32 });
+// => returns the full merged and updated record
+```
+
+### upsert(data)
+
+Insert or update based on unique constraint conflict resolution:
+
+```js
+// Single upsert
+const user = await users.upsert({ email: "alice@example.com", name: "Alice", age: 30 });
+
+// Bulk upsert
+const result = await users.upsert({
+  data: [
+    { email: "alice@example.com", name: "Alice V2" },
+    { email: "bob@example.com", name: "Bob New" },
+  ],
+});
+```
+
+### Transactions
+
+Execute atomic multi-table operations within an ACID transaction (PostgreSQL, CockroachDB, SQLite3, MySQL, MariaDB, MSSQL, Oracle):
+
+```js
+const { transaction } = require("db-model-router");
+
+const result = await transaction(async (tx) => {
+  const user = await tx.model(users).insert({
+    name: "Alice",
+    email: "alice@example.com",
+  });
+
+  const account = await tx.model(accounts).insert({
+    user_id: user.id,
+    balance: 1000,
+  });
+
+  return { user, account };
+});
+```
+If an error is thrown inside the callback, all writes within the transaction are automatically rolled back.
+
 ## Filter System
 
 Filters use a nested array structure: `[OR_groups[AND_conditions[column, operator, value]]]`
@@ -789,6 +893,51 @@ GET /users/?search=alice
 - In SQL adapters, `%` and `_` in the search term act as `LIKE` wildcards; MongoDB/Redis/DynamoDB match the term literally (MongoDB also escapes regex metacharacters).
 - `IN` and `NOT IN` values are comma-separated inside parentheses.
   Operators are detected in order of specificity: `!in(...)` → `in(...)` → `!%...%` → `%...%` → `>=` → `<=` → `>` → `<` → `!value` → `=` (default).
+
+## Field-Level Encryption
+
+`db-model-router` supports transparent application-level encryption using **AES-256-GCM**. When marked with the `encrypted` flag in a column rule, values are automatically encrypted on write and decrypted on read.
+
+```json
+{
+  "columns": {
+    "ssn": "encrypted|required|string",
+    "salary": "encrypted|numeric",
+    "birth_date": "encrypted|datetime",
+    "profile": "object",
+    "profile.dob": "encrypted|datetime"
+  }
+}
+```
+
+### Encryption Key Configuration
+
+Initialize with an encryption key (environment variable reference or base64 32-byte key):
+
+```js
+const { init, db } = require("db-model-router");
+
+init("postgres", {
+  encryption: {
+    key: "env:APP_ENCRYPTION_KEY",
+    version: 1,
+    // Optional: older keys for key rotation
+    keys: {
+      "1": "env:OLD_ENCRYPTION_KEY",
+      "2": "env:NEW_ENCRYPTION_KEY",
+    },
+  },
+});
+```
+
+- **Algorithm**: `aes-256-gcm` with random 12-byte IV per value and 16-byte authentication tag.
+- **Envelope Format**: `enc:v<version>:<base64(iv + ciphertext + tag)>`.
+- **Zero-downtime Migration**: Legacy unencrypted plaintext passes through reads cleanly without errors.
+- **CLI Utilities**:
+  - `db-model-router encrypt:scan --apply` backfills existing unencrypted database rows.
+  - `db-model-router encrypt:rotate-key` re-encrypts envelopes to the newest active key version.
+
+For the complete guide, see [docs/encryption.md](./docs/encryption.md).
 
 ## Kafka Event Production
 
@@ -906,6 +1055,8 @@ db.connect({
 
 The model and route APIs remain identical across all adapters. See the individual adapter docs for connection options:
 
+- [MySQL](./docs/adapters/mysql.md)
+- [MariaDB](./docs/adapters/mariadb.md)
 - [PostgreSQL](./docs/adapters/postgres.md)
 - [SQLite3](./docs/adapters/sqlite3.md)
 - [MongoDB](./docs/adapters/mongodb.md)
@@ -935,6 +1086,11 @@ npm run test:cockroachdb # uses env/.env.cockroachdb
 npm run test:dynamodb   # uses env/.env.dynamodb
 npm run test:sqlite3    # uses env/.env.sqlite3 (in-memory, no Docker needed)
 ```
+
+## Performance & Quality Reports
+
+- **Interactive Benchmarks**: Head-to-head performance benchmarks measuring latency, throughput, and memory consumption across `db-model-router`, `Drizzle`, `Prisma`, and `Sequelize` across 15 standard workload scenarios. View the live interactive report at [docs/benchmark/index.html](./docs/benchmark/index.html).
+- **Code Quality & Security Audit**: Continuous automated quality audit reporting test coverage (88.5%+ lines, 630+ passing tests), 0 SonarJS code smells, and 0 dependency vulnerabilities (Grade A+ 99/100). View the detailed audit report at [docs/report/index.html](./docs/report/index.html).
 
 ## License
 

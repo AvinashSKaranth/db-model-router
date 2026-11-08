@@ -27,6 +27,7 @@ db.connect({ database: ":memory:" });
 - WAL journal mode is enabled by default for better concurrency
 - Uses `INSERT OR IGNORE` for conflict handling
 - `ON CONFLICT ... DO UPDATE SET` for upsert
+- Single-record `insert` and `upsert` use `RETURNING *` for fast single round-trip execution
 - No Docker container needed — runs in-process
 
 ## Table Creation
