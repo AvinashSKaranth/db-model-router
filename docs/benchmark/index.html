@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>db-model-router vs ORMs — PostgreSQL Benchmark 20261108-001022</title>
+<title>db-model-router vs ORMs — PostgreSQL Benchmark 20261108-103850</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -37,7 +37,7 @@
 <body>
 <header>
   <h1>db-model-router vs ORMs — PostgreSQL Benchmark</h1>
-  <div class="sub">Generated 2026-11-07T18:32:28.733Z · git c3ef954 · sequential contender execution (one process at a time, fixed order)</div>
+  <div class="sub">Generated 2026-11-08T04:59:54.007Z · git ff8a54a · sequential contender execution (one process at a time, fixed order)</div>
 </header>
 <main>
   <section class="card">
@@ -48,16 +48,16 @@
       <div><b>Platform</b><br>win32 x64</div>
       <div><b>CPU</b><br>12th Gen Intel(R) Core(TM) i9-12900H × 20</div>
       <div><b>Memory</b><br>63.7 GB</div>
-      <div><b>Git commit</b><br>c3ef954</div>
+      <div><b>Git commit</b><br>ff8a54a</div>
     </div>
   </section>
 
   <section class="card">
     <h2>Scoreboard — scenarios won (by mean latency)</h2>
     <table><thead><tr><th>Contender</th><th>Wins</th></tr></thead><tbody><tr><td><span class="dot" style="background:#6366f1"></span>db-model-router</td><td>4 / 15</td></tr>
-<tr><td><span class="dot" style="background:#f59e0b"></span>Sequelize</td><td>1 / 15</td></tr>
-<tr><td><span class="dot" style="background:#22c55e"></span>Prisma</td><td>1 / 15</td></tr>
-<tr><td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM</td><td>9 / 15</td></tr></tbody></table>
+<tr><td><span class="dot" style="background:#f59e0b"></span>Sequelize</td><td>3 / 15</td></tr>
+<tr><td><span class="dot" style="background:#22c55e"></span>Prisma</td><td>0 / 15</td></tr>
+<tr><td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM</td><td>8 / 15</td></tr></tbody></table>
     <p class="sub">Missing results (contender not run or failed) are simply omitted from the tables below.</p>
   </section>
 
@@ -65,42 +65,42 @@
   <section class="card">
   <h3>Insert single row (returns record) <span class="iters">1,000 ops × 5 runs</span></h3>
   <div class="charts">
-    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="177.0" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">1.75 ms</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="188.9" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">1.87 ms</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">2.17 ms</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="176.7" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">1.75 ms</span></div></div>
-    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="216.9" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">524.1/s</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="209.7" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">506.6/s</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="177.7" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">429.5/s</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">531.6/s</span></div></div>
+    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="181.6" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">2.21 ms</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="154.9" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">1.88 ms</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">2.68 ms</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="150.8" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">1.83 ms</span></div></div>
+    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="177.3" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">414.3/s</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="211.6" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">494.3/s</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="149.6" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">349.6/s</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">514.0/s</span></div></div>
   </div>
   <table>
     <thead><tr><th>Contender</th><th>mean</th><th>p50</th><th>p95</th><th>p99</th><th>throughput</th><th>Δ vs best</th><th>errors</th></tr></thead>
     <tbody><tr class="">
         <td><span class="dot" style="background:#6366f1"></span>db-model-router</td>
-        <td>1.91 ms</td><td>1.75 ms</td><td>2.95 ms</td><td>3.79 ms</td>
-        <td>524.1/s</td>
-        <td>+1.4%</td>
+        <td>2.41 ms</td><td>2.21 ms</td><td>3.80 ms</td><td>5.01 ms</td>
+        <td>414.3/s</td>
+        <td>+24.1%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#f59e0b"></span>Sequelize</td>
-        <td>1.97 ms</td><td>1.87 ms</td><td>2.68 ms</td><td>3.52 ms</td>
-        <td>506.6/s</td>
-        <td>+4.9%</td>
+        <td>2.02 ms</td><td>1.88 ms</td><td>2.86 ms</td><td>3.65 ms</td>
+        <td>494.3/s</td>
+        <td>+4.0%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#22c55e"></span>Prisma</td>
-        <td>2.33 ms</td><td>2.17 ms</td><td>3.23 ms</td><td>4.11 ms</td>
-        <td>429.5/s</td>
-        <td>+23.8%</td>
+        <td>2.86 ms</td><td>2.68 ms</td><td>4.35 ms</td><td>5.67 ms</td>
+        <td>349.6/s</td>
+        <td>+47.0%</td>
         <td>0</td>
       </tr>
 <tr class="winner">
         <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM 🏆</td>
-        <td>1.88 ms</td><td>1.75 ms</td><td>2.65 ms</td><td>3.32 ms</td>
-        <td>531.6/s</td>
+        <td>1.95 ms</td><td>1.83 ms</td><td>2.65 ms</td><td>3.28 ms</td>
+        <td>514.0/s</td>
         <td>—</td>
         <td>0</td>
       </tr></tbody>
@@ -109,42 +109,42 @@
 <section class="card">
   <h3>Bulk insert 100 rows <span class="iters">100 ops × 5 runs</span></h3>
   <div class="charts">
-    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="117.5" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">7.31 ms</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="109.1" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">6.79 ms</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">13.69 ms</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="99.9" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">6.22 ms</span></div></div>
-    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="190.7" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">132.6/s</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="205.6" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">143.0/s</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="103.1" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">71.7/s</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">153.0/s</span></div></div>
+    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="139.1" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">10.26 ms</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="107.4" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">7.92 ms</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">16.22 ms</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="100.1" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">7.38 ms</span></div></div>
+    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="148.3" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">91.3/s</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="197.4" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">121.5/s</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="97.8" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">60.2/s</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">135.4/s</span></div></div>
   </div>
   <table>
     <thead><tr><th>Contender</th><th>mean</th><th>p50</th><th>p95</th><th>p99</th><th>throughput</th><th>Δ vs best</th><th>errors</th></tr></thead>
     <tbody><tr class="">
         <td><span class="dot" style="background:#6366f1"></span>db-model-router</td>
-        <td>7.54 ms</td><td>7.31 ms</td><td>9.55 ms</td><td>12.10 ms</td>
-        <td>132.6/s</td>
-        <td>+15.4%</td>
+        <td>10.95 ms</td><td>10.26 ms</td><td>16.04 ms</td><td>19.94 ms</td>
+        <td>91.3/s</td>
+        <td>+48.3%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#f59e0b"></span>Sequelize</td>
-        <td>6.99 ms</td><td>6.79 ms</td><td>8.71 ms</td><td>9.77 ms</td>
-        <td>143.0/s</td>
-        <td>+7.0%</td>
+        <td>8.23 ms</td><td>7.92 ms</td><td>10.87 ms</td><td>13.10 ms</td>
+        <td>121.5/s</td>
+        <td>+11.4%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#22c55e"></span>Prisma</td>
-        <td>13.94 ms</td><td>13.69 ms</td><td>16.24 ms</td><td>17.72 ms</td>
-        <td>71.7/s</td>
-        <td>+113.4%</td>
+        <td>16.61 ms</td><td>16.22 ms</td><td>20.32 ms</td><td>24.03 ms</td>
+        <td>60.2/s</td>
+        <td>+125.0%</td>
         <td>0</td>
       </tr>
 <tr class="winner">
         <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM 🏆</td>
-        <td>6.53 ms</td><td>6.22 ms</td><td>8.36 ms</td><td>11.90 ms</td>
-        <td>153.0/s</td>
+        <td>7.38 ms</td><td>7.38 ms</td><td>8.68 ms</td><td>9.17 ms</td>
+        <td>135.4/s</td>
         <td>—</td>
         <td>0</td>
       </tr></tbody>
@@ -153,43 +153,43 @@
 <section class="card">
   <h3>Bulk insert 1,000 rows <span class="iters">30 ops × 5 runs</span></h3>
   <div class="charts">
-    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="84.6" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">43.73 ms</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="89.7" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">46.39 ms</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">113.75 ms</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="88.6" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">45.81 ms</span></div></div>
-    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">22.2/s</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="210.1" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">21.2/s</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="85.2" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">8.6/s</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="212.1" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">21.4/s</span></div></div>
+    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="97.6" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">58.11 ms</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="89.9" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">53.50 ms</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">130.96 ms</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="83.3" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">49.59 ms</span></div></div>
+    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="175.8" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">15.9/s</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="204.5" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">18.5/s</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="81.8" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">7.4/s</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">19.9/s</span></div></div>
   </div>
   <table>
     <thead><tr><th>Contender</th><th>mean</th><th>p50</th><th>p95</th><th>p99</th><th>throughput</th><th>Δ vs best</th><th>errors</th></tr></thead>
-    <tbody><tr class="winner">
-        <td><span class="dot" style="background:#6366f1"></span>db-model-router 🏆</td>
-        <td>44.97 ms</td><td>43.73 ms</td><td>54.69 ms</td><td>66.07 ms</td>
-        <td>22.2/s</td>
-        <td>—</td>
+    <tbody><tr class="">
+        <td><span class="dot" style="background:#6366f1"></span>db-model-router</td>
+        <td>62.87 ms</td><td>58.11 ms</td><td>100.18 ms</td><td>121.91 ms</td>
+        <td>15.9/s</td>
+        <td>+25.2%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#f59e0b"></span>Sequelize</td>
-        <td>47.08 ms</td><td>46.39 ms</td><td>52.14 ms</td><td>61.46 ms</td>
-        <td>21.2/s</td>
-        <td>+4.7%</td>
+        <td>54.19 ms</td><td>53.50 ms</td><td>63.60 ms</td><td>68.34 ms</td>
+        <td>18.5/s</td>
+        <td>+7.9%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#22c55e"></span>Prisma</td>
-        <td>116.89 ms</td><td>113.75 ms</td><td>137.04 ms</td><td>156.95 ms</td>
-        <td>8.6/s</td>
-        <td>+159.9%</td>
+        <td>134.70 ms</td><td>130.96 ms</td><td>161.71 ms</td><td>173.71 ms</td>
+        <td>7.4/s</td>
+        <td>+168.1%</td>
         <td>0</td>
       </tr>
-<tr class="">
-        <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM</td>
-        <td>46.80 ms</td><td>45.81 ms</td><td>55.32 ms</td><td>64.19 ms</td>
-        <td>21.4/s</td>
-        <td>+4.1%</td>
+<tr class="winner">
+        <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM 🏆</td>
+        <td>50.24 ms</td><td>49.59 ms</td><td>56.93 ms</td><td>63.64 ms</td>
+        <td>19.9/s</td>
+        <td>—</td>
         <td>0</td>
       </tr></tbody>
   </table>
@@ -197,43 +197,43 @@
 <section class="card">
   <h3>Bulk insert 10,000 rows <span class="iters">10 ops × 3 runs</span></h3>
   <div class="charts">
-    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="77.6" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">396.06 ms</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="91.0" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">464.67 ms</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">1.12 s</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="87.7" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">447.92 ms</span></div></div>
-    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">2.6/s</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="177.7" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">2.1/s</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="76.2" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">0.9/s</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="186.2" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">2.2/s</span></div></div>
+    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="68.8" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">424.23 ms</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="82.4" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">507.96 ms</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">1.36 s</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="78.7" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">485.22 ms</span></div></div>
+    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">2.3/s</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="181.7" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">1.9/s</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="67.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">0.7/s</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="191.3" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">2.0/s</span></div></div>
   </div>
   <table>
     <thead><tr><th>Contender</th><th>mean</th><th>p50</th><th>p95</th><th>p99</th><th>throughput</th><th>Δ vs best</th><th>errors</th></tr></thead>
     <tbody><tr class="winner">
         <td><span class="dot" style="background:#6366f1"></span>db-model-router 🏆</td>
-        <td>390.82 ms</td><td>396.06 ms</td><td>438.92 ms</td><td>458.76 ms</td>
-        <td>2.6/s</td>
+        <td>429.96 ms</td><td>424.23 ms</td><td>492.51 ms</td><td>518.79 ms</td>
+        <td>2.3/s</td>
         <td>—</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#f59e0b"></span>Sequelize</td>
-        <td>470.03 ms</td><td>464.67 ms</td><td>502.95 ms</td><td>529.62 ms</td>
-        <td>2.1/s</td>
-        <td>+20.3%</td>
+        <td>516.34 ms</td><td>507.96 ms</td><td>563.08 ms</td><td>569.25 ms</td>
+        <td>1.9/s</td>
+        <td>+20.1%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#22c55e"></span>Prisma</td>
-        <td>1.13 s</td><td>1.12 s</td><td>1.22 s</td><td>1.25 s</td>
-        <td>0.9/s</td>
-        <td>+188.6%</td>
+        <td>1.37 s</td><td>1.36 s</td><td>1.66 s</td><td>1.67 s</td>
+        <td>0.7/s</td>
+        <td>+217.9%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM</td>
-        <td>451.84 ms</td><td>447.92 ms</td><td>487.33 ms</td><td>508.49 ms</td>
-        <td>2.2/s</td>
-        <td>+15.6%</td>
+        <td>488.82 ms</td><td>485.22 ms</td><td>533.06 ms</td><td>539.57 ms</td>
+        <td>2.0/s</td>
+        <td>+13.7%</td>
         <td>0</td>
       </tr></tbody>
   </table>
@@ -241,43 +241,43 @@
 <section class="card">
   <h3>Read by primary key <span class="iters">1,000 ops × 5 runs</span></h3>
   <div class="charts">
-    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="166.3" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">0.45 ms</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="181.8" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">0.49 ms</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">0.59 ms</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="168.5" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">0.45 ms</span></div></div>
-    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="214.4" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">2.1k/s</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="199.4" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">2.0k/s</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="164.7" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">1.6k/s</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">2.2k/s</span></div></div>
+    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="148.1" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">0.51 ms</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="166.3" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">0.57 ms</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">0.76 ms</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="170.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">0.59 ms</span></div></div>
+    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">1.9k/s</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="200.2" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">1.7k/s</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="140.7" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">1.2k/s</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="192.5" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">1.6k/s</span></div></div>
   </div>
   <table>
     <thead><tr><th>Contender</th><th>mean</th><th>p50</th><th>p95</th><th>p99</th><th>throughput</th><th>Δ vs best</th><th>errors</th></tr></thead>
-    <tbody><tr class="">
-        <td><span class="dot" style="background:#6366f1"></span>db-model-router</td>
-        <td>0.47 ms</td><td>0.45 ms</td><td>0.66 ms</td><td>0.84 ms</td>
-        <td>2.1k/s</td>
-        <td>+2.6%</td>
+    <tbody><tr class="winner">
+        <td><span class="dot" style="background:#6366f1"></span>db-model-router 🏆</td>
+        <td>0.54 ms</td><td>0.51 ms</td><td>0.77 ms</td><td>1.09 ms</td>
+        <td>1.9k/s</td>
+        <td>—</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#f59e0b"></span>Sequelize</td>
-        <td>0.51 ms</td><td>0.49 ms</td><td>0.68 ms</td><td>0.99 ms</td>
-        <td>2.0k/s</td>
-        <td>+10.3%</td>
+        <td>0.59 ms</td><td>0.57 ms</td><td>0.78 ms</td><td>0.99 ms</td>
+        <td>1.7k/s</td>
+        <td>+9.9%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#22c55e"></span>Prisma</td>
-        <td>0.62 ms</td><td>0.59 ms</td><td>0.80 ms</td><td>1.06 ms</td>
-        <td>1.6k/s</td>
-        <td>+33.6%</td>
+        <td>0.84 ms</td><td>0.76 ms</td><td>1.35 ms</td><td>2.20 ms</td>
+        <td>1.2k/s</td>
+        <td>+56.4%</td>
         <td>0</td>
       </tr>
-<tr class="winner">
-        <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM 🏆</td>
-        <td>0.46 ms</td><td>0.45 ms</td><td>0.60 ms</td><td>0.82 ms</td>
-        <td>2.2k/s</td>
-        <td>—</td>
+<tr class="">
+        <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM</td>
+        <td>0.62 ms</td><td>0.59 ms</td><td>0.86 ms</td><td>1.12 ms</td>
+        <td>1.6k/s</td>
+        <td>+14.3%</td>
         <td>0</td>
       </tr></tbody>
   </table>
@@ -285,42 +285,42 @@
 <section class="card">
   <h3>Find with filter (indexed column) <span class="iters">200 ops × 5 runs</span></h3>
   <div class="charts">
-    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="180.5" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">5.80 ms</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="199.9" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">6.43 ms</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">7.08 ms</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="140.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">4.50 ms</span></div></div>
-    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="175.5" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">167.7/s</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="160.2" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">153.1/s</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="141.3" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">135.0/s</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">210.2/s</span></div></div>
+    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="128.0" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">4.90 ms</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="197.2" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">7.55 ms</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">8.42 ms</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="131.8" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">5.05 ms</span></div></div>
+    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="213.8" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">190.8/s</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="142.7" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">127.3/s</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="121.2" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">108.1/s</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">196.3/s</span></div></div>
   </div>
   <table>
     <thead><tr><th>Contender</th><th>mean</th><th>p50</th><th>p95</th><th>p99</th><th>throughput</th><th>Δ vs best</th><th>errors</th></tr></thead>
     <tbody><tr class="">
         <td><span class="dot" style="background:#6366f1"></span>db-model-router</td>
-        <td>5.96 ms</td><td>5.80 ms</td><td>7.04 ms</td><td>8.47 ms</td>
-        <td>167.7/s</td>
-        <td>+25.4%</td>
+        <td>5.24 ms</td><td>4.90 ms</td><td>7.61 ms</td><td>10.65 ms</td>
+        <td>190.8/s</td>
+        <td>+2.8%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#f59e0b"></span>Sequelize</td>
-        <td>6.53 ms</td><td>6.43 ms</td><td>7.62 ms</td><td>8.43 ms</td>
-        <td>153.1/s</td>
-        <td>+37.3%</td>
+        <td>7.86 ms</td><td>7.55 ms</td><td>10.00 ms</td><td>13.54 ms</td>
+        <td>127.3/s</td>
+        <td>+54.2%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#22c55e"></span>Prisma</td>
-        <td>7.41 ms</td><td>7.08 ms</td><td>10.51 ms</td><td>11.85 ms</td>
-        <td>135.0/s</td>
-        <td>+55.7%</td>
+        <td>9.25 ms</td><td>8.42 ms</td><td>14.11 ms</td><td>17.32 ms</td>
+        <td>108.1/s</td>
+        <td>+81.6%</td>
         <td>0</td>
       </tr>
 <tr class="winner">
         <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM 🏆</td>
-        <td>4.76 ms</td><td>4.50 ms</td><td>6.20 ms</td><td>8.50 ms</td>
-        <td>210.2/s</td>
+        <td>5.10 ms</td><td>5.05 ms</td><td>5.84 ms</td><td>6.29 ms</td>
+        <td>196.3/s</td>
         <td>—</td>
         <td>0</td>
       </tr></tbody>
@@ -329,43 +329,43 @@
 <section class="card">
   <h3>Find filter + sort + limit 20 <span class="iters">200 ops × 5 runs</span></h3>
   <div class="charts">
-    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">1.06 ms</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="140.5" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">0.67 ms</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="148.9" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">0.71 ms</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="131.7" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">0.63 ms</span></div></div>
-    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="140.9" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">915.0/s</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">1.4k/s</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="194.3" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">1.3k/s</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="208.4" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">1.4k/s</span></div></div>
+    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="163.1" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">0.70 ms</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="189.1" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">0.81 ms</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">0.94 ms</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="159.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">0.68 ms</span></div></div>
+    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="213.1" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">1.4k/s</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="178.6" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">1.1k/s</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="143.5" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">916.2/s</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">1.4k/s</span></div></div>
   </div>
   <table>
     <thead><tr><th>Contender</th><th>mean</th><th>p50</th><th>p95</th><th>p99</th><th>throughput</th><th>Δ vs best</th><th>errors</th></tr></thead>
     <tbody><tr class="">
         <td><span class="dot" style="background:#6366f1"></span>db-model-router</td>
-        <td>1.09 ms</td><td>1.06 ms</td><td>1.38 ms</td><td>1.77 ms</td>
-        <td>915.0/s</td>
-        <td>+56.2%</td>
+        <td>0.73 ms</td><td>0.70 ms</td><td>0.98 ms</td><td>1.63 ms</td>
+        <td>1.4k/s</td>
+        <td>+3.2%</td>
         <td>0</td>
       </tr>
-<tr class="winner">
-        <td><span class="dot" style="background:#f59e0b"></span>Sequelize 🏆</td>
-        <td>0.70 ms</td><td>0.67 ms</td><td>0.93 ms</td><td>1.04 ms</td>
-        <td>1.4k/s</td>
-        <td>—</td>
+<tr class="">
+        <td><span class="dot" style="background:#f59e0b"></span>Sequelize</td>
+        <td>0.88 ms</td><td>0.81 ms</td><td>1.39 ms</td><td>2.19 ms</td>
+        <td>1.1k/s</td>
+        <td>+23.2%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#22c55e"></span>Prisma</td>
-        <td>0.79 ms</td><td>0.71 ms</td><td>1.30 ms</td><td>1.95 ms</td>
-        <td>1.3k/s</td>
-        <td>+13.2%</td>
+        <td>1.09 ms</td><td>0.94 ms</td><td>2.05 ms</td><td>2.80 ms</td>
+        <td>916.2/s</td>
+        <td>+53.3%</td>
         <td>0</td>
       </tr>
-<tr class="">
-        <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM</td>
-        <td>0.74 ms</td><td>0.63 ms</td><td>1.14 ms</td><td>1.35 ms</td>
+<tr class="winner">
+        <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM 🏆</td>
+        <td>0.71 ms</td><td>0.68 ms</td><td>0.84 ms</td><td>1.53 ms</td>
         <td>1.4k/s</td>
-        <td>+5.6%</td>
+        <td>—</td>
         <td>0</td>
       </tr></tbody>
   </table>
@@ -373,43 +373,43 @@
 <section class="card">
   <h3>Paginated list (page 1, size 20) <span class="iters">200 ops × 5 runs</span></h3>
   <div class="charts">
-    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="109.1" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">1.02 ms</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="108.8" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">1.02 ms</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">2.05 ms</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="108.3" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">1.01 ms</span></div></div>
-    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="211.2" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">899.7/s</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="213.4" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">908.9/s</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="104.6" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">445.3/s</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">937.0/s</span></div></div>
+    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="90.9" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">1.14 ms</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="75.5" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">0.95 ms</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">2.77 ms</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="107.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">1.35 ms</span></div></div>
+    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="201.2" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">853.1/s</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">932.8/s</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="79.9" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">338.9/s</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="159.9" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">677.9/s</span></div></div>
   </div>
   <table>
     <thead><tr><th>Contender</th><th>mean</th><th>p50</th><th>p95</th><th>p99</th><th>throughput</th><th>Δ vs best</th><th>errors</th></tr></thead>
     <tbody><tr class="">
         <td><span class="dot" style="background:#6366f1"></span>db-model-router</td>
-        <td>1.11 ms</td><td>1.02 ms</td><td>1.75 ms</td><td>2.28 ms</td>
-        <td>899.7/s</td>
-        <td>+4.2%</td>
+        <td>1.17 ms</td><td>1.14 ms</td><td>1.44 ms</td><td>1.82 ms</td>
+        <td>853.1/s</td>
+        <td>+9.3%</td>
         <td>0</td>
       </tr>
-<tr class="">
-        <td><span class="dot" style="background:#f59e0b"></span>Sequelize</td>
-        <td>1.10 ms</td><td>1.02 ms</td><td>1.63 ms</td><td>2.47 ms</td>
-        <td>908.9/s</td>
-        <td>+3.1%</td>
+<tr class="winner">
+        <td><span class="dot" style="background:#f59e0b"></span>Sequelize 🏆</td>
+        <td>1.07 ms</td><td>0.95 ms</td><td>1.64 ms</td><td>2.54 ms</td>
+        <td>932.8/s</td>
+        <td>—</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#22c55e"></span>Prisma</td>
-        <td>2.25 ms</td><td>2.05 ms</td><td>3.14 ms</td><td>4.57 ms</td>
-        <td>445.3/s</td>
-        <td>+110.4%</td>
+        <td>2.95 ms</td><td>2.77 ms</td><td>4.50 ms</td><td>5.74 ms</td>
+        <td>338.9/s</td>
+        <td>+175.2%</td>
         <td>0</td>
       </tr>
-<tr class="winner">
-        <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM 🏆</td>
-        <td>1.07 ms</td><td>1.01 ms</td><td>1.45 ms</td><td>2.05 ms</td>
-        <td>937.0/s</td>
-        <td>—</td>
+<tr class="">
+        <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM</td>
+        <td>1.48 ms</td><td>1.35 ms</td><td>2.30 ms</td><td>3.32 ms</td>
+        <td>677.9/s</td>
+        <td>+37.6%</td>
         <td>0</td>
       </tr></tbody>
   </table>
@@ -417,42 +417,42 @@
 <section class="card">
   <h3>Update by primary key <span class="iters">1,000 ops × 5 runs</span></h3>
   <div class="charts">
-    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">2.20 ms</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="179.6" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">1.79 ms</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="178.3" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">1.78 ms</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="152.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">1.52 ms</span></div></div>
-    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="150.7" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">423.1/s</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="189.0" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">530.7/s</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="186.4" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">523.4/s</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">617.7/s</span></div></div>
+    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="172.2" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">1.74 ms</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="182.9" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">1.85 ms</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">2.22 ms</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="161.8" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">1.63 ms</span></div></div>
+    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="202.3" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">529.5/s</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="190.8" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">499.4/s</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="153.5" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">401.8/s</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">575.7/s</span></div></div>
   </div>
   <table>
     <thead><tr><th>Contender</th><th>mean</th><th>p50</th><th>p95</th><th>p99</th><th>throughput</th><th>Δ vs best</th><th>errors</th></tr></thead>
     <tbody><tr class="">
         <td><span class="dot" style="background:#6366f1"></span>db-model-router</td>
-        <td>2.36 ms</td><td>2.20 ms</td><td>3.36 ms</td><td>4.33 ms</td>
-        <td>423.1/s</td>
-        <td>+46.0%</td>
+        <td>1.89 ms</td><td>1.74 ms</td><td>2.73 ms</td><td>3.71 ms</td>
+        <td>529.5/s</td>
+        <td>+8.7%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#f59e0b"></span>Sequelize</td>
-        <td>1.88 ms</td><td>1.79 ms</td><td>2.48 ms</td><td>3.32 ms</td>
-        <td>530.7/s</td>
-        <td>+16.4%</td>
+        <td>2.00 ms</td><td>1.85 ms</td><td>2.93 ms</td><td>3.94 ms</td>
+        <td>499.4/s</td>
+        <td>+15.3%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#22c55e"></span>Prisma</td>
-        <td>1.91 ms</td><td>1.78 ms</td><td>2.76 ms</td><td>3.54 ms</td>
-        <td>523.4/s</td>
-        <td>+18.0%</td>
+        <td>2.49 ms</td><td>2.22 ms</td><td>4.13 ms</td><td>5.94 ms</td>
+        <td>401.8/s</td>
+        <td>+43.3%</td>
         <td>0</td>
       </tr>
 <tr class="winner">
         <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM 🏆</td>
-        <td>1.62 ms</td><td>1.52 ms</td><td>2.26 ms</td><td>3.02 ms</td>
-        <td>617.7/s</td>
+        <td>1.74 ms</td><td>1.63 ms</td><td>2.38 ms</td><td>3.12 ms</td>
+        <td>575.7/s</td>
         <td>—</td>
         <td>0</td>
       </tr></tbody>
@@ -461,43 +461,43 @@
 <section class="card">
   <h3>Bulk update 100 rows by PK list <span class="iters">100 ops × 5 runs</span></h3>
   <div class="charts">
-    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">6.10 ms</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="98.7" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">2.73 ms</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="90.5" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">2.51 ms</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="98.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">2.72 ms</span></div></div>
-    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="93.2" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">162.3/s</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="200.0" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">348.2/s</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">383.0/s</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="192.8" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">335.7/s</span></div></div>
+    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">6.03 ms</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="98.1" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">2.69 ms</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="107.8" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">2.96 ms</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="95.8" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">2.63 ms</span></div></div>
+    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="99.8" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">162.4/s</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">358.0/s</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="193.3" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">314.6/s</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="216.9" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">353.0/s</span></div></div>
   </div>
   <table>
     <thead><tr><th>Contender</th><th>mean</th><th>p50</th><th>p95</th><th>p99</th><th>throughput</th><th>Δ vs best</th><th>errors</th></tr></thead>
     <tbody><tr class="">
         <td><span class="dot" style="background:#6366f1"></span>db-model-router</td>
-        <td>6.16 ms</td><td>6.10 ms</td><td>7.43 ms</td><td>8.68 ms</td>
-        <td>162.3/s</td>
-        <td>+136.0%</td>
-        <td>0</td>
-      </tr>
-<tr class="">
-        <td><span class="dot" style="background:#f59e0b"></span>Sequelize</td>
-        <td>2.87 ms</td><td>2.73 ms</td><td>4.05 ms</td><td>5.50 ms</td>
-        <td>348.2/s</td>
-        <td>+10.0%</td>
+        <td>6.16 ms</td><td>6.03 ms</td><td>7.75 ms</td><td>9.17 ms</td>
+        <td>162.4/s</td>
+        <td>+120.4%</td>
         <td>0</td>
       </tr>
 <tr class="winner">
-        <td><span class="dot" style="background:#22c55e"></span>Prisma 🏆</td>
-        <td>2.61 ms</td><td>2.51 ms</td><td>3.49 ms</td><td>4.34 ms</td>
-        <td>383.0/s</td>
+        <td><span class="dot" style="background:#f59e0b"></span>Sequelize 🏆</td>
+        <td>2.79 ms</td><td>2.69 ms</td><td>3.76 ms</td><td>4.35 ms</td>
+        <td>358.0/s</td>
         <td>—</td>
         <td>0</td>
       </tr>
 <tr class="">
+        <td><span class="dot" style="background:#22c55e"></span>Prisma</td>
+        <td>3.18 ms</td><td>2.96 ms</td><td>4.85 ms</td><td>6.40 ms</td>
+        <td>314.6/s</td>
+        <td>+13.8%</td>
+        <td>0</td>
+      </tr>
+<tr class="">
         <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM</td>
-        <td>2.98 ms</td><td>2.72 ms</td><td>4.36 ms</td><td>5.68 ms</td>
-        <td>335.7/s</td>
-        <td>+14.1%</td>
+        <td>2.83 ms</td><td>2.63 ms</td><td>4.25 ms</td><td>5.25 ms</td>
+        <td>353.0/s</td>
+        <td>+1.4%</td>
         <td>0</td>
       </tr></tbody>
   </table>
@@ -505,42 +505,42 @@
 <section class="card">
   <h3>Upsert on unique key (half insert / half update) <span class="iters">1,000 ops × 5 runs</span></h3>
   <div class="charts">
-    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">2.28 ms</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="171.6" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">1.78 ms</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="206.4" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">2.14 ms</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="153.1" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">1.59 ms</span></div></div>
-    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="152.1" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">406.4/s</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="199.4" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">533.0/s</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="164.6" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">439.9/s</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">588.0/s</span></div></div>
+    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="137.8" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">1.77 ms</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="156.9" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">2.02 ms</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">2.83 ms</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="137.1" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">1.76 ms</span></div></div>
+    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="217.0" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">525.7/s</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="191.2" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">463.1/s</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="137.6" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">333.4/s</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">532.9/s</span></div></div>
   </div>
   <table>
     <thead><tr><th>Contender</th><th>mean</th><th>p50</th><th>p95</th><th>p99</th><th>throughput</th><th>Δ vs best</th><th>errors</th></tr></thead>
     <tbody><tr class="">
         <td><span class="dot" style="background:#6366f1"></span>db-model-router</td>
-        <td>2.46 ms</td><td>2.28 ms</td><td>3.55 ms</td><td>4.31 ms</td>
-        <td>406.4/s</td>
-        <td>+44.7%</td>
+        <td>1.90 ms</td><td>1.77 ms</td><td>2.68 ms</td><td>3.43 ms</td>
+        <td>525.7/s</td>
+        <td>+1.4%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#f59e0b"></span>Sequelize</td>
-        <td>1.88 ms</td><td>1.78 ms</td><td>2.49 ms</td><td>3.17 ms</td>
-        <td>533.0/s</td>
-        <td>+10.3%</td>
+        <td>2.16 ms</td><td>2.02 ms</td><td>3.06 ms</td><td>3.99 ms</td>
+        <td>463.1/s</td>
+        <td>+15.1%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#22c55e"></span>Prisma</td>
-        <td>2.27 ms</td><td>2.14 ms</td><td>3.32 ms</td><td>4.18 ms</td>
-        <td>439.9/s</td>
-        <td>+33.7%</td>
+        <td>3.00 ms</td><td>2.83 ms</td><td>4.61 ms</td><td>6.00 ms</td>
+        <td>333.4/s</td>
+        <td>+59.9%</td>
         <td>0</td>
       </tr>
 <tr class="winner">
         <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM 🏆</td>
-        <td>1.70 ms</td><td>1.59 ms</td><td>2.36 ms</td><td>2.99 ms</td>
-        <td>588.0/s</td>
+        <td>1.88 ms</td><td>1.76 ms</td><td>2.65 ms</td><td>3.37 ms</td>
+        <td>532.9/s</td>
         <td>—</td>
         <td>0</td>
       </tr></tbody>
@@ -549,43 +549,43 @@
 <section class="card">
   <h3>Delete by primary key <span class="iters">1,000 ops × 5 runs</span></h3>
   <div class="charts">
-    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="184.3" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">1.50 ms</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="191.9" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">1.56 ms</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">1.78 ms</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="194.2" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">1.58 ms</span></div></div>
-    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">624.2/s</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="214.7" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">609.2/s</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="185.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">524.9/s</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="211.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">598.7/s</span></div></div>
+    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="178.9" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">1.55 ms</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="184.7" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">1.60 ms</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">1.91 ms</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="178.7" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">1.55 ms</span></div></div>
+    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="214.4" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">591.7/s</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="210.6" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">581.2/s</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="173.7" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">479.2/s</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">607.1/s</span></div></div>
   </div>
   <table>
     <thead><tr><th>Contender</th><th>mean</th><th>p50</th><th>p95</th><th>p99</th><th>throughput</th><th>Δ vs best</th><th>errors</th></tr></thead>
-    <tbody><tr class="winner">
-        <td><span class="dot" style="background:#6366f1"></span>db-model-router 🏆</td>
-        <td>1.60 ms</td><td>1.50 ms</td><td>2.25 ms</td><td>3.23 ms</td>
-        <td>624.2/s</td>
-        <td>—</td>
+    <tbody><tr class="">
+        <td><span class="dot" style="background:#6366f1"></span>db-model-router</td>
+        <td>1.69 ms</td><td>1.55 ms</td><td>2.50 ms</td><td>3.45 ms</td>
+        <td>591.7/s</td>
+        <td>+2.6%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#f59e0b"></span>Sequelize</td>
-        <td>1.64 ms</td><td>1.56 ms</td><td>2.26 ms</td><td>2.88 ms</td>
-        <td>609.2/s</td>
-        <td>+2.5%</td>
+        <td>1.72 ms</td><td>1.60 ms</td><td>2.40 ms</td><td>3.19 ms</td>
+        <td>581.2/s</td>
+        <td>+4.4%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#22c55e"></span>Prisma</td>
-        <td>1.91 ms</td><td>1.78 ms</td><td>2.70 ms</td><td>3.57 ms</td>
-        <td>524.9/s</td>
-        <td>+18.9%</td>
+        <td>2.09 ms</td><td>1.91 ms</td><td>3.10 ms</td><td>4.10 ms</td>
+        <td>479.2/s</td>
+        <td>+26.7%</td>
         <td>0</td>
       </tr>
-<tr class="">
-        <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM</td>
-        <td>1.67 ms</td><td>1.58 ms</td><td>2.31 ms</td><td>2.92 ms</td>
-        <td>598.7/s</td>
-        <td>+4.3%</td>
+<tr class="winner">
+        <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM 🏆</td>
+        <td>1.65 ms</td><td>1.55 ms</td><td>2.20 ms</td><td>2.86 ms</td>
+        <td>607.1/s</td>
+        <td>—</td>
         <td>0</td>
       </tr></tbody>
   </table>
@@ -593,43 +593,43 @@
 <section class="card">
   <h3>Transaction: insert + update + audit insert <span class="iters">200 ops × 5 runs</span></h3>
   <div class="charts">
-    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="180.8" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">4.02 ms</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="178.7" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">3.98 ms</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">4.90 ms</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="144.4" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">3.21 ms</span></div></div>
-    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="171.8" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">229.3/s</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="175.1" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">233.7/s</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="147.6" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">197.0/s</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">293.7/s</span></div></div>
+    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="192.3" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">4.47 ms</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="177.5" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">4.12 ms</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">5.11 ms</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="173.7" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">4.03 ms</span></div></div>
+    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="206.3" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">214.1/s</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">228.3/s</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="181.5" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">188.3/s</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="212.3" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">220.3/s</span></div></div>
   </div>
   <table>
     <thead><tr><th>Contender</th><th>mean</th><th>p50</th><th>p95</th><th>p99</th><th>throughput</th><th>Δ vs best</th><th>errors</th></tr></thead>
     <tbody><tr class="">
         <td><span class="dot" style="background:#6366f1"></span>db-model-router</td>
-        <td>4.36 ms</td><td>4.02 ms</td><td>6.08 ms</td><td>6.98 ms</td>
-        <td>229.3/s</td>
-        <td>+28.1%</td>
+        <td>4.67 ms</td><td>4.47 ms</td><td>6.42 ms</td><td>8.15 ms</td>
+        <td>214.1/s</td>
+        <td>+6.6%</td>
         <td>0</td>
       </tr>
-<tr class="">
-        <td><span class="dot" style="background:#f59e0b"></span>Sequelize</td>
-        <td>4.28 ms</td><td>3.98 ms</td><td>5.96 ms</td><td>8.44 ms</td>
-        <td>233.7/s</td>
-        <td>+25.7%</td>
+<tr class="winner">
+        <td><span class="dot" style="background:#f59e0b"></span>Sequelize 🏆</td>
+        <td>4.38 ms</td><td>4.12 ms</td><td>6.09 ms</td><td>7.33 ms</td>
+        <td>228.3/s</td>
+        <td>—</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#22c55e"></span>Prisma</td>
-        <td>5.08 ms</td><td>4.90 ms</td><td>6.61 ms</td><td>8.36 ms</td>
-        <td>197.0/s</td>
-        <td>+49.1%</td>
+        <td>5.31 ms</td><td>5.11 ms</td><td>7.33 ms</td><td>8.43 ms</td>
+        <td>188.3/s</td>
+        <td>+21.2%</td>
         <td>0</td>
       </tr>
-<tr class="winner">
-        <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM 🏆</td>
-        <td>3.40 ms</td><td>3.21 ms</td><td>4.80 ms</td><td>5.50 ms</td>
-        <td>293.7/s</td>
-        <td>—</td>
+<tr class="">
+        <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM</td>
+        <td>4.54 ms</td><td>4.03 ms</td><td>7.56 ms</td><td>10.93 ms</td>
+        <td>220.3/s</td>
+        <td>+3.6%</td>
         <td>0</td>
       </tr></tbody>
   </table>
@@ -637,43 +637,43 @@
 <section class="card">
   <h3>Transaction rollback (forced error) <span class="iters">200 ops × 5 runs</span></h3>
   <div class="charts">
-    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="134.1" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">1.19 ms</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="158.9" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">1.41 ms</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">1.95 ms</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="110.5" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">0.98 ms</span></div></div>
-    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="186.3" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">809.9/s</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="154.0" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">669.5/s</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="106.3" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">462.1/s</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">956.6/s</span></div></div>
+    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="153.4" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">1.44 ms</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="166.3" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">1.56 ms</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">2.07 ms</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="156.1" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">1.47 ms</span></div></div>
+    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">674.9/s</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="198.7" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">609.6/s</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="150.4" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">461.3/s</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="183.5" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">563.0/s</span></div></div>
   </div>
   <table>
     <thead><tr><th>Contender</th><th>mean</th><th>p50</th><th>p95</th><th>p99</th><th>throughput</th><th>Δ vs best</th><th>errors</th></tr></thead>
-    <tbody><tr class="">
-        <td><span class="dot" style="background:#6366f1"></span>db-model-router</td>
-        <td>1.23 ms</td><td>1.19 ms</td><td>1.51 ms</td><td>2.05 ms</td>
-        <td>809.9/s</td>
-        <td>+18.1%</td>
+    <tbody><tr class="winner">
+        <td><span class="dot" style="background:#6366f1"></span>db-model-router 🏆</td>
+        <td>1.48 ms</td><td>1.44 ms</td><td>1.87 ms</td><td>2.51 ms</td>
+        <td>674.9/s</td>
+        <td>—</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#f59e0b"></span>Sequelize</td>
-        <td>1.49 ms</td><td>1.41 ms</td><td>2.07 ms</td><td>2.58 ms</td>
-        <td>669.5/s</td>
-        <td>+42.9%</td>
+        <td>1.64 ms</td><td>1.56 ms</td><td>2.15 ms</td><td>3.27 ms</td>
+        <td>609.6/s</td>
+        <td>+10.7%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#22c55e"></span>Prisma</td>
-        <td>2.16 ms</td><td>1.95 ms</td><td>3.39 ms</td><td>4.65 ms</td>
-        <td>462.1/s</td>
-        <td>+107.0%</td>
+        <td>2.17 ms</td><td>2.07 ms</td><td>3.00 ms</td><td>3.81 ms</td>
+        <td>461.3/s</td>
+        <td>+46.3%</td>
         <td>0</td>
       </tr>
-<tr class="winner">
-        <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM 🏆</td>
-        <td>1.05 ms</td><td>0.98 ms</td><td>1.48 ms</td><td>2.09 ms</td>
-        <td>956.6/s</td>
-        <td>—</td>
+<tr class="">
+        <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM</td>
+        <td>1.78 ms</td><td>1.47 ms</td><td>3.56 ms</td><td>5.14 ms</td>
+        <td>563.0/s</td>
+        <td>+19.9%</td>
         <td>0</td>
       </tr></tbody>
   </table>
@@ -681,43 +681,43 @@
 <section class="card">
   <h3>JSONB round-trip (insert + read back) <span class="iters">1,000 ops × 5 runs</span></h3>
   <div class="charts">
-    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="173.4" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">2.14 ms</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="192.5" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">2.38 ms</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">2.72 ms</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="176.6" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">2.18 ms</span></div></div>
-    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">437.6/s</span></div>
-<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="197.6" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">393.1/s</span></div>
-<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="172.1" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">342.4/s</span></div>
-<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="214.1" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">425.8/s</span></div></div>
+    <div><h4>p50 latency (lower is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="160.2" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">2.28 ms</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="189.0" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">2.69 ms</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">3.13 ms</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="171.1" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">2.43 ms</span></div></div>
+    <div><h4>Throughput (higher is better)</h4><div class="bar-row"><span class="bar-label">db-model-router</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="220.0" height="10" rx="2" fill="#6366f1"/></svg><span class="bar-value">398.8/s</span></div>
+<div class="bar-row"><span class="bar-label">Sequelize</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="193.1" height="10" rx="2" fill="#f59e0b"/></svg><span class="bar-value">350.1/s</span></div>
+<div class="bar-row"><span class="bar-label">Prisma</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="167.3" height="10" rx="2" fill="#22c55e"/></svg><span class="bar-value">303.3/s</span></div>
+<div class="bar-row"><span class="bar-label">Drizzle ORM</span><svg width="230" height="14" viewBox="0 0 230 14"><rect x="0" y="2" width="208.4" height="10" rx="2" fill="#38bdf8"/></svg><span class="bar-value">377.8/s</span></div></div>
   </div>
   <table>
     <thead><tr><th>Contender</th><th>mean</th><th>p50</th><th>p95</th><th>p99</th><th>throughput</th><th>Δ vs best</th><th>errors</th></tr></thead>
     <tbody><tr class="winner">
         <td><span class="dot" style="background:#6366f1"></span>db-model-router 🏆</td>
-        <td>2.29 ms</td><td>2.14 ms</td><td>3.22 ms</td><td>4.14 ms</td>
-        <td>437.6/s</td>
+        <td>2.51 ms</td><td>2.28 ms</td><td>3.87 ms</td><td>5.35 ms</td>
+        <td>398.8/s</td>
         <td>—</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#f59e0b"></span>Sequelize</td>
-        <td>2.54 ms</td><td>2.38 ms</td><td>3.53 ms</td><td>4.51 ms</td>
-        <td>393.1/s</td>
-        <td>+11.3%</td>
+        <td>2.86 ms</td><td>2.69 ms</td><td>4.00 ms</td><td>5.41 ms</td>
+        <td>350.1/s</td>
+        <td>+13.9%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#22c55e"></span>Prisma</td>
-        <td>2.92 ms</td><td>2.72 ms</td><td>4.09 ms</td><td>5.08 ms</td>
-        <td>342.4/s</td>
-        <td>+27.8%</td>
+        <td>3.30 ms</td><td>3.13 ms</td><td>4.48 ms</td><td>5.51 ms</td>
+        <td>303.3/s</td>
+        <td>+31.5%</td>
         <td>0</td>
       </tr>
 <tr class="">
         <td><span class="dot" style="background:#38bdf8"></span>Drizzle ORM</td>
-        <td>2.35 ms</td><td>2.18 ms</td><td>3.32 ms</td><td>4.23 ms</td>
-        <td>425.8/s</td>
-        <td>+2.8%</td>
+        <td>2.65 ms</td><td>2.43 ms</td><td>3.92 ms</td><td>5.45 ms</td>
+        <td>377.8/s</td>
+        <td>+5.6%</td>
         <td>0</td>
       </tr></tbody>
   </table>
@@ -730,7 +730,7 @@
       <li>Single-row scenarios (insert, read, update, upsert, delete, JSONB round-trip): <b>1,000 measured iterations × 5 runs</b>. Bulk/tx scenarios: reduced iteration counts as labeled per scenario. Warmup excluded from timing.</li>
       <li>Latency measured with <code>performance.now()</code> around each individual operation; p50/p95/p99 via nearest-rank percentile over all samples; throughput = total ops ÷ total sample time.</li>
       <li>Everyone shares the same <code>pg</code> driver and a pool of <b>max 10</b> connections.</li>
-      <li><b>db-model-router</b> <code>insert()</code>/<code>update()</code>/<code>upsert()</code> re-SELECT the row after writing to return the full record (inside <code>update</code> the library also uses an UPSERT under the hood), and its <code>find()</code> has no <code>LIMIT</code> — the “filter + sort + limit 20” scenario uses <code>list()</code> for it. Measured as-is: this is the library's real cost.</li>
+      <li><b>db-model-router</b> uses native <code>RETURNING *</code> fast-paths on PostgreSQL for single-record writes (with fallback re-SELECT for drivers lacking RETURNING). <code>find()</code> natively supports <code>limit</code> and <code>sort</code>, bypassing count queries when unpaginated. Measured as-is: this reflects real-world usage.</li>
       <li><b>Sequelize</b> <code>create()</code>/<code>upsert()</code> do not re-SELECT. Validations enabled (parity with db-model-router's validation layer).</li>
       <li><b>Prisma 7</b> uses the Rust-free client with <code>@prisma/adapter-pg</code>. <code>createMany()</code> does not return rows (idiomatic Prisma).</li>
       <li><b>Drizzle</b> has no validation layer (SQL-first thin ORM). <code>price</code> is passed as a string to match <code>numeric</code> semantics.</li>
