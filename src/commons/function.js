@@ -38,8 +38,25 @@ function jsonSafeParse(obj) {
     }
     return obj;
   } else if (typeof obj === "object" && obj !== null) {
+    if (obj instanceof Date || (typeof Buffer !== "undefined" && Buffer.isBuffer(obj))) {
+      return obj;
+    }
+    if (Array.isArray(obj)) {
+      for (let i = 0; i < obj.length; i++) {
+        const item = obj[i];
+        if (typeof item === "string" || (typeof item === "object" && item !== null)) {
+          obj[i] = jsonSafeParse(item);
+        }
+      }
+      return obj;
+    }
     for (const i in obj) {
-      obj[i] = jsonSafeParse(obj[i]);
+      if (Object.prototype.hasOwnProperty.call(obj, i)) {
+        const val = obj[i];
+        if (typeof val === "string" || (typeof val === "object" && val !== null)) {
+          obj[i] = jsonSafeParse(val);
+        }
+      }
     }
     return obj;
   } else {

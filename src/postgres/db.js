@@ -505,9 +505,10 @@ async function insert(table, data, uniqueKeys = []) {
   const maxBatch = Math.max(1, Math.floor(65000 / columns.length));
   const BATCH_SIZE = Math.min(1000, maxBatch);
   const colList = columns.map(escapeId).join(",");
+  const needTransaction = total > BATCH_SIZE;
   const client = await pool.connect();
   try {
-    await client.query("BEGIN");
+    if (needTransaction) await client.query("BEGIN");
     for (let offset = 0; offset < total; offset += BATCH_SIZE) {
       const batch = array.slice(offset, offset + BATCH_SIZE);
       let paramIdx = 0;
@@ -523,9 +524,9 @@ async function insert(table, data, uniqueKeys = []) {
       const sql = `INSERT INTO ${escapeId(table)} (${colList}) VALUES ${valuesClauses.join(",")}`;
       await client.query(sql, allParams);
     }
-    await client.query("COMMIT");
+    if (needTransaction) await client.query("COMMIT");
   } catch (e) {
-    await client.query("ROLLBACK").catch(() => {});
+    if (needTransaction) await client.query("ROLLBACK").catch(() => {});
     throw mapPgError(e);
   } finally {
     client.release();
@@ -586,10 +587,11 @@ async function _insertOnConflict(table, array, columns, uniqueKeys, total) {
 
   const maxBatch = Math.max(1, Math.floor(65000 / columns.length));
   const BATCH_SIZE = Math.min(1000, maxBatch);
+  const needTransaction = total > BATCH_SIZE;
 
   const client = await pool.connect();
   try {
-    await client.query("BEGIN");
+    if (needTransaction) await client.query("BEGIN");
 
     for (let offset = 0; offset < total; offset += BATCH_SIZE) {
       const batch = array.slice(offset, offset + BATCH_SIZE);
@@ -612,9 +614,9 @@ async function _insertOnConflict(table, array, columns, uniqueKeys, total) {
       }
     }
 
-    await client.query("COMMIT");
+    if (needTransaction) await client.query("COMMIT");
   } catch (e) {
-    await client.query("ROLLBACK").catch(() => {});
+    if (needTransaction) await client.query("ROLLBACK").catch(() => {});
     throw mapPgError(e);
   } finally {
     client.release();
