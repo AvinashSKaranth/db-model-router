@@ -177,7 +177,10 @@ async function get(table, filter = [], sort = [], safeDelete = null, options = {
     cursor = cursor.limit(parseInt(limit, 10));
   }
   const rows = await cursor.toArray();
-  const c = count !== false ? await col.countDocuments(whereData.query) : rows.length;
+  const c =
+    count !== false && limit != null
+      ? await col.countDocuments(whereData.query)
+      : rows.length;
   return { data: jsonSafeParse(rows), count: c };
 }
 
@@ -188,7 +191,9 @@ async function list(
   safeDelete = null,
   page = 0,
   limit = 30,
+  options = {},
 ) {
+  const { count: needCount = true } = options || {};
   const whereData = where(filter, safeDelete);
   if (whereData == null) {
     throw new Error(WHERE_INVALID);
@@ -202,7 +207,10 @@ async function list(
     .skip(page * limit)
     .limit(limit)
     .toArray();
-  const count = await col.countDocuments(whereData.query);
+  const count =
+    needCount !== false
+      ? await col.countDocuments(whereData.query)
+      : rows.length;
   return { data: jsonSafeParse(rows), count };
 }
 

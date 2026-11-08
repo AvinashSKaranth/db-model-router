@@ -168,7 +168,10 @@ async function get(table, filter = [], sort = [], safeDelete = null, options = {
   const [results] = await pool
     .promise()
     .query(statement, params);
-  const c = count !== false ? await qcount(table, filter, safeDelete) : results.length;
+  const c =
+    count !== false && limit != null
+      ? await qcount(table, filter, safeDelete)
+      : results.length;
   // jsonSafeParse is critical for MariaDB because MariaDB returns JSON as LONGTEXT strings
   return { data: jsonSafeParse(results), count: c };
 }
@@ -180,7 +183,9 @@ async function list(
   safeDelete = null,
   page = 0,
   limit = 30,
+  options = {},
 ) {
+  const { count: needCount = true } = options || {};
   const whereData = where(filter, safeDelete);
   const sortData = sort_builder(sort);
   if (whereData == null) {
@@ -197,7 +202,10 @@ async function list(
       limit,
       offset,
     ]);
-  const count = await qcount(table, filter, safeDelete);
+  const count =
+    needCount !== false
+      ? await qcount(table, filter, safeDelete)
+      : results.length;
   return { data: jsonSafeParse(results), count };
 }
 

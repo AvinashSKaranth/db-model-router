@@ -201,7 +201,10 @@ function get(table, filter = [], sort = [], safeDelete = null, options = {}) {
     statement += ` LIMIT ${parseInt(limit, 10)}`;
   }
   const rows = db.prepare(statement).all(...whereData.value);
-  const c = count !== false ? qcount(table, filter, safeDelete) : rows.length;
+  const c =
+    count !== false && limit != null
+      ? qcount(table, filter, safeDelete)
+      : rows.length;
   return { data: jsonSafeParse(rows), count: c };
 }
 
@@ -212,7 +215,9 @@ function list(
   safeDelete = null,
   page = 0,
   limit = 30,
+  options = {},
 ) {
+  const { count: needCount = true } = options || {};
   const whereData = where(filter, safeDelete);
   const sortData = sort_builder(sort);
   if (whereData == null) {
@@ -223,7 +228,10 @@ function list(
   const offset = page * limit;
   const statement = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortQuery} LIMIT ? OFFSET ?`.trim();
   const rows = db.prepare(statement).all(...whereData.value, limit, offset);
-  const count = qcount(table, filter, safeDelete);
+  const count =
+    needCount !== false
+      ? qcount(table, filter, safeDelete)
+      : rows.length;
   return { data: jsonSafeParse(rows), count };
 }
 

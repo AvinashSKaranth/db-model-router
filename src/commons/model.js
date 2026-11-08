@@ -687,13 +687,35 @@ module.exports = function model(
         sort = normalizeSort(data.sort);
         delete data.sort;
       }
+      let limit = null;
+      if (hasProp(data, "limit")) {
+        limit = parseInt(data.limit, 10);
+        if (isNaN(limit) || limit < 1) limit = null;
+        delete data.limit;
+      }
+      let needCount = true;
+      if (hasProp(data, "count")) {
+        needCount = Boolean(data.count);
+        delete data.count;
+      } else if (limit != null) {
+        needCount = false;
+      }
       let filter = dataToFilter(jsonSafeParse(data), primary_key);
       filter = applySearch(filter, option.search_columns, search);
       if (hooks.beforeFind) {
         const f = await hooks.beforeFind(filter, context);
         if (f !== undefined && Array.isArray(f)) filter = f;
       }
-      const result = await db.get(table, filter, sort, option.safeDelete);
+      const getOptions = {};
+      if (limit != null) getOptions.limit = limit;
+      if (!needCount) getOptions.count = false;
+      const result = await db.get(
+        table,
+        filter,
+        sort,
+        option.safeDelete,
+        getOptions,
+      );
       decryptRows(result.data, encryptionMeta, activeEncryption?.keyring);
       if (select_columns)
         result.data = applySelect(result.data, select_columns);
@@ -760,6 +782,11 @@ module.exports = function model(
       }
       let filter = dataToFilter(jsonSafeParse(data), primary_key);
       filter = applySearch(filter, option.search_columns, search);
+      let needCount = true;
+      if (hasProp(data, "count")) {
+        needCount = Boolean(data.count);
+        delete data.count;
+      }
       if (hooks.beforeFind) {
         const f = await hooks.beforeFind(filter, context);
         if (f !== undefined && Array.isArray(f)) filter = f;
@@ -771,6 +798,7 @@ module.exports = function model(
         option.safeDelete,
         page,
         size,
+        { count: needCount },
       );
       decryptRows(result.data, encryptionMeta, activeEncryption?.keyring);
       if (select_columns)

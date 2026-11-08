@@ -257,6 +257,7 @@ async function list(
   safeDelete = null,
   page = 0,
   limit = 30,
+  _options = {},
 ) {
   const whereData = where(filter, safeDelete);
   if (whereData == null) {

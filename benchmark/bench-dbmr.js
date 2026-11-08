@@ -41,9 +41,7 @@ module.exports = {
     read_pk: (ctx) => ctx.m.byId(ctx.seedIds[(Math.random() * ctx.seedIds.length) | 0]),
 
     find_filter: (ctx) => ctx.m.find({ active: true }),
-    // db-model-router's find() has no LIMIT support — list() is the equivalent
-    // (sort + size<=200). Noted in the report's fairness section.
-    find_sort_limit: (ctx) => ctx.m.list({ active: true, sort: ["+id"], page: 0, size: 20 }),
+    find_sort_limit: (ctx) => ctx.m.find({ active: true, sort: ["+id"], limit: 20 }),
     list_page: (ctx) => ctx.m.list({ page: 0, size: 20 }),
 
     update_pk: (ctx) => {

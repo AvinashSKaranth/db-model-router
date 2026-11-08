@@ -355,7 +355,10 @@ async function get(table, filter = [], sort = [], safeDelete = null, options = {
     sql += ` LIMIT ${parseInt(limit, 10)}`;
   }
   const rows = await query(sql, whereData.value);
-  const c = count !== false ? await qcount(table, filter, safeDelete, columnTypes) : rows.length;
+  const c =
+    count !== false && limit != null
+      ? await qcount(table, filter, safeDelete, columnTypes)
+      : rows.length;
   return { data: jsonSafeParse(rows), count: c };
 }
 
@@ -366,7 +369,9 @@ async function list(
   safeDelete = null,
   page = 0,
   limit = 30,
+  options = {},
 ) {
+  const { count: needCount = true } = options || {};
   const columnTypes = await getTableColumns(table);
   const whereData = where(filter, safeDelete, columnTypes);
   const sortData = sort_builder(sort);
@@ -375,7 +380,10 @@ async function list(
   const offset = page * limit;
   const sql = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query} LIMIT ${limit} OFFSET ${offset}`;
   const rows = await query(sql, whereData.value);
-  const count = await qcount(table, filter, safeDelete, columnTypes);
+  const count =
+    needCount !== false
+      ? await qcount(table, filter, safeDelete, columnTypes)
+      : rows.length;
   return { data: jsonSafeParse(rows), count };
 }
 
@@ -640,50 +648,114 @@ async function upsert(table, data, uniqueKeys = []) {
         ? pk
         : columns.find((c) => uniqueKeys.includes(c));
     if (keyCol) {
-      let lastId = 0;
-      for (const row of array) {
+      if (total === 1) {
         const updateCols = columns.filter((c) => c !== keyCol);
-        if (updateCols.length === 0) continue;
-        const setClause = updateCols
-          .map((c, i) => `${escapeId(c)} = $${i + 1}`)
-          .join(", ");
-        const vals = [
-          ...updateCols.map((c) => sanitizeValue(row[c])),
-          row[keyCol],
-        ];
-        const sql = `UPDATE ${escapeId(table)} SET ${setClause} WHERE ${escapeId(keyCol)} = $${updateCols.length + 1}`;
-        await query(sql, vals);
-        if (row[keyCol]) lastId = row[keyCol];
+        if (updateCols.length > 0) {
+          const setClause = updateCols
+            .map((c, i) => `${escapeId(c)} = $${i + 1}`)
+            .join(", ");
+          const vals = [
+            ...updateCols.map((c) => sanitizeValue(array[0][c])),
+            array[0][keyCol],
+          ];
+          const sql = `UPDATE ${escapeId(table)} SET ${setClause} WHERE ${escapeId(keyCol)} = $${updateCols.length + 1} RETURNING *`;
+          const result = await query(sql, vals);
+          const row = result.rows && result.rows[0];
+          return {
+            rows: 1,
+            message: `1 ${namify(table)} is saved`,
+            type: "success",
+            id: (row && pk && row[pk]) || array[0][keyCol] || 0,
+            record: row ? jsonSafeParse(row) : undefined,
+          };
+        }
       }
-      const response = {
-        rows: total,
-        message:
-          (total === 1
-            ? `1 ${namify(table)} is `
-            : `${total} ${namify(table)}s are `) + "saved",
-        type: "success",
-      };
-      if (total === 1) response.id = lastId;
-      return response;
+
+      // Batch UPDATE for total > 1
+      const updateCols = columns.filter((c) => c !== keyCol);
+      if (updateCols.length > 0) {
+        const columnTypes = await getTableColumns(table);
+        const allCols = [keyCol, ...updateCols];
+        const maxBatch = Math.max(1, Math.floor(65000 / allCols.length));
+        const BATCH_SIZE = Math.min(1000, maxBatch);
+
+        for (let offset = 0; offset < total; offset += BATCH_SIZE) {
+          const batch = array.slice(offset, offset + BATCH_SIZE);
+          let paramIdx = 0;
+          const allParams = [];
+          const valuesClauses = batch.map((row) => {
+            const placeholders = allCols.map((c) => {
+              paramIdx++;
+              allParams.push(sanitizeValue(row[c]));
+              return "$" + paramIdx;
+            });
+            return "(" + placeholders.join(",") + ")";
+          });
+
+          const setClauses = updateCols
+            .map((c) => `${escapeId(c)} = v.${escapeId(c)}${columnTypes[c] ? "::" + columnTypes[c] : ""}`)
+            .join(", ");
+          const vCols = allCols.map(escapeId).join(", ");
+          const keyCast = columnTypes[keyCol] ? `::${columnTypes[keyCol]}` : "";
+
+          const sql = `UPDATE ${escapeId(table)} AS t SET ${setClauses} FROM (VALUES ${valuesClauses.join(",")}) AS v(${vCols}) WHERE t.${escapeId(keyCol)} = v.${escapeId(keyCol)}${keyCast}`;
+          await query(sql, allParams);
+        }
+
+        return {
+          rows: total,
+          message: `${total} ${namify(table)}s are saved`,
+          type: "success",
+        };
+      }
     }
   }
 
   const nonUniqueColumns = columns.filter((c) => !uniqueKeys.includes(c));
   const pk = await getPkColumn(table);
+  const conflictCols = uniqueKeys.map(escapeId).join(",");
+  const colList = columns.map(escapeId).join(",");
+  const updateSetSql = nonUniqueColumns
+    .map((c) => `${escapeId(c)} = EXCLUDED.${escapeId(c)}`)
+    .join(", ");
+
+  // Fast single-record upsert path: 1 round trip, no BEGIN/COMMIT
+  if (total === 1) {
+    const client = await pool.connect();
+    try {
+      const vals = columns.map((c) => sanitizeValue(array[0][c]));
+      const placeholders = columns.map((_, i) => "$" + (i + 1)).join(",");
+      let sql = `INSERT INTO ${escapeId(table)} (${colList}) VALUES (${placeholders}) ON CONFLICT (${conflictCols})`;
+      if (updateSetSql) {
+        sql += ` DO UPDATE SET ${updateSetSql}`;
+      } else {
+        sql += ` DO NOTHING`;
+      }
+      sql += ` RETURNING *`;
+      const result = await client.query(sql, vals);
+      const row = result.rows && result.rows[0];
+      return {
+        rows: 1,
+        message: `1 ${namify(table)} is saved`,
+        type: "success",
+        id: (row && pk && row[pk]) || 0,
+        record: row ? jsonSafeParse(row) : undefined,
+      };
+    } catch (e) {
+      throw mapPgError(e);
+    } finally {
+      client.release();
+    }
+  }
+
   let lastId = 0;
-  let responseRecord = null;
   const maxBatch = Math.max(1, Math.floor(65000 / columns.length));
   const BATCH_SIZE = Math.min(1000, maxBatch);
+  const needTransaction = total > BATCH_SIZE;
 
   const client = await pool.connect();
   try {
-    await client.query("BEGIN");
-
-    const updateSetSql = nonUniqueColumns
-      .map((c) => `${escapeId(c)} = EXCLUDED.${escapeId(c)}`)
-      .join(", ");
-    const conflictCols = uniqueKeys.map(escapeId).join(",");
-    const colList = columns.map(escapeId).join(",");
+    if (needTransaction) await client.query("BEGIN");
 
     for (let offset = 0; offset < total; offset += BATCH_SIZE) {
       const batch = array.slice(offset, offset + BATCH_SIZE);
@@ -704,9 +776,7 @@ async function upsert(table, data, uniqueKeys = []) {
       } else {
         sql += ` DO NOTHING`;
       }
-      if (total === 1) {
-        sql += ` RETURNING *`;
-      } else if (pk) {
+      if (pk) {
         sql += ` RETURNING ${escapeId(pk)}`;
       }
 
@@ -716,33 +786,23 @@ async function upsert(table, data, uniqueKeys = []) {
         if (pk && row[pk]) {
           lastId = row[pk];
         }
-        if (total === 1) {
-          responseRecord = jsonSafeParse(row);
-        }
       }
     }
 
-    await client.query("COMMIT");
+    if (needTransaction) await client.query("COMMIT");
   } catch (e) {
-    await client.query("ROLLBACK").catch(() => {});
+    if (needTransaction) await client.query("ROLLBACK").catch(() => {});
     throw mapPgError(e);
   } finally {
     client.release();
   }
 
-  const response = {
+  return {
     rows: total,
-    message:
-      (total === 1
-        ? `1 ${namify(table)} is `
-        : `${total} ${namify(table)}s are `) + "saved",
+    message: `${total} ${namify(table)}s are saved`,
     type: "success",
+    id: lastId,
   };
-  if (total === 1) {
-    response.id = lastId;
-    if (responseRecord) response.record = responseRecord;
-  }
-  return response;
 }
 
 async function disconnect() {
@@ -797,7 +857,10 @@ async function transaction(fn) {
           sql += ` LIMIT ${parseInt(limit, 10)}`;
         }
         const rows = await txQuery(sql, whereData.value);
-        const c = count !== false ? await txAdapter.qcount(table, filter, safeDelete, columnTypes) : rows.length;
+        const c =
+          count !== false && limit != null
+            ? await txAdapter.qcount(table, filter, safeDelete, columnTypes)
+            : rows.length;
         return { data: jsonSafeParse(rows), count: c };
       },
       list: async (
@@ -807,7 +870,9 @@ async function transaction(fn) {
         safeDelete = null,
         page = 0,
         limit = 30,
+        options = {},
       ) => {
+        const { count: needCount = true } = options || {};
         const columnTypes = await getTableColumns(table);
         const whereData = where(filter, safeDelete, columnTypes);
         const sortData = sort_builder(sort);
@@ -815,7 +880,10 @@ async function transaction(fn) {
         const offset = page * limit;
         const sql = `SELECT * FROM ${escapeId(table)} ${whereData.query} ${sortData.query} LIMIT ${limit} OFFSET ${offset}`;
         const rows = await txQuery(sql, whereData.value);
-        const count = await txAdapter.qcount(table, filter, safeDelete, columnTypes);
+        const count =
+          needCount !== false
+            ? await txAdapter.qcount(table, filter, safeDelete, columnTypes)
+            : rows.length;
         return { data: jsonSafeParse(rows), count };
       },
       qcount: async (table, filter, safeDelete = null, passedColumnTypes = null) => {

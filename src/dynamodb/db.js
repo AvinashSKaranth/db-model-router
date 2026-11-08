@@ -222,14 +222,17 @@ async function list(
   safeDelete = null,
   page = 0,
   limit = 30,
+  options = {},
 ) {
+  const { count: needCount = true } = options || {};
   const whereData = where(filter, safeDelete);
   if (whereData == null) {
     throw new Error(WHERE_INVALID);
   }
 
-  // Get total count first
-  const count = await qcount(table, filter, safeDelete);
+  // Get total count first if requested
+  const count =
+    needCount !== false ? await qcount(table, filter, safeDelete) : 0;
 
   // Scan all matching items (DynamoDB Limit applies before FilterExpression)
   const params = { TableName: tableName(table) };

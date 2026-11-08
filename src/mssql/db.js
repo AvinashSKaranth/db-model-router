@@ -313,7 +313,10 @@ async function get(table, filter = [], sort = [], safeDelete = null, options = {
   }
   const result = await request.query(sqlStr);
   const rows = jsonSafeParse(mapRecordset(result.recordset || []));
-  const c = count !== false ? await qcount(table, filter, safeDelete) : rows.length;
+  const c =
+    count !== false && limit != null
+      ? await qcount(table, filter, safeDelete)
+      : rows.length;
   return { data: rows, count: c };
 }
 
@@ -324,7 +327,9 @@ async function list(
   safeDelete = null,
   page = 0,
   limit = 30,
+  options = {},
 ) {
+  const { count: needCount = true } = options || {};
   const whereData = where(filter, safeDelete);
   const sortData = sort_builder(sort);
   if (whereData == null) throw new Error(WHERE_INVALID);
@@ -340,7 +345,10 @@ async function list(
   }
   const result = await request.query(sqlStr);
   const rows = jsonSafeParse(mapRecordset(result.recordset || []));
-  const count = await qcount(table, filter, safeDelete);
+  const count =
+    needCount !== false
+      ? await qcount(table, filter, safeDelete)
+      : rows.length;
   return { data: rows, count };
 }
 
